@@ -50,3 +50,7 @@
 - ESLint with Next.js rules enabled
 - No Prettier config - follow existing formatting
 - Keep components focused and single-responsibility
+
+## Version Control
+- Use Git for version control
+- Add and commit changes frequently after testing new features or components
