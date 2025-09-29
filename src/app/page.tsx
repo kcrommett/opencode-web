@@ -1,15 +1,16 @@
 "use client";
 
  import { useState, useMemo } from "react";
-  import {
-    Button,
-    Input,
-    Textarea,
-    View,
-    Badge,
-    Pre,
-    Dialog,
-  } from "@/app/_components/ui";
+   import {
+     Button,
+     Input,
+     Textarea,
+     View,
+     Badge,
+     Pre,
+     Dialog,
+     Separator,
+   } from "@/app/_components/ui";
 import { useOpenCodeContext } from "@/contexts/OpenCodeContext";
 import { parseCommand } from "@/lib/commandParser";
 
@@ -515,21 +516,20 @@ export default function OpenCodeChatTUI() {
            <Badge variant={isConnected ? "background2" : "foreground0"} cap="round">
              {isConnected ? "Connected" : "Disconnected"}
            </Badge>
-           <div className="flex gap-1">
-             {["workspace", "files"].map((tab) => (
-               <button
-                 key={tab}
-                 onClick={() => handleTabChange(tab)}
-                 className={`px-3 py-1 text-sm font-medium capitalize rounded transition-colors ${
-                   activeTab === tab
-                     ? "bg-[#89b4fa] text-[#1e1e2e]"
-                     : "text-[#6c7086] hover:text-[#cdd6f4] hover:bg-[#45475a]"
-                 }`}
-               >
-                 {tab}
-               </button>
-             ))}
-           </div>
+            <div className="flex gap-2">
+              {["workspace", "files"].map((tab) => (
+                <Button
+                  key={tab}
+                  onClick={() => handleTabChange(tab)}
+                  variant={activeTab === tab ? "foreground0" : undefined}
+                  box="square"
+                  size="small"
+                  className="capitalize"
+                >
+                  {tab}
+                </Button>
+              ))}
+            </div>
         </div>
         <div className="flex items-center gap-2">
            <Button
@@ -550,19 +550,22 @@ export default function OpenCodeChatTUI() {
            >
              Themes
            </Button>
-        </div>
-      </div>
+         </div>
+       </div>
 
-        {/* Main Content */}
-         <div className="flex-1 flex overflow-hidden">
-         {/* Sidebar */}
-          <div className="w-80 md:w-80 sm:w-full bg-[#313244] flex flex-col">
+         <Separator />
+
+         {/* Main Content */}
+          <div className="flex-1 flex overflow-hidden">
+          {/* Sidebar */}
+           <View box="square" className="w-80 md:w-80 sm:w-full bg-[#313244] flex flex-col">
           <div className="p-4 flex-1 overflow-hidden">
-              {activeTab === "workspace" && (
-                <div className="space-y-4 h-full flex flex-col">
-                  {/* Projects Section */}
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-medium">Projects</h3>
+               {activeTab === "workspace" && (
+                 <div className="space-y-4 h-full flex flex-col">
+                   {/* Projects Section */}
+                   <div className="space-y-4">
+                     <h3 className="text-sm font-medium">Projects</h3>
+                     <Separator />
                     <div className="flex-1 overflow-y-auto space-y-2">
                       {sortedProjects.length > 0 ? (
                         sortedProjects.map((project) => (
@@ -588,13 +591,15 @@ export default function OpenCodeChatTUI() {
                          No projects found
                        </div>
                      )}
-                   </div>
-                 </div>
-                 
-                 {/* Sessions Section */}
-                 <div className="flex-1 flex flex-col">
-                   <div className="flex justify-between items-center mb-4">
-                     <h3 className="text-sm font-medium">Sessions</h3>
+                    </div>
+                  </div>
+                  
+                  <Separator />
+                  
+                  {/* Sessions Section */}
+                  <div className="flex-1 flex flex-col">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-sm font-medium">Sessions</h3>
                      <div className="flex gap-2">
                        <Button
                          variant="foreground0"
@@ -612,9 +617,10 @@ export default function OpenCodeChatTUI() {
                        >
                          New
                        </Button>
-                     </div>
-                   </div>
-                   {!currentProject ? (
+                      </div>
+                    </div>
+                    <Separator className="mb-4" />
+                    {!currentProject ? (
                      <div className="flex-1 flex items-center justify-center text-[#6c7086] text-sm">
                        Select a project first to view sessions
                      </div>
@@ -707,10 +713,11 @@ export default function OpenCodeChatTUI() {
                     size="small"
                     onClick={() => void handleDirectoryOpen(fileDirectory || '.')}
                   >
-                    Refresh
-                  </Button>
-                </div>
-                <div className="space-y-2">
+                     Refresh
+                   </Button>
+                 </div>
+                 <Separator />
+                 <div className="space-y-2">
                   <Input
                     value={fileSearchQuery}
                     onChange={(e) => setFileSearchQuery(e.target.value)}
@@ -724,32 +731,37 @@ export default function OpenCodeChatTUI() {
                     onClick={handleFileSearch}
                     size="small"
                   >
-                    Search
-                  </Button>
-                </div>
-                <div className="flex items-center justify-between text-xs text-[#cdd6f4]">
-                  <div className="flex flex-wrap items-center gap-1">
-                    <button
-                      className="text-[#89b4fa] hover:underline"
-                      onClick={() => void handleDirectoryOpen('.')}
-                    >
-                      root
-                    </button>
-                    {breadcrumbParts.map((part, index) => {
-                      const fullPath = breadcrumbParts.slice(0, index + 1).join('/');
-                      return (
-                        <span key={fullPath} className="flex items-center gap-1">
-                          <span className="text-[#6c7086]">/</span>
-                          <button
-                            className="text-[#89b4fa] hover:underline"
-                            onClick={() => void handleDirectoryOpen(fullPath)}
-                          >
-                            {part}
-                          </button>
-                        </span>
-                      );
-                    })}
-                  </div>
+                     Search
+                   </Button>
+                 </div>
+                 <Separator />
+                 <div className="flex items-center justify-between text-xs text-[#cdd6f4]">
+                   <div className="flex flex-wrap items-center gap-1">
+                     <Button
+                       box="square"
+                       size="small"
+                       onClick={() => void handleDirectoryOpen('.')}
+                       className="!py-1 !px-2 text-xs"
+                     >
+                       root
+                     </Button>
+                     {breadcrumbParts.map((part, index) => {
+                       const fullPath = breadcrumbParts.slice(0, index + 1).join('/');
+                       return (
+                         <span key={fullPath} className="flex items-center gap-1">
+                           <span className="text-[#6c7086]">/</span>
+                           <Button
+                             box="square"
+                             size="small"
+                             onClick={() => void handleDirectoryOpen(fullPath)}
+                             className="!py-1 !px-2 text-xs"
+                           >
+                             {part}
+                           </Button>
+                         </span>
+                       );
+                     })}
+                   </div>
                   <Button
                     variant="foreground0"
                     box="round"
@@ -758,10 +770,11 @@ export default function OpenCodeChatTUI() {
                     onClick={() => void handleNavigateUp()}
                     className="disabled:opacity-40"
                   >
-                    Up
-                  </Button>
-                </div>
-                <div className="flex-1 overflow-y-auto space-y-2">
+                     Up
+                   </Button>
+                 </div>
+                 <Separator />
+                 <div className="flex-1 overflow-y-auto space-y-2">
                    {sortedFiles.length > 0 ? (
                      sortedFiles.map((file) => {
                        const isDirectory = file.type === 'directory';
@@ -809,22 +822,26 @@ export default function OpenCodeChatTUI() {
 
 
           </div>
-        </div>
+        </View>
+
+        <Separator direction="vertical" />
 
         {/* Main Editor Area */}
-        <div className="flex-1 flex flex-col bg-[#1e1e2e]">
+        <View box="square" className="flex-1 flex flex-col bg-[#1e1e2e]">
            {/* Header */}
            <div className="bg-[#313244] px-4 py-2 flex justify-between items-center">
             <div className="flex items-center gap-2">
                  <span className="text-base font-normal text-[#cdd6f4]">
                   OpenCode Chat Sessions: {currentSession?.title || currentSession?.id.slice(0, 8)}... . Project: {currentProject?.worktree}
                 </span>
-              </div>
-           </div>
+               </div>
+            </div>
 
-          {/* Content */}
-           {activeTab === "workspace" && (
-            <div className="flex-1 flex flex-col">
+            <Separator />
+
+           {/* Content */}
+            {activeTab === "workspace" && (
+             <div className="flex-1 flex flex-col">
               {/* Chat Messages */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {messages.length === 0 && !loading && (
@@ -908,22 +925,31 @@ export default function OpenCodeChatTUI() {
                     </View>
                   </div>
                 )}
-              </div>
+               </div>
 
-               {/* Input Area */}
-                <div className="bg-[#313244] p-4">
-                  <div className="mb-2 flex items-center justify-between text-xs opacity-70">
-                    <div className="flex items-center gap-2">
-                      <span>Model: {selectedModel?.name}</span>
-                      <span>•</span>
-                      <span>Session: {currentSession?.title}</span>
-                      {input.startsWith('/') && <span>• Command Mode</span>}
-                    </div>
-                    <Badge key={currentAgent?.id} variant="foreground1" cap="round" className="bg-[#f38ba8] text-[#1e1e2e] border border-[#f38ba8]">
-                      Agent: {currentAgent?.name || 'None'}
-                    </Badge>
-                  </div>
-                 <div className="flex gap-2">
+                <Separator />
+
+                {/* Input Area */}
+                 <div className="bg-[#313244] p-4 space-y-3">
+                   <div className="flex items-start justify-between gap-4">
+                     <div className="flex items-center gap-2 text-xs text-[#cdd6f4]">
+                       <span className="font-medium">Model:</span>
+                       <span className="text-[#89b4fa]">{selectedModel?.name}</span>
+                       <span className="text-[#6c7086]">•</span>
+                       <span className="font-medium">Session:</span>
+                       <span className="text-[#89b4fa]">{currentSession?.title}</span>
+                       {input.startsWith('/') && (
+                         <>
+                           <span className="text-[#6c7086]">•</span>
+                           <span className="text-[#f38ba8] font-medium">Command Mode</span>
+                         </>
+                       )}
+                     </div>
+                     <Badge key={currentAgent?.id} variant="foreground1" cap="round" className="flex-shrink-0">
+                       Agent: {currentAgent?.name || 'None'}
+                     </Badge>
+                   </div>
+                 <div className="flex gap-3 items-end">
                    <div className="flex-1 relative">
                       <Textarea
                         value={input}
@@ -932,7 +958,7 @@ export default function OpenCodeChatTUI() {
                          placeholder="Type your message, Tab to switch agent, /models to select model..."
                         rows={2}
                         size="large"
-                        className="w-full pl-4 bg-[#1e1e2e] text-[#cdd6f4] border-[#89b4fa] resize-none"
+                        className="w-full bg-[#1e1e2e] text-[#cdd6f4] border-[#89b4fa] resize-none"
                       />
                      {showFileSuggestions && fileSuggestions.length > 0 && (
                        <div className="absolute top-full left-0 right-0 bg-[#1e1e2e] border border-[#89b4fa] rounded mt-1 max-h-32 overflow-y-auto z-10">
@@ -950,16 +976,16 @@ export default function OpenCodeChatTUI() {
                          ))}
                        </div>
                      )}
-                   </div>
-                    <Button
-                      variant="foreground0"
-                      box="round"
-                      onClick={handleSend}
-                      disabled={!input.trim()}
-                      className="no-underline"
-                    >
-                      Send
-                    </Button>
+                    </div>
+                     <Button
+                       variant="foreground0"
+                       box="square"
+                       onClick={handleSend}
+                       disabled={!input.trim()}
+                       className="px-6 py-2"
+                     >
+                       Send
+                     </Button>
                  </div>
                </div>
             </div>
@@ -996,12 +1022,12 @@ export default function OpenCodeChatTUI() {
                   Select a file to view its contents
                 </div>
               )}
-            </div>
-          )}
-         </div>
-       </div>
+             </div>
+           )}
+          </View>
+        </div>
 
-        {/* Help Dialog */}
+         {/* Help Dialog */}
         {showHelp && (
           <Dialog
             open={showHelp}
