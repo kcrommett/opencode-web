@@ -14,6 +14,7 @@ export const Checkbox: React.FC<CheckboxProps> = ({
     <label className={className}>
       <input
         type="checkbox"
+        is-="checkbox"
         {...props}
       />
       {children}

@@ -26,15 +26,15 @@ interface Message {
    parts?: Part[];
  }
 
-  interface Session {
-    id: string;
-    title?: string;
-    directory?: string;
-    projectId?: string;
-    createdAt?: Date;
-    updatedAt?: Date;
-    messageCount?: number;
-  }
+   interface Session {
+     id: string;
+     title?: string;
+     directory?: string;
+     projectID?: string; // Changed from projectId to match SDK
+     createdAt?: Date;
+     updatedAt?: Date;
+     messageCount?: number;
+   }
 
  interface Project {
    id: string;
@@ -80,6 +80,37 @@ interface Message {
      description?: string;
    }
 
+   interface ProjectResponse {
+     id: string;
+     worktree: string;
+     vcs?: string;
+     time?: {
+       created?: number;
+       updated?: number;
+     };
+   }
+
+   interface SessionResponse {
+     id: string;
+     title?: string;
+     directory?: string;
+     projectID?: string;
+     time?: {
+       created?: number;
+       updated?: number;
+     };
+   }
+
+   interface FileResponse {
+     path: string;
+     name: string;
+     type: 'file' | 'directory';
+     absolute?: string;
+     ignored?: boolean;
+     size?: number;
+     modifiedAt?: string;
+   }
+
 export function useOpenCode() {
     const [currentSession, setCurrentSession] = useState<Session | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
@@ -109,7 +140,7 @@ export function useOpenCode() {
        const [customCommands, setCustomCommands] = useState<Array<{ name: string; description: string; template: string }>>([]);
        const [agents, setAgents] = useState<Agent[]>([]);
        const [currentAgent, setCurrentAgent] = useState<Agent | null>(null);
-       const [loadedProjects, setLoadedProjects] = useState(false);
+
        const [loadedModels, setLoadedModels] = useState(false);
        const [loadedConfig, setLoadedConfig] = useState(false);
        const [loadedCustomCommands, setLoadedCustomCommands] = useState(false);
@@ -167,7 +198,7 @@ export function useOpenCode() {
          id: session.id,
          title: title || session.title,
          directory: sessionDirectory || session.directory,
-         projectId: session.projectID || currentProject?.id,
+          projectID: session.projectID || currentProject?.id,
          createdAt: session.createdAt ? new Date(session.createdAt) : new Date(),
          updatedAt: session.updatedAt ? new Date(session.updatedAt) : undefined,
        };
@@ -262,237 +293,113 @@ export function useOpenCode() {
      } catch {
        // Silently handle errors when server is unavailable
      }
-  }, []);
-
-   const loadSessions = useCallback(async () => {
-     try {
-       const response = await openCodeService.getSessions();
-       const sessionsArray = (response.data as Array<{ id: string; title?: string; directory?: string; projectID?: string; createdAt?: string | number; updatedAt?: string | number }>) || [];
-       
-        // Filter sessions by current project if selected
-        const filteredSessions = currentProject ? sessionsArray.filter(s => s.projectID === currentProject.id) : sessionsArray;
-       
-       // Load messages for each session to get message count and last updated time
-       const loadedSessions: Session[] = await Promise.all(
-         filteredSessions.map(async (session) => {
-           let messageCount = 0;
-           let updatedAt = session.createdAt ? new Date(session.createdAt) : new Date();
-           
-           try {
-             const messagesResponse = await openCodeService.getMessages(session.id);
-             const messagesArray = (messagesResponse.data as unknown as OpenCodeMessage[]) || [];
-             messageCount = messagesArray.length;
-             
-             // Get the latest message timestamp for updatedAt
-             if (messagesArray.length > 0) {
-               const latestMessage = messagesArray[messagesArray.length - 1];
-               if (latestMessage?.info?.time?.created) {
-                 updatedAt = new Date(latestMessage.info.time.created);
-               }
-             }
-           } catch (error) {
-             console.warn(`Failed to load messages for session ${session.id}:`, error);
-           }
-           
-           return {
-             id: session.id,
-             title: session.title || `Session ${session.id.slice(0, 8)}`,
-             directory: session.directory,
-             projectId: session.projectID,
-             createdAt: new Date(session.createdAt || Date.now()),
-             updatedAt: session.updatedAt ? new Date(session.updatedAt) : updatedAt,
-             messageCount,
-           };
-         })
-       );
-       
-       setSessions(loadedSessions);
-
-        // Restore saved session if it exists in the loaded sessions
-        const savedSessionId = localStorage.getItem('opencode-current-session');
-        if (savedSessionId && !currentSession) {
-          const savedSession = loadedSessions.find(s => s.id === savedSessionId);
-          if (savedSession) {
-            setCurrentSession(savedSession);
-            await loadMessages(savedSessionId);
-            // Set currentProject to the project of this session
-            if (savedSession.projectId && projects.length > 0) {
-              const sessionProject = projects.find(p => p.id === savedSession.projectId);
-              if (sessionProject) {
-                setCurrentProject(sessionProject);
-              }
-            }
-          }
-        }
-
-        // If no current session, set the first session as current
-        if (!currentSession && loadedSessions.length > 0) {
-          const firstSession = loadedSessions[0];
-          setCurrentSession(firstSession);
-          localStorage.setItem('opencode-current-session', firstSession.id);
-          await loadMessages(firstSession.id);
-          // Set currentProject to the project of this session
-          if (firstSession.projectId && projects.length > 0) {
-            const sessionProject = projects.find(p => p.id === firstSession.projectId);
-            if (sessionProject) {
-              setCurrentProject(sessionProject);
-            }
-          }
-        }
-      } catch {
-        // Silently handle errors when server is unavailable
-      }
-    }, [currentSession, loadMessages, currentProject, projects]);
-
-  const switchSession = useCallback(async (sessionId: string) => {
-    const session = sessions.find(s => s.id === sessionId);
-    if (session) {
-      setCurrentSession(session);
-      await loadMessages(sessionId);
-    }
-  }, [sessions, loadMessages]);
-
-   const deleteSession = useCallback(async (sessionId: string) => {
-     try {
-       await openCodeService.deleteSession(sessionId);
-       const remainingSessions = sessions.filter(s => s.id !== sessionId);
-       setSessions(remainingSessions);
-       if (currentSession?.id === sessionId) {
-         setCurrentSession(null);
-         setMessages([]);
-         // Set the next session as current if available
-         if (remainingSessions.length > 0) {
-           const nextSession = remainingSessions[0];
-           setCurrentSession(nextSession);
-           localStorage.setItem('opencode-current-session', nextSession.id);
-           await loadMessages(nextSession.id);
-         }
-       }
-     } catch (error) {
-       console.error('Failed to delete session:', error);
-       throw new Error(handleOpencodeError(error));
-     }
-   }, [currentSession, sessions, loadMessages]);
-
-   const clearAllSessions = useCallback(async () => {
-     try {
-       setLoading(true);
-       // Only clear sessions from the current project
-       const sessionsToDelete = sessions.filter(s => s.projectId === currentProject?.id);
-       for (const session of sessionsToDelete) {
-         await openCodeService.deleteSession(session.id);
-       }
-       // Update local state to remove deleted sessions
-       setSessions(prev => prev.filter(s => s.projectId !== currentProject?.id));
-       // If current session was deleted, clear it
-       if (currentSession && sessionsToDelete.some(s => s.id === currentSession.id)) {
-         setCurrentSession(null);
-         setMessages([]);
-         localStorage.removeItem('opencode-current-session');
-       }
-     } catch (error) {
-       console.error('Failed to clear sessions:', error);
-       throw new Error(handleOpencodeError(error));
-     } finally {
-       setLoading(false);
-     }
-   }, [sessions, currentProject, currentSession]);
-
-   // Load messages when session changes
-   useEffect(() => {
-     if (currentSession) {
-       loadMessages(currentSession.id);
-     }
-   }, [currentSession, loadMessages]);
-
-   // Reload on reconnection
-   useEffect(() => {
-     if (isConnected && currentSession) {
-       loadMessages(currentSession.id);
-     }
-   }, [isConnected, currentSession, loadMessages]);
-
-    // Project management
-     const loadProjects = useCallback(async () => {
-       if (loadedProjects) return;
-       try {
-         console.log('Loading projects...');
-         const response = await openCodeService.listProjects();
-         console.log('Projects response:', response);
-         const projectsArray: Project[] = Array.isArray(response.data) ? response.data : [];
-         console.log('Projects array:', projectsArray);
-         setProjects(projectsArray);
-         setLoadedProjects(true);
-         if (projectsArray.length > 0 && !currentProject) {
-           setCurrentProject(projectsArray[0]);
-         }
-       } catch {
-          // Silently handle errors when server is unavailable
-          // Fallback: Set some dummy projects for testing
-          const dummyProjects: Project[] = [
-            { id: '1', worktree: '/path/to/project1' },
-            { id: '2', worktree: '/path/to/project2' }
-          ];
-         setProjects(dummyProjects);
-         setLoadedProjects(true);
-         if (!currentProject) {
-           setCurrentProject(dummyProjects[0]);
-         }
-       }
-     }, [currentProject, loadedProjects]);
-
-    const switchProject = useCallback(async (projectId: string) => {
-      const project = projects.find(p => p.id === projectId);
-      if (project) {
-        setCurrentProject(project);
-        await loadSessions(); // Reload sessions for the new project
-      }
-    }, [projects, loadSessions]);
-
-     // File operations
-     const normalizePath = (path: string): string => {
-       if (!path || path.trim() === '' || path === '.') {
-         return '.';
-       }
-       const trimmed = path.replace(/^\.\/?/, '').replace(/^\//, '').replace(/\/$/, '');
-       return trimmed === '' ? '.' : trimmed;
-     };
-
-     const loadFiles = useCallback(async (path: string = '.') => {
-       try {
-         const baseDirectory = currentProject?.worktree ?? currentPath ?? undefined;
-         const normalizedPath = normalizePath(path);
-         const queryPath = normalizedPath === '.' ? '.' : normalizedPath;
-         const response = await openCodeService.listFiles(queryPath, baseDirectory);
-         const filesArray = Array.isArray(response.data) ? response.data : [];
-          const normalizedFiles: FileInfo[] = filesArray
-            .filter((file) => !file.ignored)
-            .map((file) => ({
-              path: file.path,
-              name: file.name || file.path.split('/').pop() || file.path,
-              type: file.type,
-              absolute: file.absolute,
-              ignored: file.ignored,
-            }));
-
-         setFileDirectory((prev) => (prev === normalizedPath ? prev : normalizedPath));
-         setFiles(normalizedFiles);
-       } catch (error) {
-         console.error('Failed to load files:', error);
-         setFiles([]);
-       }
-      }, [currentProject, currentPath]);
-
-   const searchFiles = useCallback(async (query: string) => {
-     try {
-       const response = await openCodeService.findFiles(query);
-       const filePaths = Array.isArray(response.data) ? response.data : [];
-       return filePaths;
-     } catch (error) {
-       console.error('Failed to search files:', error);
-       return [];
-     }
    }, []);
+
+   const loadProjects = useCallback(async () => {
+     try {
+       const response = await openCodeService.listProjects(currentPath);
+       const data = response.data || [];
+       const projectsData: Project[] = (Array.isArray(data) ? data : []).map((project: ProjectResponse) => ({
+         id: project.id,
+         worktree: project.worktree,
+         vcs: project.vcs,
+         createdAt: project.time?.created ? new Date(project.time.created * 1000) : undefined,
+         updatedAt: project.time?.updated ? new Date(project.time.updated * 1000) : undefined,
+       }));
+        setProjects(projectsData);
+     } catch (error) {
+       console.error('Failed to load projects:', error);
+     }
+   }, [currentPath]);
+
+    const loadSessions = useCallback(async () => {
+      try {
+        const response = await openCodeService.getSessions(currentProject?.worktree);
+        const data = response.data || [];
+        const sessionsData: Session[] = data.map((session: SessionResponse) => ({
+          id: session.id,
+          title: session.title,
+          directory: session.directory,
+          projectID: session.projectID,
+          createdAt: session.time?.created ? new Date(session.time.created * 1000) : undefined,
+          updatedAt: session.time?.updated ? new Date(session.time.updated * 1000) : undefined,
+          messageCount: undefined, // Session objects don't include parts/message count
+        }));
+        setSessions(sessionsData);
+      } catch (error) {
+        console.error('Failed to load sessions:', error);
+      }
+    }, [currentProject?.worktree]);
+
+    const switchSession = useCallback(async (sessionId: string) => {
+      try {
+        const session = sessions.find(s => s.id === sessionId);
+        if (session) {
+          setCurrentSession(session);
+          await loadMessages(sessionId);
+        }
+      } catch (error) {
+        console.error('Failed to switch session:', error);
+      }
+    }, [sessions, loadMessages]);
+
+    const deleteSession = useCallback(async (sessionId: string) => {
+      try {
+        await openCodeService.deleteSession(sessionId);
+        setSessions(prev => prev.filter(s => s.id !== sessionId));
+        if (currentSession?.id === sessionId) {
+          setCurrentSession(null);
+          setMessages([]);
+        }
+      } catch (error) {
+        console.error('Failed to delete session:', error);
+      }
+    }, [currentSession]);
+
+    const clearAllSessions = useCallback(async () => {
+      try {
+        for (const session of sessions) {
+          await openCodeService.deleteSession(session.id);
+        }
+        setSessions([]);
+        setCurrentSession(null);
+        setMessages([]);
+      } catch (error) {
+        console.error('Failed to clear sessions:', error);
+      }
+    }, [sessions]);
+
+    const switchProject = useCallback(async (project: Project) => {
+      try {
+        setCurrentProject(project);
+        setCurrentSession(null);
+        setMessages([]);
+        setSessions([]);
+        await loadSessions();
+      } catch (error) {
+        console.error('Failed to switch project:', error);
+      }
+    }, [loadSessions]);
+
+    const loadFiles = useCallback(async (directory?: string) => {
+      try {
+        const targetDirectory = directory || fileDirectory;
+        const response = await openCodeService.listFiles(targetDirectory);
+        const data = response.data || [];
+        const filesData: FileInfo[] = Array.isArray(data) ? data.map((file: FileResponse) => ({
+          path: file.path,
+          name: file.name,
+          type: file.type,
+          absolute: file.absolute,
+          ignored: file.ignored,
+          size: file.size,
+          modifiedAt: file.modifiedAt ? new Date(file.modifiedAt) : undefined,
+        })) : [];
+        setFiles(filesData);
+      } catch (error) {
+        console.error('Failed to load files:', error);
+      }
+    }, [fileDirectory]);
 
    const readFile = useCallback(async (filePath: string) => {
       try {
@@ -531,7 +438,18 @@ export function useOpenCode() {
         console.error('Failed to search text:', error);
         return [];
       }
-    }, []);
+     }, []);
+
+     const searchFiles = useCallback(async (query: string) => {
+       try {
+         const response = await openCodeService.findFiles(query);
+         const results = Array.isArray(response.data) ? response.data : [];
+         return results;
+       } catch (error) {
+         console.error('Failed to search files:', error);
+         return [];
+       }
+     }, []);
 
      const loadCustomCommands = useCallback(async () => {
        if (loadedCustomCommands) return;
@@ -701,11 +619,11 @@ export function useOpenCode() {
         // Silently handle errors when server is unavailable
         loadedAgentsRef.current = true;
       }
-    }, [currentAgent]);
+     }, [currentAgent]);
 
-    const selectAgent = useCallback((agent: Agent) => {
-      setCurrentAgent(agent);
-    }, []);
+     const selectAgent = useCallback((agent: Agent) => {
+       setCurrentAgent(agent);
+     }, []);
 
      // Load sessions on mount
       useEffect(() => {

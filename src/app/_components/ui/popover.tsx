@@ -25,7 +25,7 @@ export const Popover: React.FC<PopoverProps> = ({
   const popoverProps: Record<string, string> = {};
 
   if (position) {
-    popoverProps[`position-`] = position;
+    popoverProps[`data-position`] = position;
   }
 
   return (

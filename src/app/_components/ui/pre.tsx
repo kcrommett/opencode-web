@@ -15,11 +15,12 @@ export const Pre: React.FC<PreProps> = ({
   const preProps: Record<string, string> = {};
 
   if (size) {
-    preProps[`size-`] = size;
+    preProps[`data-size`] = size;
   }
 
   return (
     <pre
+      is-="pre"
       className={className}
       {...preProps}
       {...props}

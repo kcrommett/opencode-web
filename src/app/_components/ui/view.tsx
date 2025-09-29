@@ -17,15 +17,16 @@ export const View: React.FC<ViewProps> = ({
   const viewProps: Record<string, string> = {};
 
   if (box) {
-    viewProps[`box-`] = box;
+    viewProps[`data-box`] = box;
   }
 
   if (shear) {
-    viewProps[`shear-`] = shear;
+    viewProps[`data-shear`] = shear;
   }
 
   return (
     <div
+      is-="view"
       className={className}
       {...viewProps}
       {...props}

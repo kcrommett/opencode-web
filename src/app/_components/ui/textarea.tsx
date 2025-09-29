@@ -13,11 +13,12 @@ export const Textarea: React.FC<TextareaProps> = ({
   const textareaProps: Record<string, string> = {};
 
   if (size) {
-    textareaProps[`size-`] = size;
+    textareaProps[`data-size`] = size;
   }
 
   return (
     <textarea
+      is-="textarea"
       className={className}
       {...textareaProps}
       {...props}

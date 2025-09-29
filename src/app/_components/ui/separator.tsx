@@ -15,11 +15,11 @@ export const Separator: React.FC<SeparatorProps> = ({
   const separatorProps: Record<string, string> = {};
 
   if (direction && direction !== 'horizontal') {
-    separatorProps[`direction-`] = direction;
+    separatorProps[`data-direction`] = direction;
   }
 
   if (cap) {
-    separatorProps[`cap-`] = cap;
+    separatorProps[`data-cap`] = cap;
   }
 
   return (

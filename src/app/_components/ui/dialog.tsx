@@ -17,15 +17,16 @@ export const Dialog: React.FC<DialogProps> = ({
   const dialogProps: Record<string, string> = {};
 
   if (size) {
-    dialogProps[`size-`] = size;
+    dialogProps[`data-size`] = size;
   }
 
   if (container) {
-    dialogProps[`container-`] = container;
+    dialogProps[`data-container`] = container;
   }
 
   return (
     <dialog
+      is-="dialog"
       className={className}
       {...dialogProps}
       {...props}

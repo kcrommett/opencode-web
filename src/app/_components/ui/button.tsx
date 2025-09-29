@@ -19,19 +19,20 @@ export const Button: React.FC<ButtonProps> = ({
   const buttonProps: Record<string, string> = {};
 
   if (variant) {
-    buttonProps[`variant-`] = variant;
+    buttonProps[`data-variant`] = variant;
   }
 
   if (box) {
-    buttonProps[`box-`] = box;
+    buttonProps[`data-box`] = box;
   }
 
   if (size) {
-    buttonProps[`size-`] = size;
+    buttonProps[`data-size`] = size;
   }
 
   return (
     <button
+      is-="button"
       className={className}
       {...buttonProps}
       {...props}

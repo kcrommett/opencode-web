@@ -10,6 +10,7 @@ export const Progress: React.FC<ProgressProps> = ({
 }) => {
   return (
     <progress
+      is-="progress"
       className={className}
       {...props}
     />

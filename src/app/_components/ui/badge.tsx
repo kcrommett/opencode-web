@@ -16,11 +16,11 @@ export const Badge: React.FC<BadgeProps> = ({
   const badgeProps: Record<string, string> = {};
 
   if (variant) {
-    badgeProps[`variant-`] = variant;
+    badgeProps[`data-variant`] = variant;
   }
 
   if (cap) {
-    badgeProps[`cap-`] = cap;
+    badgeProps[`data-cap`] = cap;
   }
 
   return (

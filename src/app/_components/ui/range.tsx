@@ -11,6 +11,7 @@ export const Range: React.FC<RangeProps> = ({
   return (
     <input
       type="range"
+      is-="range"
       className={className}
       {...props}
     />

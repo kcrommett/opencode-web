@@ -36,7 +36,7 @@ export const Table: React.FC<TableProps> = ({
   ...props
 }) => {
   return (
-    <table className={className} {...props}>
+    <table is-="table" className={className} {...props}>
       {children}
     </table>
   );

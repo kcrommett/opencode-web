@@ -403,9 +403,9 @@ export default function OpenCodeChatTUI() {
    };
 
   // New feature handlers
-  const handleProjectSwitch = async (projectId: string) => {
+  const handleProjectSwitch = async (project: typeof projects[0]) => {
     try {
-      await switchProject(projectId);
+      await switchProject(project);
     } catch (err) {
       console.error("Failed to switch project:", err);
     }
@@ -498,7 +498,7 @@ export default function OpenCodeChatTUI() {
    };
 
   return (
-    <div className="min-h-screen bg-[#1e1e2e] text-[#cdd6f4] font-mono">
+     <div className="h-screen bg-[#1e1e2e] text-[#cdd6f4] font-mono overflow-hidden flex flex-col">
        {/* Top Bar */}
         <div className="bg-[#313244] px-4 py-2 flex items-center justify-between">
           {!isConnected && (
@@ -553,8 +553,8 @@ export default function OpenCodeChatTUI() {
         </div>
       </div>
 
-       {/* Main Content */}
-        <div className="flex h-[calc(90vh-54px)]">
+        {/* Main Content */}
+         <div className="flex-1 flex overflow-hidden">
          {/* Sidebar */}
           <div className="w-80 md:w-80 sm:w-full bg-[#313244] flex flex-col">
           <div className="p-4 flex-1 overflow-hidden">
@@ -573,7 +573,7 @@ export default function OpenCodeChatTUI() {
                                 ? "bg-[#89b4fa] text-[#1e1e2e]"
                                 : "bg-[#1e1e2e] hover:bg-[#45475a]"
                             }`}
-                            onClick={() => handleProjectSwitch(project.id)}
+                            onClick={() => handleProjectSwitch(project)}
                           >
                             <div className="font-medium text-sm">
                               {project.worktree}
@@ -632,8 +632,11 @@ export default function OpenCodeChatTUI() {
                            Project: {currentProject.worktree}
                          </div>
                        </div>
-                       <div className="flex-1 overflow-y-auto space-y-2 max-h-96">
-                         {sessions.map((session) => (
+                        <div className="flex-1 overflow-y-auto space-y-2 max-h-96">
+                           {sessions.filter(session => 
+                             session.projectID === currentProject?.id || 
+                             session.directory === currentProject?.worktree
+                           ).map((session) => (
                            <div
                              key={session.id}
                              className={`p-2 rounded cursor-pointer transition-colors ${
@@ -998,13 +1001,13 @@ export default function OpenCodeChatTUI() {
          </div>
        </div>
 
-       {/* Help Dialog */}
-       {showHelp && (
-         <Dialog
-           open={showHelp}
-           onClose={() => setShowHelp(false)}
-           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-         >
+        {/* Help Dialog */}
+        {showHelp && (
+          <Dialog
+            open={showHelp}
+            onClose={() => setShowHelp(false)}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          >
            <div className="bg-[#1e1e2e] p-6 rounded-lg max-w-md w-full mx-4">
              <h2 className="text-lg font-bold mb-4">Help</h2>
              <p className="text-sm mb-4">Welcome to OpenCode Web! This is a web-based interface for OpenCode.</p>
@@ -1021,13 +1024,13 @@ export default function OpenCodeChatTUI() {
          </Dialog>
        )}
 
-        {/* Themes Dialog */}
-        {showThemes && (
-          <Dialog
-            open={showThemes}
-            onClose={() => setShowThemes(false)}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-          >
+         {/* Themes Dialog */}
+         {showThemes && (
+           <Dialog
+             open={showThemes}
+             onClose={() => setShowThemes(false)}
+             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+           >
             <div className="bg-[#1e1e2e] p-6 rounded-lg max-w-md w-full mx-4">
               <h2 className="text-lg font-bold mb-4">Themes</h2>
               <p className="text-sm mb-4">Theme selection is not yet implemented.</p>
@@ -1041,13 +1044,13 @@ export default function OpenCodeChatTUI() {
           </Dialog>
         )}
 
-        {/* Onboarding Dialog */}
-        {showOnboarding && (
-          <Dialog
-            open={showOnboarding}
-            onClose={() => setShowOnboarding(false)}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-          >
+         {/* Onboarding Dialog */}
+         {showOnboarding && (
+           <Dialog
+             open={showOnboarding}
+             onClose={() => setShowOnboarding(false)}
+             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+           >
             <div className="bg-[#1e1e2e] p-6 rounded-lg max-w-md w-full mx-4">
               <h2 className="text-lg font-bold mb-4">Connect to OpenCode Server</h2>
               <p className="text-sm mb-4">Enter your OpenCode server URL:</p>
@@ -1070,13 +1073,13 @@ export default function OpenCodeChatTUI() {
           </Dialog>
         )}
 
-        {/* Model Picker Dialog */}
-        {showModelPicker && (
-          <Dialog
-            open={showModelPicker}
-            onClose={() => setShowModelPicker(false)}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-          >
+         {/* Model Picker Dialog */}
+         {showModelPicker && (
+           <Dialog
+             open={showModelPicker}
+             onClose={() => setShowModelPicker(false)}
+             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+           >
             <div className="bg-[#1e1e2e] p-6 rounded-lg max-w-md w-full mx-4 max-h-[80vh] overflow-hidden">
               <h2 className="text-lg font-bold mb-4">Select Model</h2>
               <div className="mb-4">

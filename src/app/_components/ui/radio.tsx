@@ -14,6 +14,7 @@ export const Radio: React.FC<RadioProps> = ({
     <label className={className}>
       <input
         type="radio"
+        is-="radio"
         {...props}
       />
       {children}

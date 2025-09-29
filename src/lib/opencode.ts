@@ -34,9 +34,11 @@ const client = createOpencodeClient({
        },
 
        // Project methods
-       async listProjects() {
+       async listProjects(directory?: string) {
            try {
-               const response = await client.project.list();
+               const response = await client.project.list({
+                   query: directory ? { directory } : undefined
+               });
                return { data: response, error: null };
             } catch (error) {
                 // Silently handle errors when server is unavailable
@@ -44,15 +46,17 @@ const client = createOpencodeClient({
             }
        },
 
-      async getCurrentProject() {
-          try {
-              const response = await client.project.current();
-              return { data: response };
-           } catch (error) {
-               // Silently handle errors when server is unavailable
-               throw error;
-           }
-      },
+       async getCurrentProject(directory?: string) {
+           try {
+               const response = await client.project.current({
+                   query: directory ? { directory } : undefined
+               });
+               return { data: response };
+            } catch (error) {
+                // Silently handle errors when server is unavailable
+                throw error;
+            }
+       },
 
       // Path methods
       async getCurrentPath() {
@@ -127,11 +131,27 @@ const client = createOpencodeClient({
           return { data: response };
       },
 
-      async getSessions() {
-          const response = await client.session.list();
-          const data = Array.isArray(response) ? response : (response && 'data' in response ? response.data : []);
-          return { data };
-      },
+        async getSessions(directory?: string) {
+            try {
+                const response = await client.session.list({
+                    query: directory ? { directory } : undefined
+                });
+                let data = [];
+                if (Array.isArray(response)) {
+                    data = response;
+                } else if (response && typeof response === 'object') {
+                    if ('data' in response && Array.isArray(response.data)) {
+                        data = response.data;
+                    } else if ('sessions' in response && Array.isArray(response.sessions)) {
+                        data = response.sessions;
+                    }
+                }
+                return { data };
+            } catch (error) {
+                console.error('Error in getSessions:', error);
+                return { data: [] };
+            }
+        },
 
       async getSession(sessionId: string) {
           try {
@@ -488,6 +508,63 @@ const client = createOpencodeClient({
             } catch (error) {
                 // Silently handle errors when server is unavailable
                 return { data: null, error: handleOpencodeError(error) };
+            }
+       },
+
+       // Tool methods
+       async getToolIds() {
+           try {
+               const response = await client.tool.ids();
+               return { data: response };
+            } catch (error) {
+                throw error;
+            }
+       },
+
+       async getTools(provider: string, model: string, directory?: string) {
+           try {
+               const response = await client.tool.list({
+                   query: { provider, model, directory }
+               });
+               return { data: response };
+            } catch (error) {
+                throw error;
+            }
+       },
+
+       // Session children methods
+       async getSessionChildren(sessionId: string, directory?: string) {
+           try {
+               const response = await client.session.children({
+                   path: { id: sessionId },
+                   query: directory ? { directory } : undefined
+               });
+               return { data: response };
+            } catch (error) {
+                throw error;
+            }
+       },
+
+       // Permission methods
+       async respondToPermission(sessionId: string, permissionId: string, response: 'once' | 'always' | 'reject') {
+           try {
+               const result = await client.postSessionIdPermissionsPermissionId({
+                   path: { id: sessionId, permissionID: permissionId },
+                   body: { response }
+               });
+               return { data: result };
+            } catch (error) {
+                throw error;
+            }
+       },
+
+       // Command methods
+       async getCommands() {
+           try {
+               const response = await client.command.list();
+               return { data: response };
+            } catch (error) {
+                throw error;
             }
        }
   }

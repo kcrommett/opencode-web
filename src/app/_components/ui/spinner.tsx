@@ -13,7 +13,7 @@ export const Spinner: React.FC<SpinnerProps> = ({
   const spinnerProps: Record<string, string> = {};
 
   if (size) {
-    spinnerProps[`size-`] = size;
+    spinnerProps[`data-size`] = size;
   }
 
   return (

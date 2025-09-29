@@ -13,11 +13,12 @@ export const Input: React.FC<InputProps> = ({
   const inputProps: Record<string, string> = {};
 
   if (size) {
-    inputProps[`size-`] = size;
+    inputProps[`data-size`] = size;
   }
 
   return (
     <input
+      is-="input"
       className={className}
       {...inputProps}
       {...props}
