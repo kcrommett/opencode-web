@@ -15,10 +15,10 @@ const client = createOpencodeClient({
                const response = await client.app.agents();
                console.log('Agents response:', response);
                return { data: response, error: null };
-           } catch (error) {
-               console.error('Get agents failed:', error);
-               return { data: null, error: handleOpencodeError(error) };
-           }
+            } catch (error) {
+                // Silently handle errors when server is unavailable
+                return { data: null, error: handleOpencodeError(error) };
+            }
        },
 
        async log(message: string, level: 'info' | 'error' | 'debug' | 'warn' = 'info', service: string = 'opencode-web') {
@@ -27,10 +27,10 @@ const client = createOpencodeClient({
                    body: { message, level, service }
                });
                return { data: response, error: null };
-           } catch (error) {
-               console.error('Log failed:', error);
-               return { data: null, error: handleOpencodeError(error) };
-           }
+            } catch (error) {
+                // Silently handle errors when server is unavailable
+                return { data: null, error: handleOpencodeError(error) };
+            }
        },
 
        // Project methods
@@ -38,20 +38,20 @@ const client = createOpencodeClient({
            try {
                const response = await client.project.list();
                return { data: response, error: null };
-           } catch (error) {
-               console.error('List projects failed:', error);
-               return { data: null, error: handleOpencodeError(error) };
-           }
+            } catch (error) {
+                // Silently handle errors when server is unavailable
+                return { data: null, error: handleOpencodeError(error) };
+            }
        },
 
       async getCurrentProject() {
           try {
               const response = await client.project.current();
               return { data: response };
-          } catch (error) {
-              console.error('Get current project failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       // Path methods
@@ -59,10 +59,10 @@ const client = createOpencodeClient({
           try {
               const response = await client.path.get();
               return { data: response };
-          } catch (error) {
-              console.error('Get current path failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       // Config methods
@@ -70,20 +70,20 @@ const client = createOpencodeClient({
           try {
               const response = await client.config.get();
               return { data: response };
-          } catch (error) {
-              console.error('Get config failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       async getProviders() {
           try {
               const response = await client.config.providers();
               return { data: response };
-          } catch (error) {
-              console.error('Get providers failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       // Session methods
@@ -98,10 +98,10 @@ const client = createOpencodeClient({
                 });
                 console.log('Session creation response:', response);
                 return { data: response, error: null };
-            } catch (error) {
-                console.error('Session creation failed:', error);
-                return { data: null, error: handleOpencodeError(error) };
-            }
+             } catch (error) {
+                 // Silently handle errors when server is unavailable
+                 return { data: null, error: handleOpencodeError(error) };
+             }
        },
 
        async sendMessage(sessionId: string, content: string, providerID: string = "anthropic", modelID: string = "claude-3-5-sonnet-20241022") {
@@ -114,10 +114,10 @@ const client = createOpencodeClient({
                    }
                });
                return { data: response, error: null };
-           } catch (error) {
-               console.error('Send message failed:', error);
-               return { data: null, error: handleOpencodeError(error) };
-           }
+            } catch (error) {
+                // Silently handle errors when server is unavailable
+                return { data: null, error: handleOpencodeError(error) };
+            }
        },
 
       async getMessages(sessionId: string) {
@@ -137,10 +137,10 @@ const client = createOpencodeClient({
           try {
               const response = await client.session.get({ path: { id: sessionId } });
               return { data: response };
-          } catch (error) {
-              console.error('Get session failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       async updateSession(sessionId: string, updates: { title?: string; directory?: string }) {
@@ -150,10 +150,10 @@ const client = createOpencodeClient({
                   body: updates
               });
               return { data: response };
-          } catch (error) {
-              console.error('Update session failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       async deleteSession(sessionId: string) {
@@ -164,10 +164,10 @@ const client = createOpencodeClient({
               });
               console.log('Session deletion response:', response);
               return { data: response };
-          } catch (error) {
-              console.error('Session deletion failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       async deleteAllSessions() {
@@ -185,50 +185,50 @@ const client = createOpencodeClient({
                   )
               );
               return { data: sessions.map((session) => session.id) };
-          } catch (error) {
-              console.error('Delete all sessions failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       async initSession(sessionId: string) {
           try {
               const response = await client.session.init({ path: { id: sessionId } });
               return { data: response };
-          } catch (error) {
-              console.error('Init session failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       async abortSession(sessionId: string) {
           try {
               const response = await client.session.abort({ path: { id: sessionId } });
               return { data: response };
-          } catch (error) {
-              console.error('Abort session failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       async shareSession(sessionId: string) {
           try {
               const response = await client.session.share({ path: { id: sessionId } });
               return { data: response };
-          } catch (error) {
-              console.error('Share session failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       async unshareSession(sessionId: string) {
           try {
               const response = await client.session.unshare({ path: { id: sessionId } });
               return { data: response };
-          } catch (error) {
-              console.error('Unshare session failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       async summarizeSession(sessionId: string) {
@@ -237,10 +237,10 @@ const client = createOpencodeClient({
                   path: { id: sessionId }
               });
               return { data: response };
-          } catch (error) {
-              console.error('Summarize session failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       async getSessionMessage(sessionId: string, messageID: string) {
@@ -249,10 +249,10 @@ const client = createOpencodeClient({
                   path: { id: sessionId, messageID }
               });
               return { data: response };
-          } catch (error) {
-              console.error('Get session message failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       async sendCommand(sessionId: string, command: string, args: string = '') {
@@ -262,10 +262,10 @@ const client = createOpencodeClient({
                   body: { command, arguments: args }
               });
               return { data: response };
-          } catch (error) {
-              console.error('Send command failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       async runShell(sessionId: string, command: string, agent: string = 'bash') {
@@ -275,10 +275,10 @@ const client = createOpencodeClient({
                   body: { command, agent }
               });
               return { data: response };
-          } catch (error) {
-              console.error('Run shell failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       async revertMessage(sessionId: string, messageID: string) {
@@ -288,20 +288,20 @@ const client = createOpencodeClient({
                   body: { messageID }
               });
               return { data: response };
-          } catch (error) {
-              console.error('Revert message failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       async unrevertMessage(sessionId: string) {
           try {
               const response = await client.session.unrevert({ path: { id: sessionId } });
               return { data: response };
-          } catch (error) {
-              console.error('Unrevert message failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       // File methods
@@ -309,30 +309,30 @@ const client = createOpencodeClient({
           try {
               const response = await client.find.text({ query: { pattern: query } });
               return { data: response };
-          } catch (error) {
-              console.error('Search text failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
        async findFiles(query: string) {
            try {
                const response = await client.find.files({ query: { query } });
                return { data: response };
-           } catch (error) {
-               console.error('Find files failed:', error);
-               throw error;
-           }
+            } catch (error) {
+                // Silently handle errors when server is unavailable
+                throw error;
+            }
        },
 
        async findSymbols(query: string) {
            try {
                const response = await client.find.symbols({ query: { query } });
                return { data: response };
-           } catch (error) {
-               console.error('Find symbols failed:', error);
-               throw error;
-           }
+            } catch (error) {
+                // Silently handle errors when server is unavailable
+                throw error;
+            }
        },
 
        async listFiles(path: string, directory?: string) {
@@ -343,10 +343,10 @@ const client = createOpencodeClient({
                }
                const response = await client.file.list({ query });
                return { data: response };
-           } catch (error) {
-               console.error('List files failed:', error);
-               throw error;
-           }
+            } catch (error) {
+                // Silently handle errors when server is unavailable
+                throw error;
+            }
        },
 
        async readFile(filePath: string, directory?: string) {
@@ -357,10 +357,10 @@ const client = createOpencodeClient({
                }
                const response = await client.file.read({ query });
                return { data: response };
-           } catch (error) {
-               console.error('Read file failed:', error);
-               throw error;
-           }
+            } catch (error) {
+                // Silently handle errors when server is unavailable
+                throw error;
+            }
        },
 
         async getFileStatus(directory?: string) {
@@ -368,10 +368,10 @@ const client = createOpencodeClient({
                 const query = typeof directory === 'string' && directory.length > 0 ? { directory } : undefined;
                 const response = query ? await client.file.status({ query }) : await client.file.status();
                 return { data: response };
-            } catch (error) {
-                console.error('Get file status failed:', error);
-                throw error;
-            }
+             } catch (error) {
+                 // Silently handle errors when server is unavailable
+                 throw error;
+             }
         },
 
        // TUI methods
@@ -380,90 +380,90 @@ const client = createOpencodeClient({
           try {
               const response = await client.tui.appendPrompt({ body: { text } });
               return { data: response };
-          } catch (error) {
-              console.error('Append prompt failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       async openHelp() {
           try {
               const response = await client.tui.openHelp();
               return { data: response };
-          } catch (error) {
-              console.error('Open help failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       async openSessions() {
           try {
               const response = await client.tui.openSessions();
               return { data: response };
-          } catch (error) {
-              console.error('Open sessions failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       async openThemes() {
           try {
               const response = await client.tui.openThemes();
               return { data: response };
-          } catch (error) {
-              console.error('Open themes failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       async openModels() {
           try {
               const response = await client.tui.openModels();
               return { data: response };
-          } catch (error) {
-              console.error('Open models failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       async submitPrompt() {
           try {
               const response = await client.tui.submitPrompt();
               return { data: response };
-          } catch (error) {
-              console.error('Submit prompt failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       async clearPrompt() {
           try {
               const response = await client.tui.clearPrompt();
               return { data: response };
-          } catch (error) {
-              console.error('Clear prompt failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       async executeCommand(command: string) {
           try {
               const response = await client.tui.executeCommand({ body: { command } });
               return { data: response };
-          } catch (error) {
-              console.error('Execute command failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       async showToast(message: string, variant: 'success' | 'error' | 'warning' | 'info' = 'info') {
           try {
               const response = await client.tui.showToast({ body: { message, variant } });
               return { data: response };
-          } catch (error) {
-              console.error('Show toast failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
       // Auth methods (simplified for now)
@@ -474,10 +474,10 @@ const client = createOpencodeClient({
                   body: { type, key }
               });
               return { data: response };
-          } catch (error) {
-              console.error('Set auth failed:', error);
-              throw error;
-          }
+           } catch (error) {
+               // Silently handle errors when server is unavailable
+               throw error;
+           }
       },
 
        // Events methods
@@ -485,26 +485,26 @@ const client = createOpencodeClient({
            try {
                const response = await client.event.subscribe();
                return { data: response, error: null };
-           } catch (error) {
-               console.error('Subscribe to events failed:', error);
-               return { data: null, error: handleOpencodeError(error) };
-           }
+            } catch (error) {
+                // Silently handle errors when server is unavailable
+                return { data: null, error: handleOpencodeError(error) };
+            }
        }
   }
 
 
 export function handleOpencodeError(error: unknown): string {
-      console.error('OpenCode Error Details:', error);
-      
-      if (error && typeof error === 'object' && 'status' in error) {
-          const apiError = error as { status: number; message?: string }
-          return `API Error (${apiError.status}): ${apiError.message || 'Unknown error'}`
-      }
-      if (error && typeof error === 'object' && 'message' in error) {
-          return (error as { message: string }).message
-      }
-      if (error instanceof Error) {
-          return error.message
-      }
-      return `Unknown error occurred: ${JSON.stringify(error)}`
- }
+       // Silently handle errors when server is unavailable
+       
+       if (error && typeof error === 'object' && 'status' in error) {
+           const apiError = error as { status: number; message?: string }
+           return `API Error (${apiError.status}): ${apiError.message || 'Unknown error'}`
+       }
+       if (error && typeof error === 'object' && 'message' in error) {
+           return (error as { message: string }).message
+       }
+       if (error instanceof Error) {
+           return error.message
+       }
+       return `Unknown error occurred: ${JSON.stringify(error)}`
+  }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+ import { useState, useEffect, useCallback, useRef } from 'react';
 import { openCodeService, handleOpencodeError } from '@/lib/opencode';
 import type { Part } from "../../node_modules/@opencode-ai/sdk/dist/gen/types.gen";
 
@@ -69,10 +69,16 @@ interface Message {
    providers?: { id: string; name?: string; models?: { id: string; name?: string }[] }[];
  }
 
-  interface ProvidersData {
-    providers?: { id: string; name?: string; models?: { id: string; name?: string }[] | Record<string, { name?: string; [key: string]: unknown }> }[];
-    default?: { [key: string]: string };
-  }
+   interface ProvidersData {
+     providers?: { id: string; name?: string; models?: { id: string; name?: string }[] | Record<string, { name?: string; [key: string]: unknown }> }[];
+     default?: { [key: string]: string };
+   }
+
+   interface Agent {
+     id: string;
+     name: string;
+     description?: string;
+   }
 
 export function useOpenCode() {
     const [currentSession, setCurrentSession] = useState<Session | null>(null);
@@ -99,8 +105,15 @@ export function useOpenCode() {
       const [showThemes, setShowThemes] = useState(false);
       const [showOnboarding, setShowOnboarding] = useState(false);
       const [showModelPicker, setShowModelPicker] = useState(false);
-      const [isConnected, setIsConnected] = useState(false);
-      const [customCommands, setCustomCommands] = useState<Array<{ name: string; description: string; template: string }>>([]);
+       const [isConnected, setIsConnected] = useState(false);
+       const [customCommands, setCustomCommands] = useState<Array<{ name: string; description: string; template: string }>>([]);
+       const [agents, setAgents] = useState<Agent[]>([]);
+       const [currentAgent, setCurrentAgent] = useState<Agent | null>(null);
+       const [loadedProjects, setLoadedProjects] = useState(false);
+       const [loadedModels, setLoadedModels] = useState(false);
+       const [loadedConfig, setLoadedConfig] = useState(false);
+       const [loadedCustomCommands, setLoadedCustomCommands] = useState(false);
+       const loadedAgentsRef = useRef(false);
 
     // Load current session from localStorage on mount
    useEffect(() => {
@@ -117,10 +130,10 @@ export function useOpenCode() {
        try {
          await openCodeService.getAgents();
          setIsConnected(true);
-       } catch (error) {
-         console.error('Health check failed:', error);
-         setIsConnected(false);
-       }
+    } catch {
+      // Silently handle connection errors
+      setIsConnected(false);
+    }
      };
      checkConnection();
    }, []);
@@ -246,9 +259,9 @@ export function useOpenCode() {
         };
       });
       setMessages(loadedMessages);
-    } catch (error) {
-      console.error('Failed to load messages:', error);
-    }
+     } catch {
+       // Silently handle errors when server is unavailable
+     }
   }, []);
 
    const loadSessions = useCallback(async () => {
@@ -256,8 +269,8 @@ export function useOpenCode() {
        const response = await openCodeService.getSessions();
        const sessionsArray = (response.data as Array<{ id: string; title?: string; directory?: string; projectID?: string; createdAt?: string | number; updatedAt?: string | number }>) || [];
        
-       // Filter sessions by current project if selected
-       const filteredSessions = currentProject ? sessionsArray.filter(s => s.projectID === currentProject.id) : sessionsArray;
+        // Filter sessions by current project if selected
+        const filteredSessions = currentProject ? sessionsArray.filter(s => s.projectID === currentProject.id) : sessionsArray;
        
        // Load messages for each session to get message count and last updated time
        const loadedSessions: Session[] = await Promise.all(
@@ -295,19 +308,41 @@ export function useOpenCode() {
        
        setSessions(loadedSessions);
 
-       // Restore saved session if it exists in the loaded sessions
-       const savedSessionId = localStorage.getItem('opencode-current-session');
-       if (savedSessionId && !currentSession) {
-         const savedSession = loadedSessions.find(s => s.id === savedSessionId);
-         if (savedSession) {
-           setCurrentSession(savedSession);
-           await loadMessages(savedSessionId);
-         }
-       }
-     } catch (error) {
-       console.error('Failed to load sessions:', error);
-     }
-   }, [currentSession, loadMessages, currentProject]);
+        // Restore saved session if it exists in the loaded sessions
+        const savedSessionId = localStorage.getItem('opencode-current-session');
+        if (savedSessionId && !currentSession) {
+          const savedSession = loadedSessions.find(s => s.id === savedSessionId);
+          if (savedSession) {
+            setCurrentSession(savedSession);
+            await loadMessages(savedSessionId);
+            // Set currentProject to the project of this session
+            if (savedSession.projectId && projects.length > 0) {
+              const sessionProject = projects.find(p => p.id === savedSession.projectId);
+              if (sessionProject) {
+                setCurrentProject(sessionProject);
+              }
+            }
+          }
+        }
+
+        // If no current session, set the first session as current
+        if (!currentSession && loadedSessions.length > 0) {
+          const firstSession = loadedSessions[0];
+          setCurrentSession(firstSession);
+          localStorage.setItem('opencode-current-session', firstSession.id);
+          await loadMessages(firstSession.id);
+          // Set currentProject to the project of this session
+          if (firstSession.projectId && projects.length > 0) {
+            const sessionProject = projects.find(p => p.id === firstSession.projectId);
+            if (sessionProject) {
+              setCurrentProject(sessionProject);
+            }
+          }
+        }
+      } catch {
+        // Silently handle errors when server is unavailable
+      }
+    }, [currentSession, loadMessages, currentProject, projects]);
 
   const switchSession = useCallback(async (sessionId: string) => {
     const session = sessions.find(s => s.id === sessionId);
@@ -317,35 +352,51 @@ export function useOpenCode() {
     }
   }, [sessions, loadMessages]);
 
-  const deleteSession = useCallback(async (sessionId: string) => {
-    try {
-      await openCodeService.deleteSession(sessionId);
-      setSessions(prev => prev.filter(s => s.id !== sessionId));
-      if (currentSession?.id === sessionId) {
-        setCurrentSession(null);
-        setMessages([]);
-      }
-    } catch (error) {
-      console.error('Failed to delete session:', error);
-      throw new Error(handleOpencodeError(error));
-    }
-  }, [currentSession]);
+   const deleteSession = useCallback(async (sessionId: string) => {
+     try {
+       await openCodeService.deleteSession(sessionId);
+       const remainingSessions = sessions.filter(s => s.id !== sessionId);
+       setSessions(remainingSessions);
+       if (currentSession?.id === sessionId) {
+         setCurrentSession(null);
+         setMessages([]);
+         // Set the next session as current if available
+         if (remainingSessions.length > 0) {
+           const nextSession = remainingSessions[0];
+           setCurrentSession(nextSession);
+           localStorage.setItem('opencode-current-session', nextSession.id);
+           await loadMessages(nextSession.id);
+         }
+       }
+     } catch (error) {
+       console.error('Failed to delete session:', error);
+       throw new Error(handleOpencodeError(error));
+     }
+   }, [currentSession, sessions, loadMessages]);
 
-  const clearAllSessions = useCallback(async () => {
-    try {
-      setLoading(true);
-      await openCodeService.deleteAllSessions();
-      setSessions([]);
-      setCurrentSession(null);
-      setMessages([]);
-      localStorage.removeItem('opencode-current-session');
-    } catch (error) {
-      console.error('Failed to clear sessions:', error);
-      throw new Error(handleOpencodeError(error));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+   const clearAllSessions = useCallback(async () => {
+     try {
+       setLoading(true);
+       // Only clear sessions from the current project
+       const sessionsToDelete = sessions.filter(s => s.projectId === currentProject?.id);
+       for (const session of sessionsToDelete) {
+         await openCodeService.deleteSession(session.id);
+       }
+       // Update local state to remove deleted sessions
+       setSessions(prev => prev.filter(s => s.projectId !== currentProject?.id));
+       // If current session was deleted, clear it
+       if (currentSession && sessionsToDelete.some(s => s.id === currentSession.id)) {
+         setCurrentSession(null);
+         setMessages([]);
+         localStorage.removeItem('opencode-current-session');
+       }
+     } catch (error) {
+       console.error('Failed to clear sessions:', error);
+       throw new Error(handleOpencodeError(error));
+     } finally {
+       setLoading(false);
+     }
+   }, [sessions, currentProject, currentSession]);
 
    // Load messages when session changes
    useEffect(() => {
@@ -362,37 +413,41 @@ export function useOpenCode() {
    }, [isConnected, currentSession, loadMessages]);
 
     // Project management
-    const loadProjects = useCallback(async () => {
-      try {
-        console.log('Loading projects...');
-        const response = await openCodeService.listProjects();
-        console.log('Projects response:', response);
-        const projectsArray: Project[] = Array.isArray(response.data) ? response.data : [];
-        console.log('Projects array:', projectsArray);
-        setProjects(projectsArray);
-        if (projectsArray.length > 0 && !currentProject) {
-          setCurrentProject(projectsArray[0]);
-        }
-      } catch (error) {
-        console.error('Failed to load projects:', error);
-         // Fallback: Set some dummy projects for testing
-         const dummyProjects: Project[] = [
-           { id: '1', worktree: '/path/to/project1' },
-           { id: '2', worktree: '/path/to/project2' }
-         ];
-        setProjects(dummyProjects);
-        if (!currentProject) {
-          setCurrentProject(dummyProjects[0]);
-        }
-      }
-    }, [currentProject]);
+     const loadProjects = useCallback(async () => {
+       if (loadedProjects) return;
+       try {
+         console.log('Loading projects...');
+         const response = await openCodeService.listProjects();
+         console.log('Projects response:', response);
+         const projectsArray: Project[] = Array.isArray(response.data) ? response.data : [];
+         console.log('Projects array:', projectsArray);
+         setProjects(projectsArray);
+         setLoadedProjects(true);
+         if (projectsArray.length > 0 && !currentProject) {
+           setCurrentProject(projectsArray[0]);
+         }
+       } catch {
+          // Silently handle errors when server is unavailable
+          // Fallback: Set some dummy projects for testing
+          const dummyProjects: Project[] = [
+            { id: '1', worktree: '/path/to/project1' },
+            { id: '2', worktree: '/path/to/project2' }
+          ];
+         setProjects(dummyProjects);
+         setLoadedProjects(true);
+         if (!currentProject) {
+           setCurrentProject(dummyProjects[0]);
+         }
+       }
+     }, [currentProject, loadedProjects]);
 
-   const switchProject = useCallback(async (projectId: string) => {
-     const project = projects.find(p => p.id === projectId);
-     if (project) {
-       setCurrentProject(project);
-     }
-   }, [projects]);
+    const switchProject = useCallback(async (projectId: string) => {
+      const project = projects.find(p => p.id === projectId);
+      if (project) {
+        setCurrentProject(project);
+        await loadSessions(); // Reload sessions for the new project
+      }
+    }, [projects, loadSessions]);
 
      // File operations
      const normalizePath = (path: string): string => {
@@ -478,101 +533,110 @@ export function useOpenCode() {
       }
     }, []);
 
-    const loadCustomCommands = useCallback(async () => {
-      try {
-        const files = await searchFiles('command/*.md');
-        const commands = await Promise.all(
-          files.map(async (file) => {
-            const content = await readFile(file);
-            if (content) {
-              const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
-              if (frontmatterMatch) {
-                const frontmatter = frontmatterMatch[1];
-                const template = frontmatterMatch[2];
-                const descriptionMatch = frontmatter.match(/description:\s*(.+)/);
-                const description = descriptionMatch ? descriptionMatch[1] : '';
-                const name = file.split('/').pop()?.replace('.md', '') || '';
-                return { name, description, template };
-              }
-            }
-            return null;
-          })
-        );
-        setCustomCommands(commands.filter(Boolean) as Array<{ name: string; description: string; template: string }>);
-      } catch (error) {
-         console.error('Failed to load custom commands:', error);
-       }
-      }, [readFile, searchFiles]);
+     const loadCustomCommands = useCallback(async () => {
+       if (loadedCustomCommands) return;
+       try {
+         const files = await searchFiles('command/*.md');
+         const commands = await Promise.all(
+           files.map(async (file) => {
+             const content = await readFile(file);
+             if (content) {
+               const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+               if (frontmatterMatch) {
+                 const frontmatter = frontmatterMatch[1];
+                 const template = frontmatterMatch[2];
+                 const descriptionMatch = frontmatter.match(/description:\s*(.+)/);
+                 const description = descriptionMatch ? descriptionMatch[1] : '';
+                 const name = file.split('/').pop()?.replace('.md', '') || '';
+                 return { name, description, template };
+               }
+             }
+             return null;
+           })
+         );
+         setCustomCommands(commands.filter(Boolean) as Array<{ name: string; description: string; template: string }>);
+         setLoadedCustomCommands(true);
+       } catch {
+          // Silently handle errors when server is unavailable
+          setLoadedCustomCommands(true);
+        }
+       }, [readFile, searchFiles, loadedCustomCommands]);
 
     // Model selection
-    const loadModels = useCallback(async () => {
-      try {
-        console.log('Loading models...');
-        const response = await openCodeService.getProviders();
-         console.log('Providers response:', response);
-         const providersData = response.data as ProvidersData | undefined;
-         console.log('Providers data:', providersData);
-         setProvidersData(providersData || null);
-         if (providersData && providersData.providers && Array.isArray(providersData.providers)) {
-           const availableModels: Model[] = [];
-            providersData.providers.forEach((provider: { id: string; name?: string; models?: { id: string; name?: string }[] | Record<string, { name?: string; [key: string]: unknown }> }) => {
-             console.log('Processing provider:', provider);
-             // Check if provider has models
-             if (provider.models && typeof provider.models === 'object') {
-               // Handle models as object
-                Object.entries(provider.models).forEach(([modelId, modelData]: [string, { name?: string; [key: string]: unknown }]) => {
-                 availableModels.push({
-                   providerID: provider.id,
-                   modelID: modelId,
-                   name: modelData.name || `${provider.name || provider.id} ${modelId}`
-                 });
-               });
-              } else if (provider.models && Array.isArray(provider.models)) {
-                // Handle models as array
-                (provider.models as { id: string; name?: string }[]).forEach((model: { id: string; name?: string }) => {
-                 availableModels.push({
-                   providerID: provider.id,
-                   modelID: model.id,
-                   name: model.name || `${provider.name || provider.id} ${model.id}`
-                 });
-               });
-             }
-             // Only add if has models, don't treat provider as model
-           });
-           console.log('Available models:', availableModels);
-           setModels(availableModels);
-           if (availableModels.length > 0 && !selectedModel) {
-             setSelectedModel(availableModels[0]);
-           }
+     const loadModels = useCallback(async () => {
+       if (loadedModels) return;
+       try {
+         console.log('Loading models...');
+         const response = await openCodeService.getProviders();
+          console.log('Providers response:', response);
+          const providersData = response.data as ProvidersData | undefined;
+          console.log('Providers data:', providersData);
+          setProvidersData(providersData || null);
+          if (providersData && providersData.providers && Array.isArray(providersData.providers)) {
+            const availableModels: Model[] = [];
+             providersData.providers.forEach((provider: { id: string; name?: string; models?: { id: string; name?: string }[] | Record<string, { name?: string; [key: string]: unknown }> }) => {
+              console.log('Processing provider:', provider);
+              // Check if provider has models
+              if (provider.models && typeof provider.models === 'object') {
+                // Handle models as object
+                 Object.entries(provider.models).forEach(([modelId, modelData]: [string, { name?: string; [key: string]: unknown }]) => {
+                  availableModels.push({
+                    providerID: provider.id,
+                    modelID: modelId,
+                    name: modelData.name || `${provider.name || provider.id} ${modelId}`
+                  });
+                });
+               } else if (provider.models && Array.isArray(provider.models)) {
+                 // Handle models as array
+                 (provider.models as { id: string; name?: string }[]).forEach((model: { id: string; name?: string }) => {
+                  availableModels.push({
+                    providerID: provider.id,
+                    modelID: model.id,
+                    name: model.name || `${provider.name || provider.id} ${model.id}`
+                  });
+                });
+              }
+              // Only add if has models, don't treat provider as model
+            });
+            console.log('Available models:', availableModels);
+            setModels(availableModels);
+            setLoadedModels(true);
+            if (availableModels.length > 0 && !selectedModel) {
+              setSelectedModel(availableModels[0]);
+            }
+          }
+       } catch {
+         // Silently handle errors when server is unavailable
+         // Fallback: Set some dummy models for testing
+         const dummyModels: Model[] = [
+           { providerID: 'anthropic', modelID: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
+           { providerID: 'openai', modelID: 'gpt-4', name: 'GPT-4' }
+         ];
+         setModels(dummyModels);
+         setLoadedModels(true);
+         if (!selectedModel) {
+           setSelectedModel(dummyModels[0]);
          }
-      } catch (error) {
-        console.error('Failed to load models:', error);
-        // Fallback: Set some dummy models for testing
-        const dummyModels: Model[] = [
-          { providerID: 'anthropic', modelID: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
-          { providerID: 'openai', modelID: 'gpt-4', name: 'GPT-4' }
-        ];
-        setModels(dummyModels);
-        if (!selectedModel) {
-          setSelectedModel(dummyModels[0]);
-        }
-      }
-    }, [selectedModel]);
+       }
+     }, [selectedModel, loadedModels]);
 
    const selectModel = useCallback((model: Model) => {
      setSelectedModel(model);
    }, []);
 
-   // Config and path
-   const loadConfig = useCallback(async () => {
-     try {
-       const response = await openCodeService.getConfig();
-       const configData = response.data as Config | undefined;
-       setConfig(configData || null);
-     } catch (error) {
-       console.error('Failed to load config:', error);
-     }
-   }, []);
+    // Config and path
+    const loadConfig = useCallback(async () => {
+      if (loadedConfig) return;
+      try {
+        const response = await openCodeService.getConfig();
+        const configData = response.data as Config | undefined;
+        setConfig(configData || null);
+        setLoadedConfig(true);
+      } catch {
+        // Silently handle errors when server is unavailable
+        setLoadedConfig(true);
+      }
+    }, [loadedConfig]);
 
    const loadCurrentPath = useCallback(async () => {
      try {
@@ -611,22 +675,54 @@ export function useOpenCode() {
      }
    }, []);
 
-   const showToast = useCallback(async (message: string, variant: 'success' | 'error' | 'warning' | 'info' = 'info') => {
-     try {
-       await openCodeService.showToast(message, variant);
-     } catch (error) {
-       console.error('Failed to show toast:', error);
-     }
-   }, []);
+    const showToast = useCallback(async (message: string, variant: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+      try {
+        await openCodeService.showToast(message, variant);
+      } catch (error) {
+        console.error('Failed to show toast:', error);
+      }
+    }, []);
 
-    // Load sessions on mount
-    useEffect(() => {
-      loadSessions();
-      loadProjects();
-      loadConfig();
-      loadModels();
-      loadCustomCommands();
-      }, [loadSessions, loadProjects, loadConfig, loadModels, loadCustomCommands]);
+    // Agent management
+    const loadAgents = useCallback(async () => {
+      if (loadedAgentsRef.current) return;
+      try {
+        const response = await openCodeService.getAgents();
+        const agentsArray: Agent[] = Array.isArray(response.data) ? response.data : [];
+        setAgents(agentsArray);
+        loadedAgentsRef.current = true;
+        // Default to agent 1 (build agent) if available
+        if (agentsArray.length > 1 && !currentAgent) {
+          setCurrentAgent(agentsArray[1]);
+        } else if (agentsArray.length > 0 && !currentAgent) {
+          setCurrentAgent(agentsArray[0]);
+        }
+      } catch {
+        // Silently handle errors when server is unavailable
+        loadedAgentsRef.current = true;
+      }
+    }, [currentAgent]);
+
+    const selectAgent = useCallback((agent: Agent) => {
+      setCurrentAgent(agent);
+    }, []);
+
+     // Load sessions on mount
+      useEffect(() => {
+        loadProjects();
+        loadSessions();
+        loadConfig();
+        loadModels();
+        loadCustomCommands();
+        loadAgents();
+        }, [loadProjects, loadSessions, loadConfig, loadModels, loadCustomCommands, loadAgents]);
+
+     // Reload sessions when currentProject changes
+     useEffect(() => {
+       if (currentProject) {
+         loadSessions();
+       }
+     }, [currentProject, loadSessions]);
 
      return {
        currentSession,
@@ -672,8 +768,12 @@ export function useOpenCode() {
         showThemes,
         setShowThemes,
          showOnboarding,
-         setShowOnboarding,
-         showModelPicker,
-         setShowModelPicker,
-      };
+          setShowOnboarding,
+          showModelPicker,
+          setShowModelPicker,
+          agents,
+          currentAgent,
+          selectAgent,
+          loadAgents,
+       };
  }

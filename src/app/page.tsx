@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+ import { useState, useMemo } from "react";
   import {
     Button,
     Input,
@@ -17,7 +17,7 @@ export default function OpenCodeChatTUI() {
   const [input, setInput] = useState("");
   const [newSessionTitle, setNewSessionTitle] = useState("");
   const [newSessionDirectory, setNewSessionDirectory] = useState("");
-  const [activeTab, setActiveTab] = useState("sessions");
+  const [activeTab, setActiveTab] = useState("workspace");
   const [fileSearchQuery, setFileSearchQuery] = useState("");
 
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -46,29 +46,26 @@ export default function OpenCodeChatTUI() {
       searchFiles,
       readFile,
 
-     models,
-     selectedModel,
-     selectModel,
-        openHelp,
-        openThemes,
-        providersData,
-       isConnected,
+      models,
+      selectedModel,
+      selectModel,
+         openHelp,
+         openThemes,
+        isConnected,
        showHelp,
        setShowHelp,
        showThemes,
        setShowThemes,
-        showOnboarding,
-        setShowOnboarding,
-        showModelPicker,
-        setShowModelPicker,
-      } = useOpenCodeContext();
+         showOnboarding,
+         setShowOnboarding,
+         showModelPicker,
+         setShowModelPicker,
+         agents,
+         currentAgent,
+         selectAgent,
+       } = useOpenCodeContext();
 
-  // Create initial session on mount
-  useEffect(() => {
-    if (!currentSession) {
-      createSession({ title: "opencode-web session" }).catch(console.error);
-    }
-  }, [currentSession, createSession]);
+   // Removed automatic session creation to prevent spam
 
    const handleSend = async () => {
      if (!input.trim() || loading) return;
@@ -176,10 +173,21 @@ export default function OpenCodeChatTUI() {
        case "themes":
          setShowThemes(true);
          break;
-       case "sessions":
-         // Switch to sessions tab
-         setActiveTab("sessions");
-         break;
+        case "sessions":
+          // Switch to sessions tab
+          setActiveTab("workspace");
+          break;
+        case "agents":
+          // Cycle to next agent
+          cycleAgent();
+          const agentMessage = {
+            id: `assistant-${Date.now()}`,
+            type: "assistant" as const,
+            content: `Switched to agent: ${currentAgent?.name || 'Unknown'}`,
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, agentMessage]);
+          break;
         case "undo":
           try {
             // TODO: Call revert API
@@ -363,12 +371,16 @@ export default function OpenCodeChatTUI() {
     }
   };
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        handleSend();
-      }
-    };
+     const handleKeyDown = (e: React.KeyboardEvent) => {
+       if (e.key === "Enter" && !e.shiftKey) {
+         e.preventDefault();
+         handleSend();
+       }
+       if (e.key === "Tab") {
+         e.preventDefault();
+         cycleAgent();
+       }
+     };
 
    const handleInputChange = async (value: string) => {
      setInput(value);
@@ -462,19 +474,28 @@ export default function OpenCodeChatTUI() {
     });
   }, [projects]);
 
-  const handleModelSelect = (modelId: string) => {
-    const model = models.find((m) => m.modelID === modelId);
-    if (model) {
-      selectModel(model);
-    }
-  };
 
-  const handleTabChange = (tab: string) => {
-    setActiveTab(tab);
-    if (tab === "files") {
-      void handleDirectoryOpen(fileDirectory || '.');
-    }
-  };
+
+   const handleTabChange = (tab: string) => {
+     setActiveTab(tab);
+     if (tab === "files") {
+       void handleDirectoryOpen(fileDirectory || '.');
+     }
+     if (tab === "workspace") {
+       void loadSessions(); // Reload sessions for the current project
+     }
+   };
+
+   const cycleAgent = () => {
+     if (agents.length === 0) return;
+     let currentIndex = 0;
+     if (currentAgent) {
+       currentIndex = agents.findIndex(a => a.id === currentAgent.id);
+       if (currentIndex === -1) currentIndex = 0;
+     }
+     const nextIndex = (currentIndex + 1) % agents.length;
+     selectAgent(agents[nextIndex]);
+   };
 
   return (
     <div className="min-h-screen bg-[#1e1e2e] text-[#cdd6f4] font-mono">
@@ -494,21 +515,21 @@ export default function OpenCodeChatTUI() {
            <Badge variant={isConnected ? "background2" : "foreground0"} cap="round">
              {isConnected ? "Connected" : "Disconnected"}
            </Badge>
-          <div className="flex gap-1">
-            {["sessions", "projects", "files", "models"].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => handleTabChange(tab)}
-                className={`px-3 py-1 text-sm font-medium capitalize rounded transition-colors ${
-                  activeTab === tab
-                    ? "bg-[#89b4fa] text-[#1e1e2e]"
-                    : "text-[#6c7086] hover:text-[#cdd6f4] hover:bg-[#45475a]"
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
+           <div className="flex gap-1">
+             {["workspace", "files"].map((tab) => (
+               <button
+                 key={tab}
+                 onClick={() => handleTabChange(tab)}
+                 className={`px-3 py-1 text-sm font-medium capitalize rounded transition-colors ${
+                   activeTab === tab
+                     ? "bg-[#89b4fa] text-[#1e1e2e]"
+                     : "text-[#6c7086] hover:text-[#cdd6f4] hover:bg-[#45475a]"
+                 }`}
+               >
+                 {tab}
+               </button>
+             ))}
+           </div>
         </div>
         <div className="flex items-center gap-2">
            <Button
@@ -533,144 +554,145 @@ export default function OpenCodeChatTUI() {
       </div>
 
        {/* Main Content */}
-       <div className="flex h-[calc(100vh-60px)]">
+        <div className="flex h-[calc(90vh-54px)]">
          {/* Sidebar */}
           <div className="w-80 md:w-80 sm:w-full bg-[#313244] flex flex-col">
           <div className="p-4 flex-1 overflow-hidden">
-             {activeTab === "sessions" && (
-               <div className="space-y-4 h-full flex flex-col">
-                 <div className="flex justify-between items-center">
-                   <h3 className="text-sm font-medium">Sessions</h3>
-                   <div className="flex gap-2">
-                     <Button
-                       variant="foreground0"
-                       box="round"
-                       onClick={handleClearSessions}
-                       size="small"
-                     >
-                       Clear
-                     </Button>
-                     <Button
-                       variant="foreground0"
-                       box="round"
-                       onClick={handleCreateSession}
-                       size="small"
-                     >
-                       New
-                     </Button>
+              {activeTab === "workspace" && (
+                <div className="space-y-4 h-full flex flex-col">
+                  {/* Projects Section */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-medium">Projects</h3>
+                    <div className="flex-1 overflow-y-auto space-y-2">
+                      {sortedProjects.length > 0 ? (
+                        sortedProjects.map((project) => (
+                          <div
+                            key={project.id}
+                            className={`p-2 rounded cursor-pointer transition-colors ${
+                              currentProject?.id === project.id
+                                ? "bg-[#89b4fa] text-[#1e1e2e]"
+                                : "bg-[#1e1e2e] hover:bg-[#45475a]"
+                            }`}
+                            onClick={() => handleProjectSwitch(project.id)}
+                          >
+                            <div className="font-medium text-sm">
+                              {project.worktree}
+                            </div>
+                             <div className="text-xs opacity-70">
+                               VCS: {project.vcs || 'Unknown'} | Updated: {project.updatedAt?.toLocaleDateString() || project.createdAt?.toLocaleDateString() || 'N/A'}
+                             </div>
+                          </div>
+                       ))
+                     ) : (
+                       <div className="text-center text-[#6c7086] text-sm py-4">
+                         No projects found
+                       </div>
+                     )}
                    </div>
                  </div>
-                 {!currentProject ? (
-                   <div className="text-center text-[#6c7086] text-sm py-4">
-                     Select a project first to view sessions
-                   </div>
-                 ) : (
-                   <>
-                     <div className="space-y-2">
-                       <Input
-                         value={newSessionTitle}
-                         onChange={(e) => setNewSessionTitle(e.target.value)}
-                         placeholder="Session title..."
+                 
+                 {/* Sessions Section */}
+                 <div className="flex-1 flex flex-col">
+                   <div className="flex justify-between items-center mb-4">
+                     <h3 className="text-sm font-medium">Sessions</h3>
+                     <div className="flex gap-2">
+                       <Button
+                         variant="foreground0"
+                         box="round"
+                         onClick={handleClearSessions}
                          size="small"
-                         className="bg-[#1e1e2e] text-[#cdd6f4] border-[#89b4fa]"
-                       />
-                       <div className="text-xs opacity-70">
-                         Project: {currentProject.worktree}
+                       >
+                         Clear
+                       </Button>
+                       <Button
+                         variant="foreground0"
+                         box="round"
+                         onClick={handleCreateSession}
+                         size="small"
+                       >
+                         New
+                       </Button>
+                     </div>
+                   </div>
+                   {!currentProject ? (
+                     <div className="flex-1 flex items-center justify-center text-[#6c7086] text-sm">
+                       Select a project first to view sessions
+                     </div>
+                   ) : (
+                     <>
+                       <div className="mb-4">
+                         <Input
+                           value={newSessionTitle}
+                           onChange={(e) => setNewSessionTitle(e.target.value)}
+                           placeholder="Session title..."
+                           size="small"
+                           className="bg-[#1e1e2e] text-[#cdd6f4] border-[#89b4fa]"
+                         />
+                         <div className="text-xs opacity-70 mt-1">
+                           Project: {currentProject.worktree}
+                         </div>
                        </div>
-                     </div>
-                     <div className="flex-1 overflow-y-auto space-y-2">
-                       {sessions.map((session) => (
-                         <div
-                           key={session.id}
-                           className={`p-2 rounded cursor-pointer transition-colors ${
-                             currentSession?.id === session.id
-                               ? "bg-[#89b4fa] text-[#1e1e2e]"
-                               : "bg-[#1e1e2e] hover:bg-[#45475a]"
-                           }`}
-                           onClick={() => handleSessionSwitch(session.id)}
-                         >
-                           <div className="flex justify-between items-start">
-                             <div className="flex-1 min-w-0">
-                               <div className="font-medium text-sm truncate">
-                                 {session.title}
-                               </div>
-                                <div className="text-xs opacity-70">
-                                  {session.createdAt?.toLocaleDateString() ||
-                                    "Unknown"}
-                                  {session.messageCount !== undefined && (
-                                    <span className="ml-2">
-                                      • {session.messageCount} messages
-                                    </span>
-                                  )}
-                                  {session.updatedAt && (
-                                    <span className="ml-2">
-                                      • Updated: {session.updatedAt.toLocaleDateString()}
-                                    </span>
-                                  )}
-                                </div>
-                               {session.directory && (
-                                 <div className="text-xs opacity-50 truncate">
-                                   Dir: {session.directory}
+                       <div className="flex-1 overflow-y-auto space-y-2 max-h-96">
+                         {sessions.map((session) => (
+                           <div
+                             key={session.id}
+                             className={`p-2 rounded cursor-pointer transition-colors ${
+                               currentSession?.id === session.id
+                                 ? "bg-[#89b4fa] text-[#1e1e2e]"
+                                 : "bg-[#1e1e2e] hover:bg-[#45475a]"
+                             }`}
+                             onClick={() => handleSessionSwitch(session.id)}
+                           >
+                             <div className="flex justify-between items-start">
+                               <div className="flex-1 min-w-0">
+                                 <div className="font-medium text-sm truncate">
+                                   {session.title}
                                  </div>
-                               )}
+                                  <div className="text-xs opacity-70">
+                                    {session.createdAt?.toLocaleDateString() ||
+                                      "Unknown"}
+                                    {session.messageCount !== undefined && (
+                                      <span className="ml-2">
+                                        • {session.messageCount} messages
+                                      </span>
+                                    )}
+                                    {session.updatedAt && (
+                                      <span className="ml-2">
+                                        • Updated: {session.updatedAt.toLocaleDateString()}
+                                      </span>
+                                    )}
+                                  </div>
+                                 {session.directory && (
+                                   <div className="text-xs opacity-50 truncate">
+                                     Dir: {session.directory}
+                                   </div>
+                                 )}
+                               </div>
+                               <Button
+                                 variant="foreground0"
+                                 box="round"
+                                 size="small"
+                                 onClick={(e) => handleDeleteSession(session.id, e)}
+                                 className="ml-2 flex-shrink-0"
+                               >
+                                 ×
+                               </Button>
                              </div>
-                             <Button
-                               variant="foreground0"
-                               box="round"
-                               size="small"
-                               onClick={(e) => handleDeleteSession(session.id, e)}
-                               className="ml-2 flex-shrink-0"
-                             >
-                               ×
-                             </Button>
                            </div>
-                         </div>
-                       ))}
-                       {sessions.length === 0 && (
-                         <div className="text-center text-[#6c7086] text-sm py-4">
-                           No sessions for this project yet
-                         </div>
-                       )}
-                     </div>
-                   </>
-                 )}
+                         ))}
+                         {sessions.length === 0 && (
+                           <div className="text-center text-[#6c7086] text-sm py-4">
+                             No sessions for this project yet
+                           </div>
+                         )}
+                       </div>
+                     </>
+                   )}
+                 </div>
                </div>
              )}
 
-            {activeTab === "projects" && (
-              <div className="space-y-4 h-full flex flex-col">
-                <h3 className="text-sm font-medium">Projects</h3>
-                <div className="flex-1 overflow-y-auto space-y-2">
-                   {sortedProjects.length > 0 ? (
-                     sortedProjects.map((project) => (
-                       <div
-                         key={project.id}
-                         className={`p-2 rounded cursor-pointer transition-colors ${
-                           currentProject?.id === project.id
-                             ? "bg-[#89b4fa] text-[#1e1e2e]"
-                             : "bg-[#1e1e2e] hover:bg-[#45475a]"
-                         }`}
-                         onClick={() => handleProjectSwitch(project.id)}
-                       >
-                         <div className="font-medium text-sm">
-                           {project.worktree}
-                         </div>
-                          <div className="text-xs opacity-70">
-                            VCS: {project.vcs || 'Unknown'} | Updated: {project.updatedAt?.toLocaleDateString() || project.createdAt?.toLocaleDateString() || 'N/A'}
-                          </div>
-                       </div>
-                    ))
-                  ) : (
-                    <div className="text-center text-[#6c7086] text-sm py-4">
-                      No projects found
-                    </div>
-                  )}
-                </div>
-                <div className="text-xs opacity-50">
-                  Debug: {projects.length} projects loaded
-                </div>
-              </div>
-            )}
+
 
             {activeTab === "files" && (
               <div className="space-y-4 h-full flex flex-col">
@@ -782,71 +804,7 @@ export default function OpenCodeChatTUI() {
               </div>
             )}
 
-            {activeTab === "models" && (
-              <div className="space-y-4 h-full flex flex-col">
-                <h3 className="text-sm font-medium">Models</h3>
-                <div className="space-y-2 flex-1 overflow-y-auto">
-                  <div>
-                    <label className="block text-xs font-medium mb-1">
-                      Provider
-                    </label>
-                    <select
-                      value={selectedModel?.providerID || ""}
-                      onChange={(e) => {
-                        const providerID = e.target.value;
-                        const providerModels = models.filter(
-                          (m) => m.providerID === providerID,
-                        );
-                        if (providerModels.length > 0) {
-                          selectModel(providerModels[0]);
-                        }
-                      }}
-                      className="w-full p-2 bg-[#1e1e2e] text-[#cdd6f4] border border-[#89b4fa] rounded"
-                    >
-                       {Array.from(new Set(models.map((m) => m.providerID))).map(
-                         (providerID) => {
-                           const provider = providersData?.providers?.find(
-                             (p) => p.id === providerID,
-                           );
-                           return (
-                             <option key={providerID} value={providerID}>
-                               {provider?.name || providerID}
-                             </option>
-                           );
-                         },
-                       )}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1">
-                      Model
-                    </label>
-                    <select
-                      value={selectedModel?.modelID || ""}
-                      onChange={(e) => handleModelSelect(e.target.value)}
-                      className="w-full p-2 bg-[#1e1e2e] text-[#cdd6f4] border border-[#89b4fa] rounded"
-                    >
-                      {models
-                        .filter(
-                          (m) => m.providerID === selectedModel?.providerID,
-                        )
-                        .map((model) => (
-                          <option key={model.modelID} value={model.modelID}>
-                            {model.name}
-                          </option>
-                        ))}
-                    </select>
-                   </div>
 
-                 </div>
-                 <div className="text-xs opacity-70">
-                   Current: {selectedModel?.name || "None selected"}
-                 </div>
-                <div className="text-xs opacity-50">
-                  Debug: {models.length} models loaded
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
@@ -854,15 +812,15 @@ export default function OpenCodeChatTUI() {
         <div className="flex-1 flex flex-col bg-[#1e1e2e]">
            {/* Header */}
            <div className="bg-[#313244] px-4 py-2 flex justify-between items-center">
-             <div className="flex items-center gap-2">
-                <span className="text-base font-normal text-[#cdd6f4]">
-                 OpenCode Chat Sessions: {currentSession?.id.slice(0, 8)}... . Project: {currentProject?.worktree} Model: {selectedModel?.name}
-               </span>
-             </div>
+            <div className="flex items-center gap-2">
+                 <span className="text-base font-normal text-[#cdd6f4]">
+                  OpenCode Chat Sessions: {currentSession?.title || currentSession?.id.slice(0, 8)}... . Project: {currentProject?.worktree}
+                </span>
+              </div>
            </div>
 
           {/* Content */}
-          {activeTab === "sessions" && (
+           {activeTab === "workspace" && (
             <div className="flex-1 flex flex-col">
               {/* Chat Messages */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -951,19 +909,24 @@ export default function OpenCodeChatTUI() {
 
                {/* Input Area */}
                 <div className="bg-[#313244] p-4">
-                 <div className="mb-2 flex items-center gap-2 text-xs opacity-70">
-                   <span>Model: {selectedModel?.name}</span>
-                   <span>•</span>
-                   <span>Session: {currentSession?.title}</span>
-                   {input.startsWith('/') && <span>• Command Mode</span>}
-                 </div>
+                  <div className="mb-2 flex items-center justify-between text-xs opacity-70">
+                    <div className="flex items-center gap-2">
+                      <span>Model: {selectedModel?.name}</span>
+                      <span>•</span>
+                      <span>Session: {currentSession?.title}</span>
+                      {input.startsWith('/') && <span>• Command Mode</span>}
+                    </div>
+                    <Badge key={currentAgent?.id} variant="foreground1" cap="round" className="bg-[#f38ba8] text-[#1e1e2e] border border-[#f38ba8]">
+                      Agent: {currentAgent?.name || 'None'}
+                    </Badge>
+                  </div>
                  <div className="flex gap-2">
                    <div className="flex-1 relative">
                       <Textarea
                         value={input}
                         onChange={(e) => handleInputChange(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder="Type your message or /models to select model..."
+                         placeholder="Type your message, Tab to switch agent, /models to select model..."
                         rows={2}
                         size="large"
                         className="w-full pl-4 bg-[#1e1e2e] text-[#cdd6f4] border-[#89b4fa] resize-none"

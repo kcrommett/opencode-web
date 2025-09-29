@@ -45,11 +45,15 @@ interface OpenCodeContextType {
   setShowHelp: ReturnType<typeof useOpenCode>['setShowHelp'];
   showThemes: ReturnType<typeof useOpenCode>['showThemes'];
   setShowThemes: ReturnType<typeof useOpenCode>['setShowThemes'];
-  showOnboarding: ReturnType<typeof useOpenCode>['showOnboarding'];
-  setShowOnboarding: ReturnType<typeof useOpenCode>['setShowOnboarding'];
-  showModelPicker: ReturnType<typeof useOpenCode>['showModelPicker'];
-  setShowModelPicker: ReturnType<typeof useOpenCode>['setShowModelPicker'];
-}
+   showOnboarding: ReturnType<typeof useOpenCode>['showOnboarding'];
+   setShowOnboarding: ReturnType<typeof useOpenCode>['setShowOnboarding'];
+   showModelPicker: ReturnType<typeof useOpenCode>['showModelPicker'];
+   setShowModelPicker: ReturnType<typeof useOpenCode>['setShowModelPicker'];
+   agents: ReturnType<typeof useOpenCode>['agents'];
+   currentAgent: ReturnType<typeof useOpenCode>['currentAgent'];
+   selectAgent: ReturnType<typeof useOpenCode>['selectAgent'];
+   loadAgents: ReturnType<typeof useOpenCode>['loadAgents'];
+ }
 
 const OpenCodeContext = createContext<OpenCodeContextType | undefined>(undefined);
 
