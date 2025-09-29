@@ -3,11 +3,17 @@ import { openCodeService, handleOpencodeError } from '@/lib/opencode';
 import type { Part } from "../../node_modules/@opencode-ai/sdk/dist/gen/types.gen";
 
 interface Message {
-   id: string;
-   type: 'user' | 'assistant';
-   content: string;
-   timestamp: Date;
- }
+    id: string;
+    type: 'user' | 'assistant';
+    content: string;
+    timestamp: Date;
+    toolData?: {
+      command?: string;
+      output?: string;
+      fileDiffs?: Array<{ path: string; diff: string }>;
+      shellLogs?: string[];
+    };
+  }
 
  interface OpenCodeMessage {
    info?: {
@@ -44,7 +50,10 @@ interface Message {
 
   interface FileInfo {
     path: string;
+    name: string;
     type: 'file' | 'directory';
+    absolute?: string;
+    ignored?: boolean;
     size?: number;
     modifiedAt?: Date;
   }
@@ -66,29 +75,59 @@ interface Message {
   }
 
 export function useOpenCode() {
-   const [currentSession, setCurrentSession] = useState<Session | null>(null);
-   const [messages, setMessages] = useState<Message[]>([]);
-   const [loading, setLoading] = useState(false);
-   const [sessions, setSessions] = useState<Session[]>([]);
-   const [projects, setProjects] = useState<Project[]>([]);
-   const [currentProject, setCurrentProject] = useState<Project | null>(null);
-   const [files, setFiles] = useState<FileInfo[]>([]);
-  const [models, setModels] = useState<Model[]>([]);
-    const [selectedModel, setSelectedModel] = useState<Model>({ providerID: 'anthropic', modelID: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' });
-    const [config, setConfig] = useState<Config | null>(null);
-    const [currentPath, setCurrentPath] = useState<string>('');
-     const [providersData, setProvidersData] = useState<ProvidersData | null>(null);
-     const [showHelp, setShowHelp] = useState(false);
-     const [showThemes, setShowThemes] = useState(false);
+    const [currentSession, setCurrentSession] = useState<Session | null>(null);
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [sessions, setSessions] = useState<Session[]>([]);
+     const [projects, setProjects] = useState<Project[]>([]);
+     const [currentProject, setCurrentProject] = useState<Project | null>(null);
+      const [files, setFiles] = useState<FileInfo[]>([]);
+      const [fileDirectory, setFileDirectory] = useState<string>('.');
+     const [models, setModels] = useState<Model[]>([]);
 
-   // Load current session from localStorage on mount
-  useEffect(() => {
-    const savedSessionId = localStorage.getItem('opencode-current-session');
-    if (savedSessionId) {
-      // We'll set this after sessions are loaded
-      localStorage.setItem('opencode-current-session', savedSessionId);
-    }
-  }, []);
+      const [selectedModel, setSelectedModel] = useState<Model>({ providerID: 'anthropic', modelID: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' });
+      const [config, setConfig] = useState<Config | null>(null);
+      const [currentPath, setCurrentPath] = useState<string>('');
+
+     useEffect(() => {
+       setFileDirectory('.');
+       setFiles([]);
+     }, [currentProject?.id, currentPath]);
+
+       const [providersData, setProvidersData] = useState<ProvidersData | null>(null);
+      const [showHelp, setShowHelp] = useState(false);
+      const [showThemes, setShowThemes] = useState(false);
+      const [showOnboarding, setShowOnboarding] = useState(false);
+      const [showModelPicker, setShowModelPicker] = useState(false);
+      const [isConnected, setIsConnected] = useState(false);
+      const [customCommands, setCustomCommands] = useState<Array<{ name: string; description: string; template: string }>>([]);
+
+    // Load current session from localStorage on mount
+   useEffect(() => {
+     const savedSessionId = localStorage.getItem('opencode-current-session');
+     if (savedSessionId) {
+       // We'll set this after sessions are loaded
+       localStorage.setItem('opencode-current-session', savedSessionId);
+     }
+   }, []);
+
+   // Health check on mount
+   useEffect(() => {
+     const checkConnection = async () => {
+       try {
+         await openCodeService.getAgents();
+         setIsConnected(true);
+       } catch (error) {
+         console.error('Health check failed:', error);
+         setIsConnected(false);
+       }
+     };
+     checkConnection();
+   }, []);
+
+
+
+
 
   // Save current session to localStorage when it changes
   useEffect(() => {
@@ -103,11 +142,14 @@ export function useOpenCode() {
      try {
        setLoading(true);
        const sessionDirectory = directory || currentProject?.worktree;
-       const response = await openCodeService.createSession({ title, directory: sessionDirectory });
-       const session = response.data as unknown as { id: string; title?: string; directory?: string; projectID?: string; createdAt?: string | number; updatedAt?: string | number } | undefined;
-       if (!session) {
-         throw new Error('Failed to create session');
-       }
+        const response = await openCodeService.createSession({ title, directory: sessionDirectory });
+        if (response.error) {
+          throw new Error(response.error);
+        }
+        const session = response.data as unknown as { id: string; title?: string; directory?: string; projectID?: string; createdAt?: string | number; updatedAt?: string | number } | undefined;
+        if (!session) {
+          throw new Error('Failed to create session');
+        }
        const newSession: Session = {
          id: session.id,
          title: title || session.title,
@@ -127,48 +169,68 @@ export function useOpenCode() {
      }
    }, [currentProject]);
 
-   const sendMessage = useCallback(async (content: string, providerID?: string, modelID?: string) => {
-     if (!currentSession) {
-       throw new Error('No active session');
-     }
+    const sendMessage = useCallback(async (content: string, providerID?: string, modelID?: string) => {
+      if (!currentSession) {
+        throw new Error('No active session');
+      }
 
-     try {
-       setLoading(true);
+      try {
+        setLoading(true);
 
-       // Add user message to local state
-       const userMessage: Message = {
-         id: `user-${Date.now()}`,
-         type: 'user',
-         content,
-         timestamp: new Date(),
-       };
-       setMessages(prev => [...prev, userMessage]);
+        // Check for file references and expand them
+        let expandedContent = content;
+        const fileMatches = content.match(/@([^\s]+)/g);
+        if (fileMatches) {
+          for (const match of fileMatches) {
+            const filePath = match.slice(1);
+            try {
+              const fileContent = await readFile(filePath);
+              if (fileContent) {
+                expandedContent += `\n\nFile: ${filePath}\n${fileContent}`;
+              }
+            } catch (error) {
+              console.error('Failed to read file for expansion:', error);
+            }
+          }
+        }
 
-       // Send message to OpenCode
-       const response = await openCodeService.sendMessage(currentSession.id, content, providerID, modelID);
-       const data = response.data as unknown as { parts?: Part[] } | undefined;
-       if (!data) {
-         throw new Error('No response data');
-       }
+        // Add user message to local state
+        const userMessage: Message = {
+          id: `user-${Date.now()}`,
+          type: 'user',
+          content: expandedContent,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, userMessage]);
 
-       // Add assistant response to local state
-       const textPart = data.parts?.find((part: Part) => part.type === 'text');
-       const assistantMessage: Message = {
-         id: `assistant-${Date.now()}`,
-         type: 'assistant',
-         content: (textPart && 'text' in textPart ? textPart.text : '') || 'No response content',
-         timestamp: new Date(),
-       };
-       setMessages(prev => [...prev, assistantMessage]);
+        // For now, use non-streaming; implement streaming later
+        const response = await openCodeService.sendMessage(currentSession.id, content, providerID, modelID);
+        if (response.error) {
+          throw new Error(response.error);
+        }
+        const data = response.data as unknown as { parts?: Part[] } | undefined;
+        if (!data) {
+          throw new Error('No response data');
+        }
 
-       return assistantMessage;
-     } catch (error) {
-       console.error('Failed to send message:', error);
-       throw new Error(handleOpencodeError(error));
-     } finally {
-       setLoading(false);
-     }
-   }, [currentSession]);
+        // Add assistant response to local state
+        const textPart = data.parts?.find((part: Part) => part.type === 'text');
+        const assistantMessage: Message = {
+          id: `assistant-${Date.now()}`,
+          type: 'assistant',
+          content: (textPart && 'text' in textPart ? textPart.text : '') || 'No response content',
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+
+        return assistantMessage;
+      } catch (error) {
+        console.error('Failed to send message:', error);
+        throw new Error(handleOpencodeError(error));
+      } finally {
+        setLoading(false);
+      }
+      }, [currentSession]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadMessages = useCallback(async (sessionId: string) => {
     try {
@@ -285,12 +347,19 @@ export function useOpenCode() {
     }
   }, []);
 
-  // Load messages when session changes
-  useEffect(() => {
-    if (currentSession) {
-      loadMessages(currentSession.id);
-    }
-  }, [currentSession, loadMessages]);
+   // Load messages when session changes
+   useEffect(() => {
+     if (currentSession) {
+       loadMessages(currentSession.id);
+     }
+   }, [currentSession, loadMessages]);
+
+   // Reload on reconnection
+   useEffect(() => {
+     if (isConnected && currentSession) {
+       loadMessages(currentSession.id);
+     }
+   }, [isConnected, currentSession, loadMessages]);
 
     // Project management
     const loadProjects = useCallback(async () => {
@@ -326,25 +395,38 @@ export function useOpenCode() {
    }, [projects]);
 
      // File operations
-     const loadFiles = useCallback(async (directory?: string) => {
+     const normalizePath = (path: string): string => {
+       if (!path || path.trim() === '' || path === '.') {
+         return '.';
+       }
+       const trimmed = path.replace(/^\.\/?/, '').replace(/^\//, '').replace(/\/$/, '');
+       return trimmed === '' ? '.' : trimmed;
+     };
+
+     const loadFiles = useCallback(async (path: string = '.') => {
        try {
-         console.log('Loading files for directory:', directory);
-         const response = await openCodeService.getFileStatus(directory);
-         console.log('Files response:', response);
+         const baseDirectory = currentProject?.worktree ?? currentPath ?? undefined;
+         const normalizedPath = normalizePath(path);
+         const queryPath = normalizedPath === '.' ? '.' : normalizedPath;
+         const response = await openCodeService.listFiles(queryPath, baseDirectory);
          const filesArray = Array.isArray(response.data) ? response.data : [];
-         console.log('Files array:', filesArray);
-         setFiles(filesArray);
+          const normalizedFiles: FileInfo[] = filesArray
+            .filter((file) => !file.ignored)
+            .map((file) => ({
+              path: file.path,
+              name: file.name || file.path.split('/').pop() || file.path,
+              type: file.type,
+              absolute: file.absolute,
+              ignored: file.ignored,
+            }));
+
+         setFileDirectory((prev) => (prev === normalizedPath ? prev : normalizedPath));
+         setFiles(normalizedFiles);
        } catch (error) {
          console.error('Failed to load files:', error);
-         // Fallback: Set some dummy files for testing
-         const dummyFiles: FileInfo[] = [
-           { path: '/sample/file1.txt', type: 'file', size: 1024 },
-           { path: '/sample/file2.js', type: 'file', size: 2048 },
-           { path: '/sample/folder', type: 'directory' }
-         ];
-         setFiles(dummyFiles);
+         setFiles([]);
        }
-     }, []);
+      }, [currentProject, currentPath]);
 
    const searchFiles = useCallback(async (query: string) => {
      try {
@@ -358,25 +440,69 @@ export function useOpenCode() {
    }, []);
 
    const readFile = useCallback(async (filePath: string) => {
-     try {
-       const response = await openCodeService.readFile(filePath);
-       return response.data;
-     } catch (error) {
-       console.error('Failed to read file:', error);
-       return null;
-     }
-   }, []);
+      try {
+        const baseDirectory = currentProject?.worktree ?? currentPath ?? undefined;
+        const response = await openCodeService.readFile(filePath, baseDirectory);
+        const data = response.data;
+        if (!data) {
+          return null;
+        }
+        if (typeof data === 'string') {
+          return data;
+        }
+        if (typeof data === 'object') {
+          if ('content' in data && typeof data.content === 'string') {
+            return data.content;
+          }
+          if ('diff' in data && typeof data.diff === 'string') {
+            return data.diff;
+          }
+          return JSON.stringify(data);
+        }
+        return null;
+      } catch (error) {
+        console.error('Failed to read file:', error);
+        return null;
+      }
+    }, [currentProject, currentPath]);
 
-   const searchText = useCallback(async (query: string) => {
-     try {
-       const response = await openCodeService.searchText(query);
-       const results = Array.isArray(response.data) ? response.data : [];
-       return results;
-     } catch (error) {
-       console.error('Failed to search text:', error);
-       return [];
-     }
-   }, []);
+
+    const searchText = useCallback(async (query: string) => {
+      try {
+        const response = await openCodeService.searchText(query);
+        const results = Array.isArray(response.data) ? response.data : [];
+        return results;
+      } catch (error) {
+        console.error('Failed to search text:', error);
+        return [];
+      }
+    }, []);
+
+    const loadCustomCommands = useCallback(async () => {
+      try {
+        const files = await searchFiles('command/*.md');
+        const commands = await Promise.all(
+          files.map(async (file) => {
+            const content = await readFile(file);
+            if (content) {
+              const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+              if (frontmatterMatch) {
+                const frontmatter = frontmatterMatch[1];
+                const template = frontmatterMatch[2];
+                const descriptionMatch = frontmatter.match(/description:\s*(.+)/);
+                const description = descriptionMatch ? descriptionMatch[1] : '';
+                const name = file.split('/').pop()?.replace('.md', '') || '';
+                return { name, description, template };
+              }
+            }
+            return null;
+          })
+        );
+        setCustomCommands(commands.filter(Boolean) as Array<{ name: string; description: string; template: string }>);
+      } catch (error) {
+         console.error('Failed to load custom commands:', error);
+       }
+      }, [readFile, searchFiles]);
 
     // Model selection
     const loadModels = useCallback(async () => {
@@ -493,52 +619,61 @@ export function useOpenCode() {
      }
    }, []);
 
-   // Load sessions on mount
-   useEffect(() => {
-     loadSessions();
-     loadProjects();
-     loadConfig();
-     loadModels();
-   }, [loadSessions, loadProjects, loadConfig, loadModels]);
+    // Load sessions on mount
+    useEffect(() => {
+      loadSessions();
+      loadProjects();
+      loadConfig();
+      loadModels();
+      loadCustomCommands();
+      }, [loadSessions, loadProjects, loadConfig, loadModels, loadCustomCommands]);
 
-    return {
-      currentSession,
-      messages,
-      setMessages,
-      sessions,
-      loading,
-      createSession,
-      sendMessage,
-      loadSessions,
-      switchSession,
-      deleteSession,
-      clearAllSessions,
-      // New features
-      projects,
-      currentProject,
-      switchProject,
-      loadProjects,
-      files,
-      loadFiles,
-      searchFiles,
-      readFile,
-      searchText,
-      models,
-      selectedModel,
-      selectModel,
-      loadModels,
-      config,
-      currentPath,
-      loadCurrentPath,
-      providersData,
-       openHelp,
-       openSessions,
-       openThemes,
-       openModels,
-       showToast,
-       showHelp,
-       setShowHelp,
-       showThemes,
-       setShowThemes,
-    };
+     return {
+       currentSession,
+       messages,
+       setMessages,
+       sessions,
+       loading,
+       createSession,
+       sendMessage,
+       loadSessions,
+       switchSession,
+       deleteSession,
+       clearAllSessions,
+       // New features
+        projects,
+        currentProject,
+        switchProject,
+        loadProjects,
+        files,
+        fileDirectory,
+        loadFiles,
+        searchFiles,
+
+       readFile,
+       searchText,
+       models,
+       selectedModel,
+       selectModel,
+       loadModels,
+       config,
+       currentPath,
+       loadCurrentPath,
+       providersData,
+        isConnected,
+        customCommands,
+        openHelp,
+        openSessions,
+        openThemes,
+        openModels,
+        showToast,
+        showHelp,
+        setShowHelp,
+        showThemes,
+        setShowThemes,
+         showOnboarding,
+         setShowOnboarding,
+         showModelPicker,
+         setShowModelPicker,
+      };
  }

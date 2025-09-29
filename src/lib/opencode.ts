@@ -3,46 +3,46 @@
 import { createOpencodeClient } from "../../node_modules/@opencode-ai/sdk/dist/client.js"
 
 const client = createOpencodeClient({
-       baseUrl: "http://localhost:4096",
-       responseStyle: "data",
- })
+        baseUrl: process.env.NEXT_PUBLIC_OPENCODE_URL || "http://localhost:4096",
+        responseStyle: "data",
+  })
 
-  export const openCodeService = {
-      // App methods
-      async getAgents() {
-          try {
-              console.log('Getting agents...');
-              const response = await client.app.agents();
-              console.log('Agents response:', response);
-              return { data: response };
-          } catch (error) {
-              console.error('Get agents failed:', error);
-              throw error;
-          }
-      },
+   export const openCodeService = {
+       // App methods
+       async getAgents() {
+           try {
+               console.log('Getting agents...');
+               const response = await client.app.agents();
+               console.log('Agents response:', response);
+               return { data: response, error: null };
+           } catch (error) {
+               console.error('Get agents failed:', error);
+               return { data: null, error: handleOpencodeError(error) };
+           }
+       },
 
-      async log(message: string, level: 'info' | 'error' | 'debug' | 'warn' = 'info', service: string = 'opencode-web') {
-          try {
-              const response = await client.app.log({
-                  body: { message, level, service }
-              });
-              return { data: response };
-          } catch (error) {
-              console.error('Log failed:', error);
-              throw error;
-          }
-      },
+       async log(message: string, level: 'info' | 'error' | 'debug' | 'warn' = 'info', service: string = 'opencode-web') {
+           try {
+               const response = await client.app.log({
+                   body: { message, level, service }
+               });
+               return { data: response, error: null };
+           } catch (error) {
+               console.error('Log failed:', error);
+               return { data: null, error: handleOpencodeError(error) };
+           }
+       },
 
-      // Project methods
-      async listProjects() {
-          try {
-              const response = await client.project.list();
-              return { data: response };
-          } catch (error) {
-              console.error('List projects failed:', error);
-              throw error;
-          }
-      },
+       // Project methods
+       async listProjects() {
+           try {
+               const response = await client.project.list();
+               return { data: response, error: null };
+           } catch (error) {
+               console.error('List projects failed:', error);
+               return { data: null, error: handleOpencodeError(error) };
+           }
+       },
 
       async getCurrentProject() {
           try {
@@ -87,33 +87,38 @@ const client = createOpencodeClient({
       },
 
       // Session methods
-      async createSession({ title, directory }: { title?: string; directory?: string } = {}) {
-           try {
-               console.log('Creating session with title:', title, 'and directory:', directory);
-               const body: { title?: string } = {};
-               if (title) body.title = title;
-               const response = await client.session.create({
-                   query: directory ? { directory } : undefined,
-                   body
-               });
-               console.log('Session creation response:', response);
-               return { data: response };
-           } catch (error) {
-               console.error('Session creation failed:', error);
-               throw error;
-           }
-      },
+       async createSession({ title, directory }: { title?: string; directory?: string } = {}) {
+            try {
+                console.log('Creating session with title:', title, 'and directory:', directory);
+                const body: { title?: string } = {};
+                if (title) body.title = title;
+                const response = await client.session.create({
+                    query: directory ? { directory } : undefined,
+                    body
+                });
+                console.log('Session creation response:', response);
+                return { data: response, error: null };
+            } catch (error) {
+                console.error('Session creation failed:', error);
+                return { data: null, error: handleOpencodeError(error) };
+            }
+       },
 
-      async sendMessage(sessionId: string, content: string, providerID: string = "anthropic", modelID: string = "claude-3-5-sonnet-20241022") {
-          const response = await client.session.prompt({
-              path: { id: sessionId },
-              body: {
-                  model: { providerID, modelID },
-                  parts: [{ type: "text", text: content }]
-              }
-          });
-          return { data: response };
-      },
+       async sendMessage(sessionId: string, content: string, providerID: string = "anthropic", modelID: string = "claude-3-5-sonnet-20241022") {
+           try {
+               const response = await client.session.prompt({
+                   path: { id: sessionId },
+                   body: {
+                       model: { providerID, modelID },
+                       parts: [{ type: "text", text: content }]
+                   }
+               });
+               return { data: response, error: null };
+           } catch (error) {
+               console.error('Send message failed:', error);
+               return { data: null, error: handleOpencodeError(error) };
+           }
+       },
 
       async getMessages(sessionId: string) {
           const response = await client.session.messages({
@@ -310,48 +315,68 @@ const client = createOpencodeClient({
           }
       },
 
-      async findFiles(query: string) {
-          try {
-              const response = await client.find.files({ query: { query } });
-              return { data: response };
-          } catch (error) {
-              console.error('Find files failed:', error);
-              throw error;
-          }
-      },
-
-      async findSymbols(query: string) {
-          try {
-              const response = await client.find.symbols({ query: { query } });
-              return { data: response };
-          } catch (error) {
-              console.error('Find symbols failed:', error);
-              throw error;
-          }
-      },
-
-      async readFile(filePath: string) {
-          try {
-              const response = await client.file.read({ query: { path: filePath } });
-              return { data: response };
-          } catch (error) {
-              console.error('Read file failed:', error);
-              throw error;
-          }
-      },
-
-       async getFileStatus(directory?: string) {
+       async findFiles(query: string) {
            try {
-               const response = await client.file.status({ query: { directory } });
+               const response = await client.find.files({ query: { query } });
                return { data: response };
            } catch (error) {
-               console.error('Get file status failed:', error);
+               console.error('Find files failed:', error);
                throw error;
            }
        },
 
-      // TUI methods
-      async appendPrompt(text: string) {
+       async findSymbols(query: string) {
+           try {
+               const response = await client.find.symbols({ query: { query } });
+               return { data: response };
+           } catch (error) {
+               console.error('Find symbols failed:', error);
+               throw error;
+           }
+       },
+
+       async listFiles(path: string, directory?: string) {
+           try {
+               const query: { path: string; directory?: string } = { path };
+               if (directory) {
+                   query.directory = directory;
+               }
+               const response = await client.file.list({ query });
+               return { data: response };
+           } catch (error) {
+               console.error('List files failed:', error);
+               throw error;
+           }
+       },
+
+       async readFile(filePath: string, directory?: string) {
+           try {
+               const query: { path: string; directory?: string } = { path: filePath };
+               if (directory) {
+                   query.directory = directory;
+               }
+               const response = await client.file.read({ query });
+               return { data: response };
+           } catch (error) {
+               console.error('Read file failed:', error);
+               throw error;
+           }
+       },
+
+        async getFileStatus(directory?: string) {
+            try {
+                const query = typeof directory === 'string' && directory.length > 0 ? { directory } : undefined;
+                const response = query ? await client.file.status({ query }) : await client.file.status();
+                return { data: response };
+            } catch (error) {
+                console.error('Get file status failed:', error);
+                throw error;
+            }
+        },
+
+       // TUI methods
+       async appendPrompt(text: string) {
+
           try {
               const response = await client.tui.appendPrompt({ body: { text } });
               return { data: response };
@@ -455,16 +480,16 @@ const client = createOpencodeClient({
           }
       },
 
-      // Events methods
-      async subscribeToEvents() {
-          try {
-              const response = await client.event.subscribe();
-              return { data: response };
-          } catch (error) {
-              console.error('Subscribe to events failed:', error);
-              throw error;
-          }
-      }
+       // Events methods
+       async subscribeToEvents() {
+           try {
+               const response = await client.event.subscribe();
+               return { data: response, error: null };
+           } catch (error) {
+               console.error('Subscribe to events failed:', error);
+               return { data: null, error: handleOpencodeError(error) };
+           }
+       }
   }
 
 

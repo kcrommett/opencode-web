@@ -1,9 +1,9 @@
 import { createOpencodeClient } from "../../node_modules/@opencode-ai/sdk/dist/client.js"
 
 const client = createOpencodeClient({
-    baseUrl: "http://localhost:4096",
-    responseStyle: "data",
-})
+     baseUrl: process.env.NEXT_PUBLIC_OPENCODE_URL || "http://localhost:4096",
+     responseStyle: "data",
+ })
 
 export const openCodeServerService = {
     async createSession({ title, directory }: { title?: string; directory?: string } = {}) {

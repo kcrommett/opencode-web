@@ -6,11 +6,14 @@ A modern Next.js web application that provides a user-friendly interface to conn
 
 - **Cross-Device Access**: Connect to your OpenCode server from any device on your network
 - **Terminal-Inspired UI**: Beautiful WebTUI components that bring terminal aesthetics to the web
-- **Real-time Chat**: Interactive conversations with the OpenCode AI agent
-- **Session Management**: Create and manage multiple coding sessions
-- **File Operations**: Browse, read, and search through your codebase
-- **Mobile Optimized**: Responsive design that works great on phones and tablets
-- **TypeScript Support**: Full type safety and excellent developer experience
+ - **Real-time Chat**: Interactive conversations with the OpenCode AI agent
+ - **Slash Commands**: Full support for TUI commands like /new, /undo, /models, /help
+ - **File References**: Use @filename to include files in prompts
+ - **Shell Commands**: Execute shell commands with !command
+ - **Session Management**: Create and manage multiple coding sessions
+ - **File Operations**: Browse, read, and search through your codebase
+ - **Mobile Optimized**: Responsive design that works great on phones and tablets
+ - **TypeScript Support**: Full type safety and excellent developer experience
 
 ## 🏗️ Architecture
 
@@ -231,12 +234,24 @@ npm run start
 NEXT_PUBLIC_OPENCODE_URL=http://your-server-ip:4096
 ```
 
-## 🔒 Security Considerations
+ ## 🔒 Security Considerations
 
-- **Never expose OpenCode server to the internet directly**
-- Use authentication in your Next.js app for production
-- Consider VPN for remote access
-- Implement rate limiting on API routes
+ - **Never expose OpenCode server to the internet directly**
+ - Use authentication in your Next.js app for production
+ - Consider VPN for remote access
+ - Implement rate limiting on API routes
+
+ ## 🚀 Deployment
+
+ ### Environment Variables
+ - Set `NEXT_PUBLIC_OPENCODE_URL` to your server's URL
+ - For production, use HTTPS and secure the connection
+
+ ### Production Setup
+ - Build with `pnpm build`
+ - Start with `pnpm start`
+ - Ensure CORS is configured for your domain
+ - Add authentication middleware if needed
 
 ## 📚 Additional Resources
 
