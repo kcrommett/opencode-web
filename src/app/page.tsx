@@ -454,6 +454,14 @@ export default function OpenCodeChatTUI() {
     });
   }, [files]);
 
+  const sortedProjects = useMemo(() => {
+    return [...projects].sort((a, b) => {
+      const aDate = a.updatedAt || a.createdAt || new Date(0);
+      const bDate = b.updatedAt || b.createdAt || new Date(0);
+      return bDate.getTime() - aDate.getTime();
+    });
+  }, [projects]);
+
   const handleModelSelect = (modelId: string) => {
     const model = models.find((m) => m.modelID === modelId);
     if (model) {
@@ -633,8 +641,8 @@ export default function OpenCodeChatTUI() {
               <div className="space-y-4 h-full flex flex-col">
                 <h3 className="text-sm font-medium">Projects</h3>
                 <div className="flex-1 overflow-y-auto space-y-2">
-                  {projects.length > 0 ? (
-                    projects.map((project) => (
+                   {sortedProjects.length > 0 ? (
+                     sortedProjects.map((project) => (
                        <div
                          key={project.id}
                          className={`p-2 rounded cursor-pointer transition-colors ${
@@ -647,9 +655,9 @@ export default function OpenCodeChatTUI() {
                          <div className="font-medium text-sm">
                            {project.worktree}
                          </div>
-                         <div className="text-xs opacity-70">
-                           VCS: {project.vcs || 'Unknown'} | Updated: {project.updatedAt?.toLocaleDateString() || 'N/A'}
-                         </div>
+                          <div className="text-xs opacity-70">
+                            VCS: {project.vcs || 'Unknown'} | Updated: {project.updatedAt?.toLocaleDateString() || project.createdAt?.toLocaleDateString() || 'N/A'}
+                          </div>
                        </div>
                     ))
                   ) : (
@@ -829,20 +837,7 @@ export default function OpenCodeChatTUI() {
                         ))}
                     </select>
                    </div>
-                   <div>
-                     <label className="block text-xs font-medium mb-1">
-                       API Key
-                     </label>
-                     <Input
-                       type="password"
-                       placeholder="Enter API key"
-                       size="small"
-                       className="bg-[#1e1e2e] text-[#cdd6f4] border-[#89b4fa]"
-                       onChange={() => {
-                         // TODO: Set auth
-                       }}
-                     />
-                   </div>
+
                  </div>
                  <div className="text-xs opacity-70">
                    Current: {selectedModel?.name || "None selected"}

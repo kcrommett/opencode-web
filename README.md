@@ -47,6 +47,8 @@ opencode serve --hostname=0.0.0.0 --port=4096
 ### 2. Install Dependencies
 
 ```bash
+bun install
+# or
 npm install
 # or
 yarn install
@@ -71,13 +73,13 @@ NEXT_PUBLIC_OPENCODE_URL=http://192.168.1.100:4096
 ### 4. Run Development Server
 
 ```bash
+bun run dev
+# or
 npm run dev
 # or
 yarn dev
 # or
 pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
@@ -220,13 +222,13 @@ sudo ufw allow 4096
 
 ### Development
 ```bash
-npm run dev
+bun run dev
 ```
 
 ### Production Build
 ```bash
-npm run build
-npm run start
+bun run build
+bun run start
 ```
 
 ### Environment Variables for Production
@@ -248,8 +250,8 @@ NEXT_PUBLIC_OPENCODE_URL=http://your-server-ip:4096
  - For production, use HTTPS and secure the connection
 
  ### Production Setup
- - Build with `pnpm build`
- - Start with `pnpm start`
+  - Build with `bun run build`
+  - Start with `bun run start`
  - Ensure CORS is configured for your domain
  - Add authentication middleware if needed
 

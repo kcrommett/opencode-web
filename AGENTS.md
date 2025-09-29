@@ -2,10 +2,10 @@
 
 ## Build/Lint/Test Commands
 
-- **Development server**: `pnpm dev` (uses Turbopack)
-- **Build**: `pnpm build` (uses Turbopack)
-- **Start production**: `pnpm start`
-- **Lint**: `pnpm lint` (ESLint with Next.js config)
+- **Development server**: `bun run dev` (uses Turbopack)
+- **Build**: `bun run build` (uses Turbopack)
+- **Start production**: `bun run start`
+- **Lint**: `bun run lint` (ESLint with Next.js config)
 - **No test framework configured** - add tests using your preferred framework
 
 ## Code Style Guidelines
