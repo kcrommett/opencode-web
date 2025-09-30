@@ -1,11 +1,8 @@
  "use client"
 
-import { createOpencodeClient } from "../../node_modules/@opencode-ai/sdk/dist/client.js"
+import { createProxyClient } from "./opencode-client"
 
-const client = createOpencodeClient({
-        baseUrl: process.env.NEXT_PUBLIC_OPENCODE_URL || "http://localhost:4096",
-        responseStyle: "data",
-  })
+const client = createProxyClient()
 
    export const openCodeService = {
        // App methods

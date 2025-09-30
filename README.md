@@ -20,12 +20,22 @@ A modern Next.js web application that provides a user-friendly interface to conn
 ```
 [Your Computer] ──── OpenCode Server (localhost:4096)
                             │
-                            │ HTTP API
+                            │ Internal HTTP API
+                            │
+                    Next.js Backend Proxy
+                            │
+                            │ Secure Proxy Layer
                             │
 [Phone/Browser] ──── Next.js Web App ──── OpenCode SDK
                             │
                             └── WebTUI Components
 ```
+
+**Proxy Architecture**: The app uses a secure proxy pattern where all OpenCode requests from the browser are routed through Next.js API routes. This ensures:
+- ✅ OpenCode server stays internal (never exposed to internet)
+- ✅ Works with Cloudflare Tunnels and reverse proxies
+- ✅ No CORS issues
+- ✅ Enhanced security through centralized request handling
 
 ## 📋 Prerequisites
 
@@ -61,14 +71,19 @@ pnpm install
 Create a `.env.local` file in the project root:
 
 ```bash
-# Replace with your computer's local IP address
-NEXT_PUBLIC_OPENCODE_URL=http://192.168.1.100:4096
+# Server-side only - not exposed to browser
+OPENCODE_SERVER_URL=http://localhost:4096
+
+# Client-side proxy endpoint
+NEXT_PUBLIC_API_BASE=/api/opencode-proxy
+
+# Optional: Allowed origins for CORS (if needed)
+ALLOWED_ORIGINS=http://localhost:3000,https://yourdomain.com
 ```
 
-**Find your IP address:**
-- **macOS/Linux**: `ifconfig | grep inet`
-- **Windows**: `ipconfig`
-- Look for your local network IP (usually 192.168.x.x or 10.x.x.x)
+**For local development**: Use `http://localhost:4096` for `OPENCODE_SERVER_URL`
+
+**For production/Docker**: Use internal Docker network URL like `http://opencode-server:4096`
 
 ### 4. Run Development Server
 
@@ -91,6 +106,8 @@ To access from mobile devices:
 1. Ensure your phone is on the same WiFi network
 2. Find your computer's local IP address
 3. Access via `http://YOUR_COMPUTER_IP:3000`
+
+**Note**: With the proxy architecture, the OpenCode server stays on localhost:4096 (internal only). Only the Next.js app (port 3000) needs network access.
 
 ## 🎨 UI Components
 
@@ -166,7 +183,9 @@ The app integrates with OpenCode through the official SDK. Key features include:
 
 ### API Routes
 - `/api/opencode` - Main API endpoint for OpenCode operations
-- Proper error handling and CORS configuration
+- `/api/opencode-proxy/[...path]` - Secure proxy layer for all OpenCode SDK requests
+- Proper error handling and streaming support
+- Path validation and security measures built-in
 
 ## 📁 Project Structure
 
@@ -174,22 +193,26 @@ The app integrates with OpenCode through the official SDK. Key features include:
 src/
 ├── app/
 │   ├── _components/
-│   │   └── ui/           # WebTUI React components
+│   │   └── ui/                          # WebTUI React components
 │   │       ├── badge.tsx
 │   │       ├── button.tsx
 │   │       ├── input.tsx
 │   │       ├── table.tsx
-│   │       ├── ui.md      # Component documentation
+│   │       ├── ui.md                     # Component documentation
 │   │       └── ...
 │   ├── api/
-│   │   └── opencode/     # API routes for OpenCode integration
-│   ├── globals.css       # Global styles with WebTUI imports
-│   ├── layout.tsx        # Root layout
-│   └── page.tsx          # Main page component
+│   │   ├── opencode/                     # API routes for OpenCode integration
+│   │   └── opencode-proxy/[...path]/    # Proxy layer for all SDK requests
+│   │       └── route.ts
+│   ├── globals.css                       # Global styles with WebTUI imports
+│   ├── layout.tsx                        # Root layout
+│   └── page.tsx                          # Main page component
 ├── lib/
-│   └── opencode.ts       # OpenCode SDK client configuration
+│   ├── opencode.ts                       # OpenCode client-side service
+│   ├── opencode-client.ts                # Proxy-aware client factory
+│   └── opencode-server.ts                # Server-side OpenCode client
 └── hooks/
-    └── useOpenCode.ts    # Custom hook for OpenCode operations
+    └── useOpenCode.ts                    # Custom hook for OpenCode operations
 ```
 
 ## 🌐 Network Configuration
@@ -213,10 +236,10 @@ sudo ufw allow 4096
 
 ### Troubleshooting Network Issues
 
-1. **Connection refused**: Verify OpenCode server is running with `--hostname=0.0.0.0`
-2. **CORS errors**: Use the API routes, not direct client calls
-3. **Network timeout**: Check firewall settings and network connectivity
-4. **IP address issues**: Ensure you're using the correct local network IP
+1. **Connection refused**: Verify OpenCode server is running on localhost:4096
+2. **Proxy errors**: Check `OPENCODE_SERVER_URL` in `.env.local`
+3. **Network timeout**: Ensure Next.js can reach OpenCode server
+4. **Path forbidden (403)**: Check allowed paths in proxy route configuration
 
 ## 🚀 Deployment
 
@@ -232,28 +255,83 @@ bun run start
 ```
 
 ### Environment Variables for Production
+
 ```bash
-NEXT_PUBLIC_OPENCODE_URL=http://your-server-ip:4096
+# Internal OpenCode server URL (Docker network or localhost)
+OPENCODE_SERVER_URL=http://opencode-server:4096
+
+# Client-side proxy endpoint
+NEXT_PUBLIC_API_BASE=/api/opencode-proxy
+
+# Allowed origins (optional)
+ALLOWED_ORIGINS=https://yourdomain.com
 ```
 
- ## 🔒 Security Considerations
+### Cloudflare Tunnel Deployment
 
- - **Never expose OpenCode server to the internet directly**
- - Use authentication in your Next.js app for production
- - Consider VPN for remote access
- - Implement rate limiting on API routes
+The proxy architecture works seamlessly with Cloudflare Tunnels:
 
- ## 🚀 Deployment
+```yaml
+tunnel: <tunnel-id>
+ingress:
+  - hostname: your-app.com
+    service: http://localhost:3000  # Next.js app only
+  - service: http_status:404
+```
 
- ### Environment Variables
- - Set `NEXT_PUBLIC_OPENCODE_URL` to your server's URL
- - For production, use HTTPS and secure the connection
+**Important**: Only expose Next.js (port 3000), never expose OpenCode server (port 4096) directly.
 
- ### Production Setup
-  - Build with `bun run build`
-  - Start with `bun run start`
- - Ensure CORS is configured for your domain
- - Add authentication middleware if needed
+## 🔒 Security Considerations
+
+- ✅ **OpenCode server stays internal** - Never exposed to internet
+- ✅ **Proxy validates paths** - Only allowed API endpoints are forwarded
+- ✅ **No CORS issues** - Same-origin requests through Next.js
+- 🔐 **Add authentication** - Implement auth middleware in Next.js for production
+- 🔐 **Rate limiting** - Add rate limiting to proxy routes
+- 🔐 **Request sanitization** - Proxy validates and sanitizes all requests
+
+### Production Security Checklist
+
+- [ ] Add authentication to Next.js app
+- [ ] Implement rate limiting on `/api/opencode-proxy`
+- [ ] Use HTTPS for all connections
+- [ ] Keep OpenCode server on internal network only
+- [ ] Monitor and log proxy requests
+- [ ] Consider VPN for additional security
+
+## 🚀 Production Deployment
+
+### Docker Compose Example
+
+```yaml
+services:
+  opencode-server:
+    image: opencode/server
+    ports:
+      - "127.0.0.1:4096:4096"  # Localhost only!
+    volumes:
+      - ./projects:/projects
+
+  opencode-web:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - OPENCODE_SERVER_URL=http://opencode-server:4096
+      - NEXT_PUBLIC_API_BASE=/api/opencode-proxy
+    depends_on:
+      - opencode-server
+```
+
+### Build and Start
+
+```bash
+# Build production bundle
+bun run build
+
+# Start production server
+bun run start
+```
 
 ## 📚 Additional Resources
 

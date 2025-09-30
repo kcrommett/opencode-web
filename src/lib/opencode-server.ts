@@ -1,7 +1,7 @@
 import { createOpencodeClient } from "../../node_modules/@opencode-ai/sdk/dist/client.js"
 
 const client = createOpencodeClient({
-     baseUrl: process.env.NEXT_PUBLIC_OPENCODE_URL || "http://localhost:4096",
+     baseUrl: process.env.OPENCODE_SERVER_URL || "http://localhost:4096",
      responseStyle: "data",
  })
 

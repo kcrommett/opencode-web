@@ -122,7 +122,7 @@ export function useOpenCode() {
       const [fileDirectory, setFileDirectory] = useState<string>('.');
      const [models, setModels] = useState<Model[]>([]);
 
-      const [selectedModel, setSelectedModel] = useState<Model>({ providerID: 'anthropic', modelID: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' });
+      const [selectedModel, setSelectedModel] = useState<Model | null>(null);
       const [config, setConfig] = useState<Config | null>(null);
       const [currentPath, setCurrentPath] = useState<string>('');
 
@@ -155,14 +155,12 @@ export function useOpenCode() {
      }
    }, []);
 
-   // Health check on mount
    useEffect(() => {
      const checkConnection = async () => {
        try {
-         await openCodeService.getAgents();
-         setIsConnected(true);
+         const response = await openCodeService.getConfig();
+         setIsConnected(!!response.data);
     } catch {
-      // Silently handle connection errors
       setIsConnected(false);
     }
      };
@@ -173,7 +171,7 @@ export function useOpenCode() {
 
 
 
-  // Save current session to localStorage when it changes
+   // Save current session to localStorage when it changes
   useEffect(() => {
     if (currentSession) {
       localStorage.setItem('opencode-current-session', currentSession.id);
@@ -181,6 +179,20 @@ export function useOpenCode() {
       localStorage.removeItem('opencode-current-session');
     }
   }, [currentSession]);
+
+  // Save selected model to localStorage when it changes
+  useEffect(() => {
+    if (selectedModel) {
+      localStorage.setItem('opencode-selected-model', JSON.stringify(selectedModel));
+    }
+  }, [selectedModel]);
+
+  // Save current agent to localStorage when it changes
+  useEffect(() => {
+    if (currentAgent) {
+      localStorage.setItem('opencode-current-agent', JSON.stringify(currentAgent));
+    }
+  }, [currentAgent]);
 
    const createSession = useCallback(async ({ title, directory }: { title?: string; directory?: string } = {}) => {
      try {
@@ -519,23 +531,59 @@ export function useOpenCode() {
             console.log('Available models:', availableModels);
             setModels(availableModels);
             setLoadedModels(true);
-            if (availableModels.length > 0 && !selectedModel) {
+            
+            // Try to restore saved model from localStorage
+            const savedModelStr = localStorage.getItem('opencode-selected-model');
+            if (savedModelStr && !selectedModel) {
+              try {
+                const savedModel = JSON.parse(savedModelStr);
+                const matchingModel = availableModels.find(
+                  m => m.providerID === savedModel.providerID && m.modelID === savedModel.modelID
+                );
+                if (matchingModel) {
+                  setSelectedModel(matchingModel);
+                } else if (availableModels.length > 0) {
+                  setSelectedModel(availableModels[0]);
+                }
+              } catch {
+                if (availableModels.length > 0) {
+                  setSelectedModel(availableModels[0]);
+                }
+              }
+            } else if (availableModels.length > 0 && !selectedModel) {
               setSelectedModel(availableModels[0]);
             }
           }
-       } catch {
-         // Silently handle errors when server is unavailable
-         // Fallback: Set some dummy models for testing
-         const dummyModels: Model[] = [
-           { providerID: 'anthropic', modelID: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
-           { providerID: 'openai', modelID: 'gpt-4', name: 'GPT-4' }
-         ];
-         setModels(dummyModels);
-         setLoadedModels(true);
-         if (!selectedModel) {
-           setSelectedModel(dummyModels[0]);
-         }
-       }
+        } catch {
+          // Silently handle errors when server is unavailable
+          // Fallback: Set some dummy models for testing
+          const dummyModels: Model[] = [
+            { providerID: 'anthropic', modelID: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
+            { providerID: 'openai', modelID: 'gpt-4', name: 'GPT-4' }
+          ];
+          setModels(dummyModels);
+          setLoadedModels(true);
+          
+          // Try to restore saved model
+          const savedModelStr = localStorage.getItem('opencode-selected-model');
+          if (savedModelStr && !selectedModel) {
+            try {
+              const savedModel = JSON.parse(savedModelStr);
+              const matchingModel = dummyModels.find(
+                m => m.providerID === savedModel.providerID && m.modelID === savedModel.modelID
+              );
+              if (matchingModel) {
+                setSelectedModel(matchingModel);
+              } else {
+                setSelectedModel(dummyModels[0]);
+              }
+            } catch {
+              setSelectedModel(dummyModels[0]);
+            }
+          } else if (!selectedModel) {
+            setSelectedModel(dummyModels[0]);
+          }
+        }
      }, [selectedModel, loadedModels]);
 
    const selectModel = useCallback((model: Model) => {
@@ -609,8 +657,28 @@ export function useOpenCode() {
         const agentsArray: Agent[] = Array.isArray(response.data) ? response.data : [];
         setAgents(agentsArray);
         loadedAgentsRef.current = true;
-        // Default to agent 1 (build agent) if available
-        if (agentsArray.length > 1 && !currentAgent) {
+        
+        // Try to restore saved agent from localStorage
+        const savedAgentStr = localStorage.getItem('opencode-current-agent');
+        if (savedAgentStr && !currentAgent) {
+          try {
+            const savedAgent = JSON.parse(savedAgentStr);
+            const matchingAgent = agentsArray.find(a => a.id === savedAgent.id);
+            if (matchingAgent) {
+              setCurrentAgent(matchingAgent);
+            } else if (agentsArray.length > 1) {
+              setCurrentAgent(agentsArray[1]);
+            } else if (agentsArray.length > 0) {
+              setCurrentAgent(agentsArray[0]);
+            }
+          } catch {
+            if (agentsArray.length > 1) {
+              setCurrentAgent(agentsArray[1]);
+            } else if (agentsArray.length > 0) {
+              setCurrentAgent(agentsArray[0]);
+            }
+          }
+        } else if (agentsArray.length > 1 && !currentAgent) {
           setCurrentAgent(agentsArray[1]);
         } else if (agentsArray.length > 0 && !currentAgent) {
           setCurrentAgent(agentsArray[0]);
@@ -625,22 +693,20 @@ export function useOpenCode() {
        setCurrentAgent(agent);
      }, []);
 
-     // Load sessions on mount
-      useEffect(() => {
+     useEffect(() => {
         loadProjects();
         loadSessions();
         loadConfig();
         loadModels();
         loadCustomCommands();
         loadAgents();
-        }, [loadProjects, loadSessions, loadConfig, loadModels, loadCustomCommands, loadAgents]);
+        }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-     // Reload sessions when currentProject changes
      useEffect(() => {
        if (currentProject) {
          loadSessions();
        }
-     }, [currentProject, loadSessions]);
+     }, [currentProject?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
      return {
        currentSession,

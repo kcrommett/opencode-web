@@ -27,22 +27,29 @@
 @import '@webtui/theme-catppuccin';
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --theme-background: #1e1e2e;
+  --theme-backgroundAlt: #313244;
+  --theme-backgroundAccent: #45475a;
+  --theme-foreground: #cdd6f4;
+  --theme-foregroundAlt: #bac2de;
+  --theme-border: #45475a;
+  --theme-primary: #89b4fa;
+  --theme-primaryHover: #74c7ec;
+  --theme-success: #a6e3a1;
+  --theme-warning: #f9e2af;
+  --theme-error: #f38ba8;
+  --theme-muted: #6c7086;
+  
+  --background: var(--theme-background);
+  --foreground: var(--theme-foreground);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-border: var(--theme-border);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {

@@ -1,6 +1,6 @@
-"use client";
+ "use client";
 
- import { useState, useMemo } from "react";
+  import { useState, useMemo, useEffect, useRef } from "react";
    import {
      Button,
      Input,
@@ -13,6 +13,8 @@
    } from "@/app/_components/ui";
 import { useOpenCodeContext } from "@/contexts/OpenCodeContext";
 import { parseCommand } from "@/lib/commandParser";
+import { useTheme } from "@/hooks/useTheme";
+import { themeList } from "@/lib/themes";
 
 export default function OpenCodeChatTUI() {
   const [input, setInput] = useState("");
@@ -25,6 +27,9 @@ export default function OpenCodeChatTUI() {
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [fileSuggestions, setFileSuggestions] = useState<string[]>([]);
   const [showFileSuggestions, setShowFileSuggestions] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  const { currentTheme, changeTheme } = useTheme();
    const {
      currentSession,
      messages,
@@ -84,14 +89,14 @@ export default function OpenCodeChatTUI() {
            await handleCommand(messageText);
          } else if (parsed.type === 'shell') {
            await handleShellCommand(parsed.command || '');
-         } else {
-           await sendMessage(
-             messageText,
-             selectedModel.providerID,
-             selectedModel.modelID,
-           );
-           await loadSessions(); // Refresh session metadata after sending message
-         }
+          } else {
+            await sendMessage(
+              messageText,
+              selectedModel?.providerID,
+              selectedModel?.modelID,
+            );
+            await loadSessions(); // Refresh session metadata after sending message
+          }
        }
      } catch (err) {
        console.error("Failed to send message:", err);
@@ -495,20 +500,24 @@ export default function OpenCodeChatTUI() {
        if (currentIndex === -1) currentIndex = 0;
      }
      const nextIndex = (currentIndex + 1) % agents.length;
-     selectAgent(agents[nextIndex]);
-   };
+      selectAgent(agents[nextIndex]);
+    };
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   return (
-     <div className="h-screen bg-[#1e1e2e] text-[#cdd6f4] font-mono overflow-hidden flex flex-col">
+     <div className="h-screen font-mono overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
        {/* Top Bar */}
-        <div className="bg-[#313244] px-4 py-2 flex items-center justify-between">
+        <div className="px-4 py-2 flex items-center justify-between" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
           {!isConnected && (
-            <div className="bg-[#f38ba8] text-[#1e1e2e] px-2 py-1 rounded text-xs">
+            <div className="px-2 py-1 rounded text-xs" style={{ backgroundColor: 'var(--theme-error)', color: 'var(--theme-background)' }}>
               Disconnected from OpenCode server
             </div>
           )}
         </div>
-        <div className="bg-[#313244] px-4 py-2 flex items-center justify-between">
+        <div className="px-4 py-2 flex items-center justify-between" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
          <div className="flex items-center gap-4">
            <Badge variant="foreground1" cap="round">
              opencode web
@@ -555,17 +564,17 @@ export default function OpenCodeChatTUI() {
 
          <Separator />
 
-         {/* Main Content */}
+          {/* Main Content */}
           <div className="flex-1 flex overflow-hidden">
           {/* Sidebar */}
-           <View box="square" className="w-80 md:w-80 sm:w-full bg-[#313244] flex flex-col">
+           <View box="square" className="w-80 md:w-80 sm:w-full flex flex-col" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
           <div className="p-4 flex-1 overflow-hidden">
                {activeTab === "workspace" && (
-                 <div className="space-y-4 h-full flex flex-col">
-                   {/* Projects Section */}
-                   <div className="space-y-4">
-                     <h3 className="text-sm font-medium">Projects</h3>
-                     <Separator />
+                 <div className="h-full flex flex-col overflow-hidden">
+                   {/* Projects Section - 50% height */}
+                   <div className="flex flex-col h-1/2 min-h-0">
+                     <h3 className="text-sm font-medium mb-2">Projects</h3>
+                     <Separator className="mb-2" />
                     <div className="flex-1 overflow-y-auto space-y-2">
                       {sortedProjects.length > 0 ? (
                         sortedProjects.map((project) => (
@@ -578,27 +587,27 @@ export default function OpenCodeChatTUI() {
                             }`}
                             onClick={() => handleProjectSwitch(project)}
                           >
-                            <div className="font-medium text-sm">
+                            <div className="font-medium text-sm truncate">
                               {project.worktree}
                             </div>
-                             <div className="text-xs opacity-70">
-                               VCS: {project.vcs || 'Unknown'} | Updated: {project.updatedAt?.toLocaleDateString() || project.createdAt?.toLocaleDateString() || 'N/A'}
+                             <div className="text-xs opacity-70 truncate">
+                               VCS: {project.vcs || 'Unknown'}
                              </div>
                           </div>
                        ))
                      ) : (
-                       <div className="text-center text-[#6c7086] text-sm py-4">
-                         No projects found
-                       </div>
+                      <div className="text-center text-sm py-4" style={{ color: 'var(--theme-muted)' }}>
+                          No projects found
+                        </div>
                      )}
                     </div>
                   </div>
                   
-                  <Separator />
+                  <Separator className="my-4" />
                   
-                  {/* Sessions Section */}
-                  <div className="flex-1 flex flex-col">
-                    <div className="flex justify-between items-center mb-4">
+                  {/* Sessions Section - 50% height */}
+                  <div className="flex flex-col h-1/2 min-h-0">
+                    <div className="flex justify-between items-center mb-2">
                       <h3 className="text-sm font-medium">Sessions</h3>
                      <div className="flex gap-2">
                        <Button
@@ -619,14 +628,14 @@ export default function OpenCodeChatTUI() {
                        </Button>
                       </div>
                     </div>
-                    <Separator className="mb-4" />
-                    {!currentProject ? (
-                     <div className="flex-1 flex items-center justify-center text-[#6c7086] text-sm">
+                    <Separator className="mb-2" />
+                     {!currentProject ? (
+                     <div className="flex-1 flex items-center justify-center text-sm" style={{ color: 'var(--theme-muted)' }}>
                        Select a project first to view sessions
                      </div>
                    ) : (
                      <>
-                       <div className="mb-4">
+                       <div className="mb-2 flex-shrink-0">
                          <Input
                            value={newSessionTitle}
                            onChange={(e) => setNewSessionTitle(e.target.value)}
@@ -634,11 +643,11 @@ export default function OpenCodeChatTUI() {
                            size="small"
                            className="bg-[#1e1e2e] text-[#cdd6f4] border-[#89b4fa]"
                          />
-                         <div className="text-xs opacity-70 mt-1">
+                         <div className="text-xs opacity-70 mt-1 truncate">
                            Project: {currentProject.worktree}
                          </div>
                        </div>
-                        <div className="flex-1 overflow-y-auto space-y-2 max-h-96">
+                        <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
                            {sessions.filter(session => 
                              session.projectID === currentProject?.id || 
                              session.directory === currentProject?.worktree
@@ -689,11 +698,11 @@ export default function OpenCodeChatTUI() {
                              </div>
                            </div>
                          ))}
-                         {sessions.length === 0 && (
-                           <div className="text-center text-[#6c7086] text-sm py-4">
-                             No sessions for this project yet
-                           </div>
-                         )}
+                          {sessions.length === 0 && (
+                            <div className="text-center text-sm py-4" style={{ color: 'var(--theme-muted)' }}>
+                              No sessions for this project yet
+                            </div>
+                          )}
                        </div>
                      </>
                    )}
@@ -808,11 +817,11 @@ export default function OpenCodeChatTUI() {
                          </div>
                        );
                      })
-                  ) : (
-                    <div className="text-center text-[#6c7086] text-sm py-4">
-                      No files loaded
-                    </div>
-                  )}
+                   ) : (
+                     <div className="text-center text-sm py-4" style={{ color: 'var(--theme-muted)' }}>
+                       No files loaded
+                     </div>
+                   )}
                 </div>
                 <div className="text-xs opacity-50">
                   Path: {fileDirectory === '.' ? '/' : `/${fileDirectory}`} • {sortedFiles.length} items
@@ -827,11 +836,11 @@ export default function OpenCodeChatTUI() {
         <Separator direction="vertical" />
 
         {/* Main Editor Area */}
-        <View box="square" className="flex-1 flex flex-col bg-[#1e1e2e]">
+        <View box="square" className="flex-1 flex flex-col" style={{ backgroundColor: 'var(--theme-background)' }}>
            {/* Header */}
-           <div className="bg-[#313244] px-4 py-2 flex justify-between items-center">
+           <div className="px-4 py-2 flex justify-between items-center" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
             <div className="flex items-center gap-2">
-                 <span className="text-base font-normal text-[#cdd6f4]">
+                 <span className="text-base font-normal" style={{ color: 'var(--theme-foreground)' }}>
                   OpenCode Chat Sessions: {currentSession?.title || currentSession?.id.slice(0, 8)}... . Project: {currentProject?.worktree}
                 </span>
                </div>
@@ -846,10 +855,11 @@ export default function OpenCodeChatTUI() {
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {messages.length === 0 && !loading && (
                   <div className="flex justify-start">
-                    <View box="round" className="max-w-xs p-3 bg-[#313244]">
+                    <View box="round" className="max-w-xs p-3" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
                       <Pre
                         size="small"
-                        className="text-[#cdd6f4] break-words whitespace-pre-wrap overflow-wrap-anywhere"
+                        className="break-words whitespace-pre-wrap overflow-wrap-anywhere"
+                        style={{ color: 'var(--theme-foreground)' }}
                       >
                         Welcome to opencode-web! Send a message to start
                         chatting with OpenCode.
@@ -871,48 +881,36 @@ export default function OpenCodeChatTUI() {
                   >
                     <View
                       box="round"
-                      className={`max-w-md p-3 ${message.type === "user" ? "bg-[#89b4fa]" : "bg-[#313244]"}`}
+                      className="max-w-2xl p-3"
+                      style={{
+                        backgroundColor: message.type === "user" ? 'var(--theme-primary)' : 'var(--theme-backgroundAlt)',
+                        color: message.type === "user" ? 'var(--theme-background)' : 'var(--theme-foreground)'
+                      }}
                     >
-                       <Pre
-                         size="small"
-                         className="text-[#cdd6f4] break-words whitespace-pre-wrap overflow-wrap-anywhere"
-                       >
-                         {message.content.includes('```') ? (
-                           <div dangerouslySetInnerHTML={{ __html: message.content.replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>') }} />
-                         ) : (
-                           message.content
-                         )}
-                       </Pre>
-                      <div className="flex justify-between items-center mt-2">
-                        <Badge
-                          variant={
-                            message.type === "user"
-                              ? "background2"
-                              : "foreground0"
-                          }
-                          cap="round"
-                          className="text-xs"
-                        >
-                          {message.type === "user" ? "You" : "OpenCode"}
-                        </Badge>
-                        <span className="text-xs text-[#6c7086]">
-                          {message.timestamp.toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                      </div>
+                      <Pre
+                        size="small"
+                        className="break-words whitespace-pre-wrap overflow-wrap-anywhere"
+                      >
+                        {message.content}
+                      </Pre>
+                      <Badge
+                        variant={message.type === "user" ? "background2" : "foreground0"}
+                        cap="round"
+                        className="mt-2 text-xs"
+                      >
+                        {message.type === "user" ? "You" : "OpenCode"}
+                      </Badge>
                     </View>
                   </div>
                 ))}
                 {loading && (
                   <div className="flex justify-start">
-                    <View box="round" className="max-w-xs p-3 bg-[#313244]">
-                      <Pre size="small" className="text-[#cdd6f4]">
+                    <View box="round" className="max-w-xs p-3" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                      <Pre size="small" style={{ color: 'var(--theme-foreground)' }}>
                         <div className="flex space-x-1">
-                          <div className="w-2 h-2 bg-[#89b4fa] rounded-full animate-bounce" />
-                          <div className="w-2 h-2 bg-[#89b4fa] rounded-full animate-bounce [animation-delay:0.1s]" />
-                          <div className="w-2 h-2 bg-[#89b4fa] rounded-full animate-bounce [animation-delay:0.2s]" />
+                          <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: 'var(--theme-primary)' }} />
+                          <div className="w-2 h-2 rounded-full animate-bounce [animation-delay:0.1s]" style={{ backgroundColor: 'var(--theme-primary)' }} />
+                          <div className="w-2 h-2 rounded-full animate-bounce [animation-delay:0.2s]" style={{ backgroundColor: 'var(--theme-primary)' }} />
                         </div>
                       </Pre>
                       <Badge
@@ -925,19 +923,20 @@ export default function OpenCodeChatTUI() {
                     </View>
                   </div>
                 )}
-               </div>
+                <div ref={messagesEndRef} />
+                </div>
 
                 <Separator />
 
                 {/* Input Area */}
-                 <div className="bg-[#313244] p-4 space-y-3">
-                   <div className="flex items-start justify-between gap-4">
-                     <div className="flex items-center gap-2 text-xs text-[#cdd6f4]">
-                       <span className="font-medium">Model:</span>
-                       <span className="text-[#89b4fa]">{selectedModel?.name}</span>
-                       <span className="text-[#6c7086]">•</span>
-                       <span className="font-medium">Session:</span>
-                       <span className="text-[#89b4fa]">{currentSession?.title}</span>
+                 <div className="p-4 space-y-3" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                     <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-2 text-xs text-[#cdd6f4]">
+                        <span className="font-medium">Model:</span>
+                        <span className="text-[#89b4fa]">{selectedModel?.name || 'Loading...'}</span>
+                        <span className="text-[#6c7086]">•</span>
+                        <span className="font-medium">Session:</span>
+                        <span className="text-[#89b4fa]">{currentSession?.title || 'No session'}</span>
                        {input.startsWith('/') && (
                          <>
                            <span className="text-[#6c7086]">•</span>
@@ -991,8 +990,8 @@ export default function OpenCodeChatTUI() {
             </div>
           )}
 
-          {activeTab === "files" && (
-            <div className="flex-1 p-4 bg-[#1e1e2e] flex flex-col overflow-hidden">
+           {activeTab === "files" && (
+             <div className="flex-1 p-4 flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--theme-background)' }}>
               {selectedFile ? (
                 <>
                   <div className="flex justify-between items-center mb-4">
@@ -1017,8 +1016,8 @@ export default function OpenCodeChatTUI() {
                     </Pre>
                   </div>
                 </>
-              ) : (
-                <div className="flex-1 flex items-center justify-center text-[#6c7086]">
+               ) : (
+                <div className="flex-1 flex items-center justify-center" style={{ color: 'var(--theme-muted)' }}>
                   Select a file to view its contents
                 </div>
               )}
@@ -1027,92 +1026,135 @@ export default function OpenCodeChatTUI() {
           </View>
         </div>
 
-         {/* Help Dialog */}
+          {/* Help Dialog */}
         {showHelp && (
           <Dialog
             open={showHelp}
             onClose={() => setShowHelp(false)}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
           >
-           <div className="bg-[#1e1e2e] p-6 rounded-lg max-w-md w-full mx-4">
+           <div className="p-6 rounded-lg max-w-md w-full" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
              <h2 className="text-lg font-bold mb-4">Help</h2>
              <p className="text-sm mb-4">Welcome to OpenCode Web! This is a web-based interface for OpenCode.</p>
               <p className="text-sm mb-4">Use the tabs to navigate between Sessions, Projects, Files, and Models.</p>
               <p className="text-sm mb-4">Type your message in the input box and press Enter or click Send to chat with OpenCode.</p>
               <p className="text-sm mb-4">Available commands: /new, /models (opens model picker), /model, /help, /themes, /sessions, /undo, /redo, /share, /unshare, /init, /compact, /details, /export, /editor, /exit</p>
-             <button
+             <Button
+               variant="foreground0"
+               box="round"
                onClick={() => setShowHelp(false)}
-               className="bg-[#89b4fa] text-[#1e1e2e] px-4 py-2 rounded"
+               size="small"
              >
                Close
-             </button>
+             </Button>
            </div>
          </Dialog>
        )}
 
-         {/* Themes Dialog */}
-         {showThemes && (
-           <Dialog
-             open={showThemes}
-             onClose={() => setShowThemes(false)}
-             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-           >
-            <div className="bg-[#1e1e2e] p-6 rounded-lg max-w-md w-full mx-4">
-              <h2 className="text-lg font-bold mb-4">Themes</h2>
-              <p className="text-sm mb-4">Theme selection is not yet implemented.</p>
-              <button
-                onClick={() => setShowThemes(false)}
-                className="bg-[#89b4fa] text-[#1e1e2e] px-4 py-2 rounded"
-              >
-                Close
-              </button>
+          {/* Themes Dialog */}
+          {showThemes && (
+            <Dialog
+              open={showThemes}
+              onClose={() => setShowThemes(false)}
+            >
+             <div className="p-6 rounded-lg max-w-md w-full max-h-[80vh] overflow-hidden" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
+              <h2 className="text-lg font-bold mb-4">Select Theme</h2>
+              <div className="max-h-96 overflow-y-auto space-y-2 mb-4">
+                {themeList.map((theme) => (
+                  <div
+                    key={theme.id}
+                    className={`p-3 rounded cursor-pointer transition-colors ${
+                      currentTheme === theme.id
+                        ? "text-[var(--theme-background)]"
+                        : "hover:bg-opacity-50"
+                    }`}
+                    style={{
+                      backgroundColor: currentTheme === theme.id ? 'var(--theme-primary)' : 'var(--theme-backgroundAlt)',
+                      borderColor: 'var(--theme-border)',
+                      borderWidth: '1px',
+                      borderStyle: 'solid',
+                    }}
+                    onClick={() => {
+                      changeTheme(theme.id);
+                      setShowThemes(false);
+                    }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium">{theme.name}</div>
+                        <div className="text-xs opacity-70 mt-1">
+                          {theme.id}
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        {Object.entries(theme.colors).slice(0, 5).map(([key, color]) => (
+                          <div
+                            key={key}
+                            className="w-4 h-4 rounded"
+                            style={{ backgroundColor: color }}
+                            title={key}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  variant="foreground0"
+                  box="round"
+                  onClick={() => setShowThemes(false)}
+                  size="small"
+                >
+                  Close
+                </Button>
+              </div>
             </div>
           </Dialog>
         )}
 
-         {/* Onboarding Dialog */}
-         {showOnboarding && (
-           <Dialog
-             open={showOnboarding}
-             onClose={() => setShowOnboarding(false)}
-             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-           >
-            <div className="bg-[#1e1e2e] p-6 rounded-lg max-w-md w-full mx-4">
+          {/* Onboarding Dialog */}
+          {showOnboarding && (
+            <Dialog
+              open={showOnboarding}
+              onClose={() => setShowOnboarding(false)}
+            >
+             <div className="p-6 rounded-lg max-w-md w-full" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
               <h2 className="text-lg font-bold mb-4">Connect to OpenCode Server</h2>
               <p className="text-sm mb-4">Enter your OpenCode server URL:</p>
               <Input
                 placeholder="http://192.168.1.100:4096"
                 size="large"
-                className="bg-[#1e1e2e] text-[#cdd6f4] border-[#89b4fa] mb-4"
+                className="mb-4"
                 onChange={() => {
                   // TODO: Update env var
                 }}
               />
               <p className="text-xs opacity-70 mb-4">Find your IP: macOS/Linux: ifconfig | grep inet, Windows: ipconfig</p>
-              <button
+              <Button
+                variant="foreground0"
+                box="round"
                 onClick={() => setShowOnboarding(false)}
-                className="bg-[#89b4fa] text-[#1e1e2e] px-4 py-2 rounded"
+                size="small"
               >
                 Connect
-              </button>
+              </Button>
             </div>
           </Dialog>
         )}
 
-         {/* Model Picker Dialog */}
-         {showModelPicker && (
-           <Dialog
-             open={showModelPicker}
-             onClose={() => setShowModelPicker(false)}
-             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-           >
-            <div className="bg-[#1e1e2e] p-6 rounded-lg max-w-md w-full mx-4 max-h-[80vh] overflow-hidden">
+          {/* Model Picker Dialog */}
+          {showModelPicker && (
+            <Dialog
+              open={showModelPicker}
+              onClose={() => setShowModelPicker(false)}
+            >
+             <div className="p-6 rounded-lg max-w-md w-full max-h-[80vh] overflow-hidden" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
               <h2 className="text-lg font-bold mb-4">Select Model</h2>
               <div className="mb-4">
                 <Input
                   placeholder="Search models..."
                   size="small"
-                  className="bg-[#313244] text-[#cdd6f4] border-[#89b4fa]"
                   onChange={() => {
                     // TODO: Implement search
                   }}
@@ -1122,11 +1164,15 @@ export default function OpenCodeChatTUI() {
                 {models.map((model) => (
                   <div
                     key={`${model.providerID}/${model.modelID}`}
-                    className={`p-3 rounded cursor-pointer transition-colors ${
-                      selectedModel?.providerID === model.providerID && selectedModel?.modelID === model.modelID
-                        ? "bg-[#89b4fa] text-[#1e1e2e]"
-                        : "bg-[#313244] hover:bg-[#45475a]"
-                    }`}
+                    className="p-3 rounded cursor-pointer transition-colors"
+                    style={{
+                      backgroundColor: selectedModel?.providerID === model.providerID && selectedModel?.modelID === model.modelID
+                        ? 'var(--theme-primary)'
+                        : 'var(--theme-backgroundAlt)',
+                      color: selectedModel?.providerID === model.providerID && selectedModel?.modelID === model.modelID
+                        ? 'var(--theme-background)'
+                        : 'var(--theme-foreground)',
+                    }}
                     onClick={() => {
                       selectModel(model);
                       setShowModelPicker(false);
