@@ -6,9 +6,10 @@ interface PatchPartProps {
 }
 
 export function PatchPart({ part }: PatchPartProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
   if (part.type !== 'patch') return null;
   
-  const [isExpanded, setIsExpanded] = useState(false);
   const diff = 'diff' in part ? part.diff : '';
   
   return (

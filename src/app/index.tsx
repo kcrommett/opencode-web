@@ -19,6 +19,8 @@ import { parseCommand } from "@/lib/commandParser";
 import { getCommandSuggestions, completeCommand, type Command } from "@/lib/commands";
 import { useTheme } from "@/hooks/useTheme";
 import { themeList } from "@/lib/themes";
+import { detectLanguage, highlightCode, isImageFile, addLineNumbers } from "@/lib/highlight";
+import 'highlight.js/styles/github-dark.css';
 
 export const Route = createFileRoute('/')({
   component: OpenCodeChatTUI,
@@ -741,7 +743,7 @@ function OpenCodeChatTUI() {
                         <h3 className="text-sm font-medium">Projects</h3>
                       </View>
                       <Separator className="mb-2" />
-                     <div className="flex-1 overflow-y-auto scrollbar space-y-2">
+                  <div className="flex-1 overflow-y-auto scrollbar space-y-1">
                        {sortedProjects.length > 0 ? (
                          sortedProjects.map((project) => (
                            <View
@@ -955,7 +957,7 @@ function OpenCodeChatTUI() {
                    </Button>
                  </div>
                  <Separator />
-                  <div className="flex-1 overflow-y-auto scrollbar space-y-2">
+                  <div className="flex-1 overflow-y-auto scrollbar space-y-0.5">
                     {sortedFiles.length > 0 ? (
                       sortedFiles.map((file) => {
                         const isDirectory = file.type === 'directory';
@@ -964,7 +966,7 @@ function OpenCodeChatTUI() {
                           <View
                             box="round"
                             key={file.path}
-                            className={`p-2 transition-colors cursor-pointer ${
+                            className={`px-2 py-1 transition-colors cursor-pointer ${
                               isSelected
                                 ? "bg-[#89b4fa] text-[#1e1e2e]"
                                 : "bg-[#1e1e2e] hover:bg-[#45475a]"
@@ -977,16 +979,10 @@ function OpenCodeChatTUI() {
                               }
                             }}
                           >
-                           <div className="flex items-center justify-between">
-                             <div className="flex items-center gap-2 font-medium text-sm">
-                               <span>{isDirectory ? '📁' : '📄'}</span>
-                               <span>{file.name}</span>
-                             </div>
-                             <span className="text-xs text-[#6c7086]">
-                               {isDirectory ? 'Directory' : 'File'}
-                             </span>
+                           <div className="flex items-center gap-2 text-sm">
+                             <span className="text-base">{isDirectory ? '📁' : '📄'}</span>
+                             <span className="truncate">{file.name}</span>
                             </div>
-                            <div className="text-xs opacity-60 truncate">{file.path}</div>
                           </View>
                         );
                       })
@@ -1214,25 +1210,60 @@ function OpenCodeChatTUI() {
               {selectedFile ? (
                 <>
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-medium">
+                    <h3 className="text-lg font-medium flex items-center gap-2">
                       {selectedFile.split("/").pop()}
+                      {!isImageFile(selectedFile) && (
+                        <Badge variant="foreground0" cap="round" className="text-xs">
+                          {detectLanguage(selectedFile)}
+                        </Badge>
+                      )}
                     </h3>
-                    <Button
-                      variant="foreground0"
-                      box="round"
-                      onClick={() => setSelectedFile(null)}
-                      size="small"
-                    >
-                      Close
-                    </Button>
+                    <div className="flex gap-2">
+                      {!isImageFile(selectedFile) && (
+                        <Button
+                          variant="foreground0"
+                          box="round"
+                          onClick={() => {
+                            navigator.clipboard.writeText(fileContent || '')
+                          }}
+                          size="small"
+                        >
+                          Copy
+                        </Button>
+                      )}
+                      <Button
+                        variant="foreground0"
+                        box="round"
+                        onClick={() => setSelectedFile(null)}
+                        size="small"
+                      >
+                        Close
+                      </Button>
+                    </div>
                   </div>
                   <div className="flex-1 overflow-hidden">
-                    <Pre
-                      size="small"
-                      className="bg-[#313244] p-4 rounded text-[#cdd6f4] break-words whitespace-pre-wrap overflow-y-auto scrollbar h-full"
-                    >
-                      {fileContent ?? "Unable to read file"}
-                    </Pre>
+                    {isImageFile(selectedFile) ? (
+                      <div className="flex items-center justify-center h-full bg-[#313244] rounded p-4 overflow-auto scrollbar">
+                        <img
+                          src={`data:image/*;base64,${btoa(fileContent || '')}`}
+                          alt={selectedFile}
+                          className="max-w-full max-h-full object-contain"
+                        />
+                      </div>
+                    ) : (
+                      <pre className="hljs bg-[#0d1117] p-4 rounded overflow-y-auto scrollbar h-full text-sm font-mono m-0">
+                        <code
+                          dangerouslySetInnerHTML={{
+                            __html: addLineNumbers(
+                              highlightCode(
+                                fileContent ?? '',
+                                detectLanguage(selectedFile)
+                              )
+                            )
+                          }}
+                        />
+                      </pre>
+                    )}
                   </div>
                 </>
                ) : (

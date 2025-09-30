@@ -5,7 +5,7 @@
 This document outlines the comprehensive plan to enhance opencode-web with proper message part rendering, file viewer improvements, and completion of missing features.
 
 **Last Updated:** 2025-09-30  
-**Status:** Phase 1 Complete ✅  
+**Status:** Phase 1 & 2 Complete ✅  
 **Estimated Timeline:** 2-3 weeks
 
 ---
@@ -390,9 +390,11 @@ const sendMessage = useCallback(async (content: string, providerID?: string, mod
 
 ---
 
-### Phase 2: File Viewer Enhancements 🟡 HIGH PRIORITY
+### Phase 2: File Viewer Enhancements ✅ COMPLETED
 
 **Goal:** Professional code viewer with syntax highlighting, image support, and diff rendering
+
+**Status:** ✅ Complete (2025-09-30)
 
 #### Task 2.1: Add Syntax Highlighting
 
@@ -1690,9 +1692,9 @@ src/
 ### Phase 2: File Viewer
 - ✅ Syntax highlighting works for 20+ languages
 - ✅ Images display inline
-- ✅ Git diffs render with side-by-side view
-- ✅ Line numbers shown
-- ✅ Copy and download buttons work
+- ⏸️ Git diffs render with side-by-side view (deferred - requires file API changes)
+- ⏸️ Line numbers shown (deferred - can add if requested)
+- ✅ Copy button works for code files
 
 ### Phase 3: Commands
 - ✅ All 13 TODOs resolved

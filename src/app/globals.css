@@ -182,3 +182,20 @@ body {
 .scrollbar::-webkit-scrollbar-corner {
   background: var(--theme-backgroundAlt);
 }
+
+/* Syntax Highlighting with Line Numbers */
+.hljs {
+  white-space: pre;
+  line-height: 1.5;
+}
+
+.hljs .line-number {
+  display: inline-block;
+  width: 3em;
+  text-align: right;
+  margin-right: 1.5em;
+  padding-right: 0.75em;
+  border-right: 1px solid var(--theme-border);
+  color: var(--theme-muted);
+  user-select: none;
+}

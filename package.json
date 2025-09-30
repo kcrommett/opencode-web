@@ -13,8 +13,10 @@
     "@tanstack/react-router": "^1.132.25",
     "@tanstack/react-start": "^1.132.25",
     "@tanstack/start": "^1.120.20",
+    "@types/highlight.js": "^9.12.4",
     "@webtui/css": "^0.1.5",
     "@webtui/theme-catppuccin": "^0.0.3",
+    "highlight.js": "^11.11.1",
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },
@@ -27,8 +29,10 @@
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^5.0.4",
     "eslint": "^9",
+    "eslint-plugin-react-hooks": "^5.2.0",
     "tailwindcss": "^4",
     "typescript": "^5",
+    "typescript-eslint": "^8.45.0",
     "vite-tsconfig-paths": "^5.1.4"
   }
 }

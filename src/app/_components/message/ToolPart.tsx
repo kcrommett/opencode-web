@@ -8,10 +8,10 @@ interface ToolPartProps {
 }
 
 export function ToolPart({ part, showDetails }: ToolPartProps) {
-  if (part.type !== 'tool') return null;
-  
   const [showInput, setShowInput] = useState(false);
   const [showOutput, setShowOutput] = useState(true);
+  
+  if (part.type !== 'tool') return null;
   
   const toolName = 'tool' in part ? part.tool : 'unknown';
   const state = 'state' in part ? part.state : { status: 'pending' };

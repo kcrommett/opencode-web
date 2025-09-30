@@ -14,7 +14,7 @@ interface MessagePartProps {
   showDetails?: boolean;
 }
 
-export function MessagePart({ part, messageRole, showDetails = true }: MessagePartProps) {
+export function MessagePart({ part, messageRole: _messageRole, showDetails = true }: MessagePartProps) {
   switch (part.type) {
     case 'text':
       return <TextPart part={part} />;
