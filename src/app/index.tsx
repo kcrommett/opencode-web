@@ -1,16 +1,15 @@
-  "use client";
-
-   import { useState, useMemo, useEffect, useRef } from "react";
-    import {
-      Button,
-      Input,
-      Textarea,
-      View,
-      Badge,
-      Pre,
-      Dialog,
-      Separator,
-    } from "@/app/_components/ui";
+import { createFileRoute } from "@tanstack/react-router";
+import { useState, useMemo, useEffect, useRef } from "react";
+import {
+  Button,
+  Input,
+  Textarea,
+  View,
+  Badge,
+  Pre,
+  Dialog,
+  Separator,
+} from "@/app/_components/ui";
 import { CommandPicker } from "@/app/_components/ui/command-picker";
 import { AgentPicker } from "@/app/_components/ui/agent-picker";
 import { SessionPicker } from "@/app/_components/ui/session-picker";
@@ -20,7 +19,11 @@ import { getCommandSuggestions, completeCommand, type Command } from "@/lib/comm
 import { useTheme } from "@/hooks/useTheme";
 import { themeList } from "@/lib/themes";
 
-export default function OpenCodeChatTUI() {
+export const Route = createFileRoute('/')({
+  component: OpenCodeChatTUI,
+});
+
+function OpenCodeChatTUI() {
   const [input, setInput] = useState("");
   const [newSessionTitle, setNewSessionTitle] = useState("");
   const [newSessionDirectory, setNewSessionDirectory] = useState("");

@@ -1,4 +1,4 @@
-"use client";
+
 
 import React, { createContext, useContext, ReactNode } from 'react';
 import { useOpenCode } from '@/hooks/useOpenCode';

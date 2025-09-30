@@ -2,29 +2,33 @@
   "name": "opencode-web",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build",
-    "start": "next start",
+    "dev": "vite dev",
+    "build": "vite build",
+    "start": "node .output/server/index.mjs",
     "lint": "eslint"
   },
   "dependencies": {
-    "@opencode-ai/sdk": "^0.11.3",
+    "@tanstack/react-router": "^1.132.25",
+    "@tanstack/react-start": "^1.132.25",
+    "@tanstack/start": "^1.120.20",
     "@webtui/css": "^0.1.5",
     "@webtui/theme-catppuccin": "^0.0.3",
-    "next": "15.5.0",
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
-    "@tailwindcss/postcss": "^4",
+    "@tailwindcss/vite": "^4.1.13",
+    "@types/bun": "^1.2.23",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^5.0.4",
     "eslint": "^9",
-    "eslint-config-next": "15.5.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite-tsconfig-paths": "^5.1.4"
   }
 }

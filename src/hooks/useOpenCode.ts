@@ -1,5 +1,5 @@
- import { useState, useEffect, useCallback, useRef } from 'react';
-import { openCodeService, handleOpencodeError } from '@/lib/opencode';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { openCodeService, handleOpencodeError } from '@/lib/opencode-client';
 import type { Part } from "../../node_modules/@opencode-ai/sdk/dist/gen/types.gen";
 
 interface Message {
