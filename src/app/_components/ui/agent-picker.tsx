@@ -2,9 +2,9 @@ import React from 'react';
 import { Badge, Separator, Button } from './index';
 
 interface Agent {
-  id: string;
   name: string;
   description?: string;
+  id?: string;
 }
 
 interface AgentPickerProps {
@@ -22,11 +22,11 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
 }) => {
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
       <div 
-        className="rounded border overflow-hidden shadow-lg max-w-md w-full max-h-[80vh] overflow-y-auto scrollbar"
+        className="rounded border overflow-hidden shadow-2xl max-w-md w-full max-h-[80vh] overflow-y-auto scrollbar"
         style={{ 
           backgroundColor: 'var(--theme-background)',
           borderColor: 'var(--theme-primary)',
@@ -41,10 +41,12 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
         
         <div className="px-4 pb-4 space-y-2">
           {agents.map((agent, index) => {
-            const isSelected = selectedAgent && selectedAgent.id === agent.id;
+            const agentId = agent.id || agent.name;
+            const selectedId = selectedAgent?.id || selectedAgent?.name;
+            const isSelected = selectedId === agentId;
             return (
               <div
-                key={`agent-${agent.id}-${index}`}
+                key={`agent-${agentId}-${index}`}
                 className="p-3 rounded cursor-pointer transition-colors"
                 style={{
                   backgroundColor: isSelected ? 'var(--theme-primary)' : 'var(--theme-backgroundAlt)',

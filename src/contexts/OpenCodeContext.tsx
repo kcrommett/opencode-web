@@ -36,6 +36,7 @@ interface OpenCodeContextType {
   loadCurrentPath: ReturnType<typeof useOpenCode>['loadCurrentPath'];
   providersData: ReturnType<typeof useOpenCode>['providersData'];
   isConnected: ReturnType<typeof useOpenCode>['isConnected'];
+  isHydrated: ReturnType<typeof useOpenCode>['isHydrated'];
   openHelp: ReturnType<typeof useOpenCode>['openHelp'];
   openSessions: ReturnType<typeof useOpenCode>['openSessions'];
   openThemes: ReturnType<typeof useOpenCode>['openThemes'];

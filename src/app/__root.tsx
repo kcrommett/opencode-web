@@ -5,6 +5,7 @@ import {
 } from "@tanstack/react-router";
 import "./globals.css";
 import { OpenCodeProvider } from "@/contexts/OpenCodeContext";
+import { themes } from "@/lib/themes";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -39,6 +40,21 @@ function RootLayout() {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                const themes = ${JSON.stringify(themes)};
+                const themeId = localStorage.getItem('opencode-theme') || 'catppuccin';
+                const theme = themes[themeId] || themes.catppuccin;
+                const root = document.documentElement;
+                Object.entries(theme.colors).forEach(([key, value]) => {
+                  root.style.setProperty('--theme-' + key, value);
+                });
+              })();
+            `,
+          }}
+        />
       </head>
       <body className="antialiased">
         <OpenCodeProvider>

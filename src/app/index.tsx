@@ -13,6 +13,7 @@ import {
 import { CommandPicker } from "@/app/_components/ui/command-picker";
 import { AgentPicker } from "@/app/_components/ui/agent-picker";
 import { SessionPicker } from "@/app/_components/ui/session-picker";
+import { MessagePart } from "@/app/_components/message";
 import { useOpenCodeContext } from "@/contexts/OpenCodeContext";
 import { parseCommand } from "@/lib/commandParser";
 import { getCommandSuggestions, completeCommand, type Command } from "@/lib/commands";
@@ -44,47 +45,48 @@ function OpenCodeChatTUI() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const modelSearchInputRef = useRef<HTMLInputElement>(null);
   
-  const { currentTheme, changeTheme } = useTheme();
-   const {
-     currentSession,
-     messages,
-     setMessages,
-     sessions,
-     loading,
-     createSession,
-     sendMessage,
-     loadSessions,
-     switchSession,
-     deleteSession,
-     clearAllSessions,
-     // New features
-     projects,
-     currentProject,
-     switchProject,
-      files,
-      fileDirectory,
-      loadFiles,
-      searchFiles,
-      readFile,
+   const { currentTheme, changeTheme } = useTheme();
+    const {
+      currentSession,
+      messages,
+      setMessages,
+      sessions,
+      loading,
+      createSession,
+      sendMessage,
+      loadSessions,
+      switchSession,
+      deleteSession,
+      clearAllSessions,
+      // New features
+      projects,
+      currentProject,
+      switchProject,
+       files,
+       fileDirectory,
+       loadFiles,
+       searchFiles,
+       readFile,
 
-      models,
-      selectedModel,
-      selectModel,
-         openHelp,
-         openThemes,
-        isConnected,
-       showHelp,
-       setShowHelp,
-       showThemes,
-       setShowThemes,
-         showOnboarding,
-         setShowOnboarding,
-         showModelPicker,
-         setShowModelPicker,
-         agents,
-         currentAgent,
-         selectAgent,
-       } = useOpenCodeContext();
+       models,
+       selectedModel,
+       selectModel,
+          openHelp,
+          openThemes,
+         isConnected,
+         isHydrated,
+        showHelp,
+        setShowHelp,
+        showThemes,
+        setShowThemes,
+          showOnboarding,
+          setShowOnboarding,
+          showModelPicker,
+          setShowModelPicker,
+          agents,
+          currentAgent,
+          selectAgent,
+        } = useOpenCodeContext();
 
    // Removed automatic session creation to prevent spam
 
@@ -296,17 +298,72 @@ function OpenCodeChatTUI() {
          };
          setMessages((prev) => [...prev, detailsMessage]);
          break;
-       case "export":
-         // TODO: Implement export
-         const exportMessage = {
-           id: `assistant-${Date.now()}`,
-           type: "assistant" as const,
-           content: "Export not yet implemented.",
-           timestamp: new Date(),
-         };
-         setMessages((prev) => [...prev, exportMessage]);
-         break;
-       case "editor":
+        case "export":
+          // TODO: Implement export
+          const exportMessage = {
+            id: `assistant-${Date.now()}`,
+            type: "assistant" as const,
+            content: "Export not yet implemented.",
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, exportMessage]);
+          break;
+        case "debug":
+          try {
+            if (!currentSession) {
+              const noSessionMsg = {
+                id: `assistant-${Date.now()}`,
+                type: "assistant" as const,
+                content: "No active session to debug.",
+                timestamp: new Date(),
+              };
+              setMessages((prev) => [...prev, noSessionMsg]);
+              break;
+            }
+            
+            // Fetch full session data
+            const sessionResponse = await fetch(`http://localhost:4096/session/${currentSession.id}`);
+            const sessionData = await sessionResponse.json();
+            
+            // Fetch all messages with full parts
+            const messagesResponse = await fetch(`http://localhost:4096/session/${currentSession.id}/message`);
+            const messagesData = await messagesResponse.json();
+            
+            const fullData = {
+              session: sessionData,
+              messages: messagesData,
+              timestamp: new Date().toISOString()
+            };
+            
+            // Download as JSON file
+            const blob = new Blob([JSON.stringify(fullData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `SESSION-${currentSession.id}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            const debugMessage = {
+              id: `assistant-${Date.now()}`,
+              type: "assistant" as const,
+              content: `✅ Session data exported to SESSION-${currentSession.id}.json\n\nIncludes:\n- Session metadata\n- ${messagesData.length} messages with full parts\n- All tool executions and state`,
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, debugMessage]);
+          } catch (error) {
+            const errorMessage = {
+              id: `assistant-${Date.now()}`,
+              type: "assistant" as const,
+              content: `Debug export failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, errorMessage]);
+          }
+          break;
+        case "editor":
          // TODO: Implement editor
          const editorMessage = {
            id: `assistant-${Date.now()}`,
@@ -576,7 +633,11 @@ function OpenCodeChatTUI() {
      if (agents.length === 0) return;
      let currentIndex = 0;
      if (currentAgent) {
-       currentIndex = agents.findIndex(a => a.id === currentAgent.id);
+       const currentId = currentAgent.id || currentAgent.name;
+       currentIndex = agents.findIndex(a => {
+         const agentId = a.id || a.name;
+         return agentId === currentId;
+       });
        if (currentIndex === -1) currentIndex = 0;
      }
      const nextIndex = (currentIndex + 1) % agents.length;
@@ -597,24 +658,37 @@ function OpenCodeChatTUI() {
     setSelectedModelIndex(0);
   }, [modelSearchQuery]);
 
-  return (
-     <View box="square" className="h-screen font-mono overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
-       {/* Top Bar */}
-        <div className="px-4 py-2 flex items-center justify-between" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
-          {!isConnected && (
-            <div className="px-2 py-1 rounded text-xs" style={{ backgroundColor: 'var(--theme-error)', color: 'var(--theme-background)' }}>
-              Disconnected from OpenCode server
-            </div>
-          )}
+  if (!isHydrated) {
+    return (
+      <View box="square" className="h-screen font-mono overflow-hidden flex items-center justify-center" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
+        <div className="text-center">
+          <div className="text-4xl mb-4">⏳</div>
+          <div className="text-lg">Loading OpenCode Web...</div>
         </div>
+      </View>
+    );
+  }
+
+  return (
+       <View box="square" className="h-screen font-mono overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
+        {/* Top Bar */}
+         <div className="px-4 py-2 flex items-center justify-between" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+           {isConnected === false && (
+             <div className="px-2 py-1 rounded text-xs" style={{ backgroundColor: 'var(--theme-error)', color: 'var(--theme-background)' }}>
+               Disconnected from OpenCode server
+             </div>
+           )}
+         </div>
         <div className="px-4 py-2 flex items-center justify-between" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
          <div className="flex items-center gap-4">
-           <Badge variant="foreground1" cap="round">
-             opencode web
-           </Badge>
-           <Badge variant={isConnected ? "background2" : "foreground0"} cap="round">
-             {isConnected ? "Connected" : "Disconnected"}
-           </Badge>
+            <Badge variant="foreground1" cap="round">
+              opencode web
+            </Badge>
+            {isConnected !== null && (
+              <Badge variant={isConnected ? "background2" : "foreground0"} cap="round">
+                {isConnected ? "Connected" : "Disconnected"}
+              </Badge>
+            )}
             <div className="flex gap-2">
               {["workspace", "files"].map((tab) => (
                 <Button
@@ -951,23 +1025,40 @@ function OpenCodeChatTUI() {
               {/* Chat Messages */}
               <div className="flex-1 overflow-y-auto scrollbar p-4 space-y-4 min-h-0">
                 {messages.length === 0 && !loading && (
-                  <div className="flex justify-start">
-                    <View box="round" className="max-w-xs p-3" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                  <div className="flex items-center justify-center h-full">
+                    <View box="round" className="max-w-lg p-6 text-center" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                      <div className="text-4xl mb-4">👋</div>
+                      <h2 className="text-xl font-bold mb-3" style={{ color: 'var(--theme-foreground)' }}>
+                        Welcome to OpenCode Web!
+                      </h2>
                       <Pre
                         size="small"
-                        className="break-words whitespace-pre-wrap overflow-wrap-anywhere"
-                        style={{ color: 'var(--theme-foreground)' }}
+                        className="break-words whitespace-pre-wrap overflow-wrap-anywhere mb-4"
+                        style={{ color: 'var(--theme-foreground)', opacity: 0.8 }}
                       >
-                        Welcome to opencode-web! Send a message to start
-                        chatting with OpenCode.
+                        {!currentProject 
+                          ? "Select a project from the sidebar to get started, or create a new session to begin chatting with OpenCode."
+                          : !currentSession
+                          ? "Select an existing session from the sidebar or click 'New' to create a session and start coding with AI assistance."
+                          : "Send a message to start chatting with OpenCode. Use @ to reference files, / for commands, and Tab to switch agents."}
                       </Pre>
-                      <Badge
-                        variant="foreground0"
-                        cap="round"
-                        className="mt-2 text-xs"
-                      >
-                        OpenCode
-                      </Badge>
+                      <div className="flex gap-2 justify-center flex-wrap">
+                        {!currentProject && (
+                          <Badge variant="foreground0" cap="round" className="text-xs">
+                            Step 1: Select a project →
+                          </Badge>
+                        )}
+                        {currentProject && !currentSession && (
+                          <Badge variant="foreground0" cap="round" className="text-xs">
+                            Step 2: Create or select a session →
+                          </Badge>
+                        )}
+                        {currentProject && currentSession && (
+                          <Badge variant="foreground1" cap="round" className="text-xs">
+                            Ready to code! 🚀
+                          </Badge>
+                        )}
+                      </div>
                     </View>
                   </div>
                 )}
@@ -984,19 +1075,43 @@ function OpenCodeChatTUI() {
                         color: message.type === "user" ? 'var(--theme-background)' : 'var(--theme-foreground)'
                       }}
                     >
-                      <Pre
-                        size="small"
-                        className="break-words whitespace-pre-wrap overflow-wrap-anywhere"
-                      >
-                        {message.content}
-                      </Pre>
-                      <Badge
-                        variant={message.type === "user" ? "background2" : "foreground0"}
-                        cap="round"
-                        className="mt-2 text-xs"
-                      >
-                        {message.type === "user" ? "You" : "OpenCode"}
-                      </Badge>
+                      {message.parts && message.parts.length > 0 ? (
+                        <div className="space-y-2">
+                          {message.parts.map((part, idx) => (
+                            <MessagePart 
+                              key={`${message.id}-part-${idx}`}
+                              part={part}
+                              messageRole={message.type}
+                              showDetails={true}
+                            />
+                          ))}
+                          {message.metadata && (
+                            <div className="text-xs opacity-60 mt-2 flex gap-4 flex-wrap">
+                              {message.metadata.agent && (
+                                <span>Agent: {message.metadata.agent}</span>
+                              )}
+                              {message.metadata.tokens && (
+                                <span>
+                                  Tokens: {message.metadata.tokens.input + message.metadata.tokens.output}
+                                  {message.metadata.tokens.reasoning > 0 && 
+                                    ` (+${message.metadata.tokens.reasoning} reasoning)`
+                                  }
+                                </span>
+                              )}
+                              {message.metadata.cost && (
+                                <span>Cost: ${message.metadata.cost.toFixed(4)}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <Pre
+                          size="small"
+                          className="break-words whitespace-pre-wrap overflow-wrap-anywhere"
+                        >
+                          {message.content}
+                        </Pre>
+                      )}
                     </View>
                   </div>
                 ))}
@@ -1041,7 +1156,7 @@ function OpenCodeChatTUI() {
                          </>
                        )}
                      </div>
-                     <Badge key={currentAgent?.id} variant="foreground1" cap="round" className="flex-shrink-0">
+                     <Badge key={currentAgent?.id || currentAgent?.name} variant="foreground1" cap="round" className="flex-shrink-0">
                        Agent: {currentAgent?.name || 'None'}
                      </Badge>
                    </div>
@@ -1217,23 +1332,27 @@ function OpenCodeChatTUI() {
                  </div>
                </div>
 
-               <div>
-                 <div className="text-xs font-bold uppercase mb-2 opacity-60">Other</div>
-                 <div className="space-y-1 font-mono text-sm">
-                   <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
-                     <span className="text-[#89b4fa]">/help</span>
-                     <span className="opacity-70">Show this help dialog</span>
-                   </div>
-                   <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
-                     <span className="text-[#89b4fa]">/share</span>
-                     <span className="opacity-70">Share current session</span>
-                   </div>
-                   <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
-                     <span className="text-[#89b4fa]">/export</span>
-                     <span className="opacity-70">Export session</span>
-                   </div>
-                 </div>
-               </div>
+                <div>
+                  <div className="text-xs font-bold uppercase mb-2 opacity-60">Other</div>
+                  <div className="space-y-1 font-mono text-sm">
+                    <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                      <span className="text-[#89b4fa]">/help</span>
+                      <span className="opacity-70">Show this help dialog</span>
+                    </div>
+                    <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                      <span className="text-[#89b4fa]">/share</span>
+                      <span className="opacity-70">Share current session</span>
+                    </div>
+                    <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                      <span className="text-[#89b4fa]">/export</span>
+                      <span className="opacity-70">Export session</span>
+                    </div>
+                    <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                      <span className="text-[#89b4fa]">/debug</span>
+                      <span className="opacity-70">Export session data (JSON)</span>
+                    </div>
+                  </div>
+                </div>
 
                <Separator />
 

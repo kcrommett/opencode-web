@@ -32,11 +32,11 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
       <div 
-        className="rounded border overflow-hidden shadow-lg max-w-md w-full max-h-[80vh] overflow-y-auto scrollbar"
+        className="rounded border overflow-hidden shadow-2xl max-w-md w-full max-h-[80vh] overflow-y-auto scrollbar"
         style={{ 
           backgroundColor: 'var(--theme-background)',
           borderColor: 'var(--theme-primary)',

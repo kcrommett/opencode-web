@@ -7,6 +7,13 @@ interface Message {
     type: 'user' | 'assistant';
     content: string;
     timestamp: Date;
+    parts?: Part[];
+    metadata?: {
+      tokens?: { input: number; output: number; reasoning: number };
+      cost?: number;
+      model?: string;
+      agent?: string;
+    };
     toolData?: {
       command?: string;
       output?: string;
@@ -75,9 +82,9 @@ interface Message {
    }
 
    interface Agent {
-     id: string;
      name: string;
      description?: string;
+     id?: string;
    }
 
    interface ProjectResponse {
@@ -131,31 +138,73 @@ export function useOpenCode() {
        setFiles([]);
      }, [currentProject?.id, currentPath]);
 
-       const [providersData, setProvidersData] = useState<ProvidersData | null>(null);
-      const [showHelp, setShowHelp] = useState(false);
-      const [showThemes, setShowThemes] = useState(false);
-      const [showOnboarding, setShowOnboarding] = useState(false);
-      const [showModelPicker, setShowModelPicker] = useState(false);
-       const [isConnected, setIsConnected] = useState(false);
-       const [customCommands, setCustomCommands] = useState<Array<{ name: string; description: string; template: string }>>([]);
-       const [agents, setAgents] = useState<Agent[]>([]);
-       const [currentAgent, setCurrentAgent] = useState<Agent | null>(null);
+        const [providersData, setProvidersData] = useState<ProvidersData | null>(null);
+       const [showHelp, setShowHelp] = useState(false);
+       const [showThemes, setShowThemes] = useState(false);
+       const [showOnboarding, setShowOnboarding] = useState(false);
+       const [showModelPicker, setShowModelPicker] = useState(false);
+        const [isConnected, setIsConnected] = useState<boolean | null>(null);
+        const [customCommands, setCustomCommands] = useState<Array<{ name: string; description: string; template: string }>>([]);
+        const [agents, setAgents] = useState<Agent[]>([]);
+        const [currentAgent, setCurrentAgent] = useState<Agent | null>(null);
+        const [isHydrated, setIsHydrated] = useState(false);
 
-       const [loadedModels, setLoadedModels] = useState(false);
-       const [loadedConfig, setLoadedConfig] = useState(false);
-       const [loadedCustomCommands, setLoadedCustomCommands] = useState(false);
-       const loadedAgentsRef = useRef(false);
+        const [loadedModels, setLoadedModels] = useState(false);
+        const [loadedConfig, setLoadedConfig] = useState(false);
+        const [loadedCustomCommands, setLoadedCustomCommands] = useState(false);
+        const loadedAgentsRef = useRef(false);
+        const loadedProjectsRef = useRef(false);
+        const loadedSessionsRef = useRef(false);
 
-    // Load current session from localStorage on mount
-   useEffect(() => {
-     const savedSessionId = localStorage.getItem('opencode-current-session');
-     if (savedSessionId) {
-       // We'll set this after sessions are loaded
-       localStorage.setItem('opencode-current-session', savedSessionId);
-     }
-   }, []);
+    useEffect(() => {
+      if (typeof window === 'undefined') return;
+      
+      const savedProjectStr = localStorage.getItem('opencode-current-project');
+      if (savedProjectStr) {
+        try {
+          const savedProject = JSON.parse(savedProjectStr);
+          console.log('[Hydration] Restoring project from localStorage:', savedProject);
+          setCurrentProject(savedProject);
+        } catch (error) {
+          console.error('[Hydration] Error parsing saved project:', error);
+        }
+      }
 
-   useEffect(() => {
+      const savedSessionId = localStorage.getItem('opencode-current-session');
+      if (savedSessionId) {
+        console.log('[Hydration] Restoring session from localStorage:', savedSessionId);
+        setCurrentSession({
+          id: savedSessionId,
+          title: 'Loading...',
+        });
+      }
+
+      const savedModelStr = localStorage.getItem('opencode-selected-model');
+      if (savedModelStr) {
+        try {
+          const savedModel = JSON.parse(savedModelStr);
+          console.log('[Hydration] Restoring model from localStorage:', savedModel);
+          setSelectedModel(savedModel);
+        } catch (error) {
+          console.error('[Hydration] Error parsing saved model:', error);
+        }
+      }
+
+      const savedAgentStr = localStorage.getItem('opencode-current-agent');
+      if (savedAgentStr) {
+        try {
+          const savedAgent = JSON.parse(savedAgentStr);
+          console.log('[Hydration] Restoring agent from localStorage:', savedAgent);
+          setCurrentAgent(savedAgent);
+        } catch (error) {
+          console.error('[Hydration] Error parsing saved agent:', error);
+        }
+      }
+      
+      setIsHydrated(true);
+    }, []);
+
+    useEffect(() => {
      const checkConnection = async () => {
        try {
          const response = await openCodeService.getConfig();
@@ -173,26 +222,43 @@ export function useOpenCode() {
 
    // Save current session to localStorage when it changes
   useEffect(() => {
+    if (!isHydrated) return;
     if (currentSession) {
+      console.log('Saving session to localStorage:', currentSession.id);
       localStorage.setItem('opencode-current-session', currentSession.id);
     } else {
+      console.log('Clearing session from localStorage');
       localStorage.removeItem('opencode-current-session');
     }
-  }, [currentSession]);
+  }, [currentSession, isHydrated]);
 
   // Save selected model to localStorage when it changes
   useEffect(() => {
+    if (!isHydrated) return;
     if (selectedModel) {
       localStorage.setItem('opencode-selected-model', JSON.stringify(selectedModel));
     }
-  }, [selectedModel]);
+  }, [selectedModel, isHydrated]);
 
   // Save current agent to localStorage when it changes
   useEffect(() => {
+    if (!isHydrated) return;
     if (currentAgent) {
       localStorage.setItem('opencode-current-agent', JSON.stringify(currentAgent));
     }
-  }, [currentAgent]);
+  }, [currentAgent, isHydrated]);
+
+  // Save current project to localStorage when it changes
+  useEffect(() => {
+    if (!isHydrated) return;
+    if (currentProject) {
+      console.log('Saving project to localStorage:', currentProject);
+      localStorage.setItem('opencode-current-project', JSON.stringify(currentProject));
+    } else {
+      console.log('Clearing project from localStorage');
+      localStorage.removeItem('opencode-current-project');
+    }
+  }, [currentProject, isHydrated]);
 
    const createSession = useCallback(async ({ title, directory }: { title?: string; directory?: string } = {}) => {
      try {
@@ -264,18 +330,28 @@ export function useOpenCode() {
         if (response.error) {
           throw new Error(response.error);
         }
-        const data = response.data as unknown as { parts?: Part[] } | undefined;
+        const data = response.data as unknown as { info?: {id?: string; tokens?: {input: number; output: number; reasoning: number}; cost?: number; modelID?: string; mode?: string}; parts?: Part[] } | undefined;
         if (!data) {
           throw new Error('No response data');
         }
 
         // Add assistant response to local state
-        const textPart = data.parts?.find((part: Part) => part.type === 'text');
+        const parts = data.parts || [];
+        const textPart = parts.find((part: Part) => part.type === 'text');
+        const content_text = (textPart && 'text' in textPart ? textPart.text : '') || 'No response content';
+        
         const assistantMessage: Message = {
-          id: `assistant-${Date.now()}`,
+          id: data.info?.id || `assistant-${Date.now()}`,
           type: 'assistant',
-          content: (textPart && 'text' in textPart ? textPart.text : '') || 'No response content',
+          content: content_text,
+          parts,
           timestamp: new Date(),
+          metadata: {
+            tokens: data.info?.tokens,
+            cost: data.info?.cost,
+            model: data.info?.modelID,
+            agent: data.info?.mode
+          }
         };
         setMessages(prev => [...prev, assistantMessage]);
 
@@ -288,26 +364,37 @@ export function useOpenCode() {
       }
       }, [currentSession]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const loadMessages = useCallback(async (sessionId: string) => {
-    try {
-      const response = await openCodeService.getMessages(sessionId);
-      const messagesArray = (response.data as unknown as OpenCodeMessage[]) || [];
-      const loadedMessages: Message[] = messagesArray.map((msg: OpenCodeMessage, index: number) => {
-        const textPart = msg.parts?.find((part: Part) => part.type === 'text');
-        return {
-          id: msg.info?.id || `msg-${index}`,
-          type: msg.info?.role === 'user' ? 'user' : 'assistant',
-          content: (textPart && 'text' in textPart ? textPart.text : '') || '',
-          timestamp: new Date(msg.info?.time?.created || Date.now()),
-        };
-      });
-      setMessages(loadedMessages);
-     } catch {
-       // Silently handle errors when server is unavailable
-     }
-   }, []);
+   const loadMessages = useCallback(async (sessionId: string) => {
+     try {
+       const response = await openCodeService.getMessages(sessionId);
+       const messagesArray = (response.data as unknown as OpenCodeMessage[]) || [];
+       const loadedMessages: Message[] = messagesArray.map((msg: OpenCodeMessage, index: number) => {
+         const parts = msg.parts || [];
+         const textPart = parts.find((part: Part) => part.type === 'text');
+         const content = (textPart && 'text' in textPart ? textPart.text : '') || '';
+         
+         return {
+           id: msg.info?.id || `msg-${index}`,
+           type: msg.info?.role === 'user' ? 'user' : 'assistant',
+           content,
+           parts,
+           timestamp: new Date(msg.info?.time?.created || Date.now()),
+           metadata: msg.info?.role === 'assistant' && 'tokens' in (msg.info || {}) ? {
+             tokens: (msg.info as {tokens?: {input: number; output: number; reasoning: number}}).tokens,
+             cost: (msg.info as {cost?: number}).cost,
+             model: (msg.info as {modelID?: string}).modelID,
+             agent: (msg.info as {mode?: string}).mode
+           } : undefined
+         };
+       });
+       setMessages(loadedMessages);
+      } catch {
+        // Silently handle errors when server is unavailable
+      }
+    }, []);
 
    const loadProjects = useCallback(async () => {
+     if (loadedProjectsRef.current) return;
      try {
        const response = await openCodeService.listProjects(currentPath);
        const data = response.data || [];
@@ -319,14 +406,25 @@ export function useOpenCode() {
          updatedAt: project.time?.updated ? new Date(project.time.updated * 1000) : undefined,
        }));
         setProjects(projectsData);
+        loadedProjectsRef.current = true;
+        
+        console.log('[LoadProjects] Loaded projects from API:', projectsData.length);
+        if (currentProject) {
+          const matchingProject = projectsData.find(p => p.id === currentProject.id);
+          if (matchingProject) {
+            console.log('[LoadProjects] Current project still valid, updating with fresh data');
+            setCurrentProject(matchingProject);
+          }
+        }
      } catch (error) {
        console.error('Failed to load projects:', error);
      }
-   }, [currentPath]);
+   }, [currentPath, currentProject]);
 
     const loadSessions = useCallback(async () => {
+      if (!currentProject || loadedSessionsRef.current) return;
       try {
-        const response = await openCodeService.getSessions(currentProject?.worktree);
+        const response = await openCodeService.getSessions(currentProject.worktree);
         const data = response.data || [];
         const sessionsData: Session[] = data.map((session: SessionResponse) => ({
           id: session.id,
@@ -335,13 +433,33 @@ export function useOpenCode() {
           projectID: session.projectID,
           createdAt: session.time?.created ? new Date(session.time.created * 1000) : undefined,
           updatedAt: session.time?.updated ? new Date(session.time.updated * 1000) : undefined,
-          messageCount: undefined, // Session objects don't include parts/message count
+          messageCount: undefined,
         }));
         setSessions(sessionsData);
+        loadedSessionsRef.current = true;
+        
+        console.log('[LoadSessions] Loaded sessions from API:', sessionsData.length);
+        console.log('[LoadSessions] Current session state:', currentSession);
+        console.log('[LoadSessions] Messages count:', messages.length);
+        
+        if (currentSession) {
+          const matchingSession = sessionsData.find(s => s.id === currentSession.id);
+          if (matchingSession) {
+            console.log('[LoadSessions] Updating current session with full data:', matchingSession);
+            setCurrentSession(matchingSession);
+            if (messages.length === 0) {
+              console.log('[LoadSessions] Loading messages for session:', currentSession.id);
+              await loadMessages(currentSession.id);
+            }
+          } else {
+            console.log('[LoadSessions] Current session not found in loaded sessions, clearing');
+            setCurrentSession(null);
+          }
+        }
       } catch (error) {
         console.error('Failed to load sessions:', error);
       }
-    }, [currentProject?.worktree]);
+    }, [currentProject, currentSession, loadMessages, messages.length]);
 
     const switchSession = useCallback(async (sessionId: string) => {
       try {
@@ -675,7 +793,11 @@ export function useOpenCode() {
         if (savedAgentStr && !currentAgent) {
           try {
             const savedAgent = JSON.parse(savedAgentStr);
-            const matchingAgent = agentsArray.find(a => a.id === savedAgent.id);
+            const savedId = savedAgent.id || savedAgent.name;
+            const matchingAgent = agentsArray.find(a => {
+              const agentId = a.id || a.name;
+              return agentId === savedId;
+            });
             if (matchingAgent) {
               setCurrentAgent(matchingAgent);
             } else if (agentsArray.length > 1) {
@@ -707,18 +829,26 @@ export function useOpenCode() {
 
      useEffect(() => {
         loadProjects();
-        loadSessions();
         loadConfig();
         loadModels();
         loadCustomCommands();
         loadAgents();
         }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+     const currentProjectIdRef = useRef<string | null>(null);
+     
      useEffect(() => {
        if (currentProject) {
-         loadSessions();
+         const projectIdChanged = currentProjectIdRef.current !== currentProject.id;
+         currentProjectIdRef.current = currentProject.id;
+         
+         if (projectIdChanged) {
+           console.log('Project changed, loading sessions for:', currentProject);
+           loadedSessionsRef.current = false; // Reset flag when project changes
+           loadSessions();
+         }
        }
-     }, [currentProject?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+     }, [currentProject, loadSessions]);
 
      return {
        currentSession,
@@ -753,6 +883,7 @@ export function useOpenCode() {
        loadCurrentPath,
        providersData,
         isConnected,
+        isHydrated,
         customCommands,
         openHelp,
         openSessions,
