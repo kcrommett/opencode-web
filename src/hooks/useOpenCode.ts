@@ -406,8 +406,9 @@ export function useOpenCode() {
 
     const loadFiles = useCallback(async (directory?: string) => {
       try {
-        const targetDirectory = directory || fileDirectory;
-        const response = await openCodeService.listFiles(targetDirectory);
+        const targetPath = directory || fileDirectory;
+        const baseDirectory = currentProject?.worktree ?? currentPath ?? undefined;
+        const response = await openCodeService.listFiles(targetPath, baseDirectory);
         const data = response.data || [];
         const filesData: FileInfo[] = Array.isArray(data) ? data.map((file: FileResponse) => ({
           path: file.path,
@@ -422,7 +423,7 @@ export function useOpenCode() {
       } catch (error) {
         console.error('Failed to load files:', error);
       }
-    }, [fileDirectory]);
+    }, [fileDirectory, currentProject, currentPath]);
 
    const readFile = useCallback(async (filePath: string) => {
       try {

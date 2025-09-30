@@ -135,9 +135,9 @@ export const findSymbols = createServerFn({ method: 'GET' })
   })
 
 export const readFile = createServerFn({ method: 'GET' })
-  .inputValidator((data: { filePath: string }) => data)
+  .inputValidator((data: { filePath: string; directory?: string }) => data)
   .handler(async ({ data }) => {
-    return httpApi.readFile(data.filePath)
+    return httpApi.readFile(data.filePath, data.directory)
   })
 
 export const getFileStatus = createServerFn({ method: 'GET' }).handler(

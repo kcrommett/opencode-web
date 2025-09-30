@@ -256,7 +256,7 @@ export const openCodeService = {
 
   async readFile(filePath: string, directory?: string) {
     try {
-      const response = await serverFns.readFile({ data: { filePath } });
+      const response = await serverFns.readFile({ data: { filePath, directory } });
       return { data: response };
     } catch (error) {
       throw error;

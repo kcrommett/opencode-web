@@ -221,8 +221,10 @@ export async function findSymbols(query: string) {
   return response.json()
 }
 
-export async function readFile(filePath: string) {
-  const response = await fetch(buildUrl('/file', { path: filePath }))
+export async function readFile(filePath: string, directory?: string) {
+  const params: Record<string, string> = { path: filePath }
+  if (directory) params.directory = directory
+  const response = await fetch(buildUrl('/file/content', params))
   if (!response.ok) {
     throw new Error(`Failed to read file: ${response.statusText}`)
   }
