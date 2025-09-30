@@ -22,6 +22,7 @@ export default function OpenCodeChatTUI() {
   const [newSessionDirectory, setNewSessionDirectory] = useState("");
   const [activeTab, setActiveTab] = useState("workspace");
   const [fileSearchQuery, setFileSearchQuery] = useState("");
+  const [modelSearchQuery, setModelSearchQuery] = useState("");
 
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
@@ -480,7 +481,15 @@ export default function OpenCodeChatTUI() {
     });
   }, [projects]);
 
-
+  const filteredModels = useMemo(() => {
+    if (!modelSearchQuery.trim()) return models;
+    const query = modelSearchQuery.toLowerCase();
+    return models.filter(model => 
+      model.name.toLowerCase().includes(query) ||
+      model.providerID.toLowerCase().includes(query) ||
+      model.modelID.toLowerCase().includes(query)
+    );
+  }, [models, modelSearchQuery]);
 
    const handleTabChange = (tab: string) => {
      setActiveTab(tab);
@@ -850,9 +859,9 @@ export default function OpenCodeChatTUI() {
 
            {/* Content */}
             {activeTab === "workspace" && (
-             <div className="flex-1 flex flex-col">
+             <div className="flex-1 flex flex-col overflow-hidden">
               {/* Chat Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
                 {messages.length === 0 && !loading && (
                   <div className="flex justify-start">
                     <View box="round" className="max-w-xs p-3" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
@@ -1151,17 +1160,16 @@ export default function OpenCodeChatTUI() {
             >
              <div className="p-6 rounded-lg max-w-md w-full max-h-[80vh] overflow-hidden" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
               <h2 className="text-lg font-bold mb-4">Select Model</h2>
-              <div className="mb-4">
-                <Input
-                  placeholder="Search models..."
-                  size="small"
-                  onChange={() => {
-                    // TODO: Implement search
-                  }}
-                />
-              </div>
-              <div className="max-h-64 overflow-y-auto space-y-2">
-                {models.map((model) => (
+               <div className="mb-4">
+                 <Input
+                   placeholder="Search models..."
+                   size="small"
+                   value={modelSearchQuery}
+                   onChange={(e) => setModelSearchQuery(e.target.value)}
+                 />
+               </div>
+               <div className="max-h-64 overflow-y-auto space-y-2">
+                 {filteredModels.map((model) => (
                   <div
                     key={`${model.providerID}/${model.modelID}`}
                     className="p-3 rounded cursor-pointer transition-colors"
