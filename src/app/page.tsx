@@ -1,18 +1,22 @@
- "use client";
+  "use client";
 
-  import { useState, useMemo, useEffect, useRef } from "react";
-   import {
-     Button,
-     Input,
-     Textarea,
-     View,
-     Badge,
-     Pre,
-     Dialog,
-     Separator,
-   } from "@/app/_components/ui";
+   import { useState, useMemo, useEffect, useRef } from "react";
+    import {
+      Button,
+      Input,
+      Textarea,
+      View,
+      Badge,
+      Pre,
+      Dialog,
+      Separator,
+    } from "@/app/_components/ui";
+import { CommandPicker } from "@/app/_components/ui/command-picker";
+import { AgentPicker } from "@/app/_components/ui/agent-picker";
+import { SessionPicker } from "@/app/_components/ui/session-picker";
 import { useOpenCodeContext } from "@/contexts/OpenCodeContext";
 import { parseCommand } from "@/lib/commandParser";
+import { getCommandSuggestions, completeCommand, type Command } from "@/lib/commands";
 import { useTheme } from "@/hooks/useTheme";
 import { themeList } from "@/lib/themes";
 
@@ -28,7 +32,14 @@ export default function OpenCodeChatTUI() {
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [fileSuggestions, setFileSuggestions] = useState<string[]>([]);
   const [showFileSuggestions, setShowFileSuggestions] = useState(false);
+  const [commandSuggestions, setCommandSuggestions] = useState<Command[]>([]);
+  const [showCommandPicker, setShowCommandPicker] = useState(false);
+  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
+  const [showAgentPicker, setShowAgentPicker] = useState(false);
+  const [showSessionPicker, setShowSessionPicker] = useState(false);
+  const [selectedModelIndex, setSelectedModelIndex] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const modelSearchInputRef = useRef<HTMLInputElement>(null);
   
   const { currentTheme, changeTheme } = useTheme();
    const {
@@ -180,21 +191,12 @@ export default function OpenCodeChatTUI() {
        case "themes":
          setShowThemes(true);
          break;
-        case "sessions":
-          // Switch to sessions tab
-          setActiveTab("workspace");
-          break;
-        case "agents":
-          // Cycle to next agent
-          cycleAgent();
-          const agentMessage = {
-            id: `assistant-${Date.now()}`,
-            type: "assistant" as const,
-            content: `Switched to agent: ${currentAgent?.name || 'Unknown'}`,
-            timestamp: new Date(),
-          };
-          setMessages((prev) => [...prev, agentMessage]);
-          break;
+         case "sessions":
+           setShowSessionPicker(true);
+           break;
+         case "agents":
+           setShowAgentPicker(true);
+           break;
         case "undo":
           try {
             // TODO: Call revert API
@@ -381,22 +383,62 @@ export default function OpenCodeChatTUI() {
      const handleKeyDown = (e: React.KeyboardEvent) => {
        if (e.key === "Enter" && !e.shiftKey) {
          e.preventDefault();
-         handleSend();
+         if (showCommandPicker && commandSuggestions.length > 0) {
+           handleCommandSelect(commandSuggestions[selectedCommandIndex]);
+         } else {
+           handleSend();
+         }
        }
        if (e.key === "Tab") {
          e.preventDefault();
-         cycleAgent();
+         if (showCommandPicker && commandSuggestions.length > 0) {
+           const completed = completeCommand(input);
+           if (completed) {
+             setInput(completed + ' ');
+             setShowCommandPicker(false);
+           }
+         } else if (input.startsWith('/')) {
+           const completed = completeCommand(input);
+           if (completed) {
+             setInput(completed + ' ');
+           }
+         } else {
+           cycleAgent();
+         }
+       }
+       if (e.key === "ArrowDown" && showCommandPicker) {
+         e.preventDefault();
+         setSelectedCommandIndex((prev) => 
+           prev < commandSuggestions.length - 1 ? prev + 1 : prev
+         );
+       }
+       if (e.key === "ArrowUp" && showCommandPicker) {
+         e.preventDefault();
+         setSelectedCommandIndex((prev) => prev > 0 ? prev - 1 : prev);
+       }
+       if (e.key === "Escape" && showCommandPicker) {
+         e.preventDefault();
+         setShowCommandPicker(false);
        }
      };
 
    const handleInputChange = async (value: string) => {
      setInput(value);
+     if (value.startsWith('/')) {
+       const suggestions = getCommandSuggestions(value);
+       setCommandSuggestions(suggestions);
+       setShowCommandPicker(suggestions.length > 0);
+       setSelectedCommandIndex(0);
+     } else {
+       setShowCommandPicker(false);
+     }
+     
      if (value.includes('@')) {
        const query = value.split('@').pop() || '';
        if (query.length > 0) {
          try {
            const suggestions = await searchFiles(query);
-           setFileSuggestions(suggestions.slice(0, 5)); // Limit to 5
+           setFileSuggestions(suggestions.slice(0, 5));
            setShowFileSuggestions(true);
          } catch (error) {
            console.error('Failed to search files:', error);
@@ -406,6 +448,25 @@ export default function OpenCodeChatTUI() {
        }
      } else {
        setShowFileSuggestions(false);
+     }
+   };
+
+   const handleCommandSelect = (command: Command) => {
+     setInput(`/${command.name} `);
+     setShowCommandPicker(false);
+     
+     if (command.name === 'models') {
+       setShowModelPicker(true);
+     } else if (command.name === 'themes') {
+       setShowThemes(true);
+     } else if (command.name === 'help') {
+       setShowHelp(true);
+     } else if (command.name === 'sessions') {
+       setShowSessionPicker(true);
+     } else if (command.name === 'agents') {
+       setShowAgentPicker(true);
+     } else if (['new', 'clear', 'undo', 'redo', 'share', 'unshare', 'init', 'compact', 'details', 'export', 'editor', 'exit'].includes(command.name)) {
+       void handleCommand(`/${command.name}`);
      }
    };
 
@@ -516,8 +577,18 @@ export default function OpenCodeChatTUI() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    if (showModelPicker && modelSearchInputRef.current) {
+      modelSearchInputRef.current.focus();
+    }
+  }, [showModelPicker]);
+
+  useEffect(() => {
+    setSelectedModelIndex(0);
+  }, [modelSearchQuery]);
+
   return (
-     <div className="h-screen font-mono overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
+     <View box="square" className="h-screen font-mono overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
        {/* Top Bar */}
         <div className="px-4 py-2 flex items-center justify-between" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
           {!isConnected && (
@@ -571,40 +642,43 @@ export default function OpenCodeChatTUI() {
          </div>
        </div>
 
-         <Separator />
+          <Separator />
 
           {/* Main Content */}
-          <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 flex overflow-hidden gap-0">
           {/* Sidebar */}
-           <View box="square" className="w-80 md:w-80 sm:w-full flex flex-col" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
-          <div className="p-4 flex-1 overflow-hidden">
+           <View box="square" className="w-80 md:w-80 sm:w-full flex flex-col p-4" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+          <div className="flex-1 overflow-hidden">
                {activeTab === "workspace" && (
-                 <div className="h-full flex flex-col overflow-hidden">
-                   {/* Projects Section - 50% height */}
-                   <div className="flex flex-col h-1/2 min-h-0">
-                     <h3 className="text-sm font-medium mb-2">Projects</h3>
-                     <Separator className="mb-2" />
-                    <div className="flex-1 overflow-y-auto space-y-2">
-                      {sortedProjects.length > 0 ? (
-                        sortedProjects.map((project) => (
-                          <div
-                            key={project.id}
-                            className={`p-2 rounded cursor-pointer transition-colors ${
-                              currentProject?.id === project.id
-                                ? "bg-[#89b4fa] text-[#1e1e2e]"
-                                : "bg-[#1e1e2e] hover:bg-[#45475a]"
-                            }`}
-                            onClick={() => handleProjectSwitch(project)}
-                          >
-                            <div className="font-medium text-sm truncate">
-                              {project.worktree}
-                            </div>
-                             <div className="text-xs opacity-70 truncate">
-                               VCS: {project.vcs || 'Unknown'}
+                  <div className="h-full flex flex-col overflow-hidden">
+                    {/* Projects Section - 50% height */}
+                    <div className="flex flex-col h-1/2 min-h-0">
+                      <View box="square" className="p-2 mb-2" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                        <h3 className="text-sm font-medium">Projects</h3>
+                      </View>
+                      <Separator className="mb-2" />
+                     <div className="flex-1 overflow-y-auto space-y-2">
+                       {sortedProjects.length > 0 ? (
+                         sortedProjects.map((project) => (
+                           <View
+                             box="round"
+                             key={project.id}
+                             className={`p-2 cursor-pointer transition-colors ${
+                               currentProject?.id === project.id
+                                 ? "bg-[#89b4fa] text-[#1e1e2e]"
+                                 : "bg-[#1e1e2e] hover:bg-[#45475a]"
+                             }`}
+                             onClick={() => handleProjectSwitch(project)}
+                           >
+                             <div className="font-medium text-sm truncate">
+                               {project.worktree}
                              </div>
-                          </div>
-                       ))
-                     ) : (
+                              <div className="text-xs opacity-70 truncate">
+                                VCS: {project.vcs || 'Unknown'}
+                              </div>
+                           </View>
+                        ))
+                      ) : (
                       <div className="text-center text-sm py-4" style={{ color: 'var(--theme-muted)' }}>
                           No projects found
                         </div>
@@ -614,11 +688,12 @@ export default function OpenCodeChatTUI() {
                   
                   <Separator className="my-4" />
                   
-                  {/* Sessions Section - 50% height */}
-                  <div className="flex flex-col h-1/2 min-h-0">
-                    <div className="flex justify-between items-center mb-2">
-                      <h3 className="text-sm font-medium">Sessions</h3>
-                     <div className="flex gap-2">
+                   {/* Sessions Section - 50% height */}
+                   <div className="flex flex-col h-1/2 min-h-0">
+                     <View box="square" className="p-2 mb-2" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                       <div className="flex justify-between items-center">
+                         <h3 className="text-sm font-medium">Sessions</h3>
+                        <div className="flex gap-2">
                        <Button
                          variant="foreground0"
                          box="round"
@@ -634,10 +709,11 @@ export default function OpenCodeChatTUI() {
                          size="small"
                        >
                          New
-                       </Button>
-                      </div>
-                    </div>
-                    <Separator className="mb-2" />
+                        </Button>
+                       </div>
+                       </div>
+                     </View>
+                     <Separator className="mb-2" />
                      {!currentProject ? (
                      <div className="flex-1 flex items-center justify-center text-sm" style={{ color: 'var(--theme-muted)' }}>
                        Select a project first to view sessions
@@ -656,20 +732,21 @@ export default function OpenCodeChatTUI() {
                            Project: {currentProject.worktree}
                          </div>
                        </div>
-                        <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
-                           {sessions.filter(session => 
-                             session.projectID === currentProject?.id || 
-                             session.directory === currentProject?.worktree
-                           ).map((session) => (
-                           <div
-                             key={session.id}
-                             className={`p-2 rounded cursor-pointer transition-colors ${
-                               currentSession?.id === session.id
-                                 ? "bg-[#89b4fa] text-[#1e1e2e]"
-                                 : "bg-[#1e1e2e] hover:bg-[#45475a]"
-                             }`}
-                             onClick={() => handleSessionSwitch(session.id)}
-                           >
+                         <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+                            {sessions.filter(session => 
+                              session.projectID === currentProject?.id || 
+                              session.directory === currentProject?.worktree
+                            ).map((session) => (
+                            <View
+                              box="round"
+                              key={session.id}
+                              className={`p-2 cursor-pointer transition-colors ${
+                                currentSession?.id === session.id
+                                  ? "bg-[#89b4fa] text-[#1e1e2e]"
+                                  : "bg-[#1e1e2e] hover:bg-[#45475a]"
+                              }`}
+                              onClick={() => handleSessionSwitch(session.id)}
+                            >
                              <div className="flex justify-between items-start">
                                <div className="flex-1 min-w-0">
                                  <div className="font-medium text-sm truncate">
@@ -703,11 +780,11 @@ export default function OpenCodeChatTUI() {
                                  className="ml-2 flex-shrink-0"
                                >
                                  ×
-                               </Button>
-                             </div>
-                           </div>
-                         ))}
-                          {sessions.length === 0 && (
+                                </Button>
+                              </div>
+                            </View>
+                          ))}
+                           {sessions.length === 0 && (
                             <div className="text-center text-sm py-4" style={{ color: 'var(--theme-muted)' }}>
                               No sessions for this project yet
                             </div>
@@ -721,19 +798,21 @@ export default function OpenCodeChatTUI() {
 
 
 
-            {activeTab === "files" && (
-              <div className="space-y-4 h-full flex flex-col">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium">Files</h3>
-                  <Button
-                    variant="foreground0"
-                    box="round"
-                    size="small"
-                    onClick={() => void handleDirectoryOpen(fileDirectory || '.')}
-                  >
-                     Refresh
-                   </Button>
-                 </div>
+             {activeTab === "files" && (
+               <div className="space-y-4 h-full flex flex-col">
+                 <View box="square" className="p-2 mb-2" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                   <div className="flex items-center justify-between">
+                     <h3 className="text-sm font-medium">Files</h3>
+                     <Button
+                       variant="foreground0"
+                       box="round"
+                       size="small"
+                       onClick={() => void handleDirectoryOpen(fileDirectory || '.')}
+                     >
+                        Refresh
+                      </Button>
+                   </div>
+                 </View>
                  <Separator />
                  <div className="space-y-2">
                   <Input
@@ -792,27 +871,28 @@ export default function OpenCodeChatTUI() {
                    </Button>
                  </div>
                  <Separator />
-                 <div className="flex-1 overflow-y-auto space-y-2">
-                   {sortedFiles.length > 0 ? (
-                     sortedFiles.map((file) => {
-                       const isDirectory = file.type === 'directory';
-                       const isSelected = !isDirectory && selectedFile === file.path;
-                       return (
-                         <div
-                           key={file.path}
-                           className={`p-2 rounded transition-colors cursor-pointer ${
-                             isSelected
-                               ? "bg-[#89b4fa] text-[#1e1e2e]"
-                               : "bg-[#1e1e2e] hover:bg-[#45475a]"
-                           }`}
-                           onClick={() => {
-                             if (isDirectory) {
-                               void handleDirectoryOpen(file.path);
-                             } else {
-                               void handleFileSelect(file.path);
-                             }
-                           }}
-                         >
+                  <div className="flex-1 overflow-y-auto space-y-2">
+                    {sortedFiles.length > 0 ? (
+                      sortedFiles.map((file) => {
+                        const isDirectory = file.type === 'directory';
+                        const isSelected = !isDirectory && selectedFile === file.path;
+                        return (
+                          <View
+                            box="round"
+                            key={file.path}
+                            className={`p-2 transition-colors cursor-pointer ${
+                              isSelected
+                                ? "bg-[#89b4fa] text-[#1e1e2e]"
+                                : "bg-[#1e1e2e] hover:bg-[#45475a]"
+                            }`}
+                            onClick={() => {
+                              if (isDirectory) {
+                                void handleDirectoryOpen(file.path);
+                              } else {
+                                void handleFileSelect(file.path);
+                              }
+                            }}
+                          >
                            <div className="flex items-center justify-between">
                              <div className="flex items-center gap-2 font-medium text-sm">
                                <span>{isDirectory ? '📁' : '📄'}</span>
@@ -821,12 +901,12 @@ export default function OpenCodeChatTUI() {
                              <span className="text-xs text-[#6c7086]">
                                {isDirectory ? 'Directory' : 'File'}
                              </span>
-                           </div>
-                           <div className="text-xs opacity-60 truncate">{file.path}</div>
-                         </div>
-                       );
-                     })
-                   ) : (
+                            </div>
+                            <div className="text-xs opacity-60 truncate">{file.path}</div>
+                          </View>
+                        );
+                      })
+                    ) : (
                      <div className="text-center text-sm py-4" style={{ color: 'var(--theme-muted)' }}>
                        No files loaded
                      </div>
@@ -835,17 +915,15 @@ export default function OpenCodeChatTUI() {
                 <div className="text-xs opacity-50">
                   Path: {fileDirectory === '.' ? '/' : `/${fileDirectory}`} • {sortedFiles.length} items
                 </div>
-              </div>
-            )}
-
-
+               </div>
+             )}
           </div>
         </View>
 
         <Separator direction="vertical" />
 
         {/* Main Editor Area */}
-        <View box="square" className="flex-1 flex flex-col" style={{ backgroundColor: 'var(--theme-background)' }}>
+        <View box="square" className="flex-1 flex flex-col gap-0" style={{ backgroundColor: 'var(--theme-background)' }}>
            {/* Header */}
            <div className="px-4 py-2 flex justify-between items-center" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
             <div className="flex items-center gap-2">
@@ -935,11 +1013,11 @@ export default function OpenCodeChatTUI() {
                 <div ref={messagesEndRef} />
                 </div>
 
-                <Separator />
+                 <Separator />
 
-                {/* Input Area */}
-                 <div className="p-4 space-y-3" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
-                     <div className="flex items-start justify-between gap-4">
+                 {/* Input Area */}
+                 <View box="square" className="p-4 space-y-3" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                      <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-2 text-xs text-[#cdd6f4]">
                         <span className="font-medium">Model:</span>
                         <span className="text-[#89b4fa]">{selectedModel?.name || 'Loading...'}</span>
@@ -957,8 +1035,15 @@ export default function OpenCodeChatTUI() {
                        Agent: {currentAgent?.name || 'None'}
                      </Badge>
                    </div>
-                 <div className="flex gap-3 items-end">
+                  <div className="flex gap-3 items-end">
                    <div className="flex-1 relative">
+                      {showCommandPicker && (
+                        <CommandPicker
+                          commands={commandSuggestions}
+                          onSelect={handleCommandSelect}
+                          selectedIndex={selectedCommandIndex}
+                        />
+                      )}
                       <Textarea
                         value={input}
                         onChange={(e) => handleInputChange(e.target.value)}
@@ -993,13 +1078,13 @@ export default function OpenCodeChatTUI() {
                        className="px-6 py-2"
                      >
                        Send
-                     </Button>
-                 </div>
-               </div>
-            </div>
-          )}
+                      </Button>
+                  </div>
+                </View>
+             </div>
+           )}
 
-           {activeTab === "files" && (
+            {activeTab === "files" && (
              <div className="flex-1 p-4 flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--theme-background)' }}>
               {selectedFile ? (
                 <>
@@ -1041,21 +1126,114 @@ export default function OpenCodeChatTUI() {
             open={showHelp}
             onClose={() => setShowHelp(false)}
           >
-           <div className="p-6 rounded-lg max-w-md w-full" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
-             <h2 className="text-lg font-bold mb-4">Help</h2>
-             <p className="text-sm mb-4">Welcome to OpenCode Web! This is a web-based interface for OpenCode.</p>
-              <p className="text-sm mb-4">Use the tabs to navigate between Sessions, Projects, Files, and Models.</p>
-              <p className="text-sm mb-4">Type your message in the input box and press Enter or click Send to chat with OpenCode.</p>
-              <p className="text-sm mb-4">Available commands: /new, /models (opens model picker), /model, /help, /themes, /sessions, /undo, /redo, /share, /unshare, /init, /compact, /details, /export, /editor, /exit</p>
-             <Button
-               variant="foreground0"
-               box="round"
-               onClick={() => setShowHelp(false)}
-               size="small"
-             >
-               Close
-             </Button>
-           </div>
+           <View box="square" className="p-6 max-w-2xl w-full max-h-[90vh] overflow-hidden" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
+             <div className="flex justify-between items-center mb-4">
+               <h2 className="text-lg font-bold">OpenCode Commands</h2>
+               <Button
+                 variant="foreground0"
+                 box="round"
+                 onClick={() => setShowHelp(false)}
+                 size="small"
+               >
+                 ✕
+               </Button>
+             </div>
+             <Separator className="mb-4" />
+             
+             <div className="space-y-6 overflow-y-auto max-h-[70vh]">
+               <div>
+                 <div className="text-xs font-bold uppercase mb-2 opacity-60">Session</div>
+                 <div className="space-y-1 font-mono text-sm">
+                   <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                     <span className="text-[#89b4fa]">/new</span>
+                     <span className="opacity-70">Start a new session</span>
+                   </div>
+                   <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                     <span className="text-[#89b4fa]">/clear</span>
+                     <span className="opacity-70">Clear current session</span>
+                   </div>
+                   <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                     <span className="text-[#89b4fa]">/sessions</span>
+                     <span className="opacity-70">View all sessions</span>
+                   </div>
+                 </div>
+               </div>
+
+               <div>
+                 <div className="text-xs font-bold uppercase mb-2 opacity-60">Model</div>
+                 <div className="space-y-1 font-mono text-sm">
+                   <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                     <span className="text-[#89b4fa]">/models</span>
+                     <span className="opacity-70">Open model picker</span>
+                   </div>
+                   <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                     <span className="text-[#89b4fa]">/model &lt;provider&gt;/&lt;model&gt;</span>
+                     <span className="opacity-70">Select specific model</span>
+                   </div>
+                 </div>
+               </div>
+
+               <div>
+                 <div className="text-xs font-bold uppercase mb-2 opacity-60">Agent</div>
+                 <div className="space-y-1 font-mono text-sm">
+                   <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                     <span className="text-[#89b4fa]">/agents</span>
+                     <span className="opacity-70">Select agent</span>
+                   </div>
+                 </div>
+               </div>
+
+               <div>
+                 <div className="text-xs font-bold uppercase mb-2 opacity-60">Theme</div>
+                 <div className="space-y-1 font-mono text-sm">
+                   <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                     <span className="text-[#89b4fa]">/themes</span>
+                     <span className="opacity-70">Open theme picker</span>
+                   </div>
+                 </div>
+               </div>
+
+               <div>
+                 <div className="text-xs font-bold uppercase mb-2 opacity-60">File Operations</div>
+                 <div className="space-y-1 font-mono text-sm">
+                   <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                     <span className="text-[#89b4fa]">/undo</span>
+                     <span className="opacity-70">Undo last file changes</span>
+                   </div>
+                   <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                     <span className="text-[#89b4fa]">/redo</span>
+                     <span className="opacity-70">Redo last undone changes</span>
+                   </div>
+                 </div>
+               </div>
+
+               <div>
+                 <div className="text-xs font-bold uppercase mb-2 opacity-60">Other</div>
+                 <div className="space-y-1 font-mono text-sm">
+                   <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                     <span className="text-[#89b4fa]">/help</span>
+                     <span className="opacity-70">Show this help dialog</span>
+                   </div>
+                   <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                     <span className="text-[#89b4fa]">/share</span>
+                     <span className="opacity-70">Share current session</span>
+                   </div>
+                   <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                     <span className="text-[#89b4fa]">/export</span>
+                     <span className="opacity-70">Export session</span>
+                   </div>
+                 </div>
+               </div>
+
+               <Separator />
+
+               <div className="text-xs opacity-70 space-y-1">
+                 <div><span className="font-bold">Tip:</span> Start typing / to see autocomplete suggestions</div>
+                 <div><span className="font-bold">Tip:</span> Press Tab to complete commands</div>
+                 <div><span className="font-bold">Tip:</span> Use @ to reference files in your messages</div>
+               </div>
+             </div>
+           </View>
          </Dialog>
        )}
 
@@ -1065,8 +1243,9 @@ export default function OpenCodeChatTUI() {
               open={showThemes}
               onClose={() => setShowThemes(false)}
             >
-             <div className="p-6 rounded-lg max-w-md w-full max-h-[80vh] overflow-hidden" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
+             <View box="square" className="p-6 max-w-md w-full max-h-[80vh] overflow-hidden" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
               <h2 className="text-lg font-bold mb-4">Select Theme</h2>
+              <Separator className="mb-4" />
               <div className="max-h-96 overflow-y-auto space-y-2 mb-4">
                 {themeList.map((theme) => (
                   <div
@@ -1108,6 +1287,7 @@ export default function OpenCodeChatTUI() {
                   </div>
                 ))}
               </div>
+              <Separator className="mb-4" />
               <div className="flex justify-end">
                 <Button
                   variant="foreground0"
@@ -1118,7 +1298,7 @@ export default function OpenCodeChatTUI() {
                   Close
                 </Button>
               </div>
-            </div>
+            </View>
           </Dialog>
         )}
 
@@ -1128,8 +1308,9 @@ export default function OpenCodeChatTUI() {
               open={showOnboarding}
               onClose={() => setShowOnboarding(false)}
             >
-             <div className="p-6 rounded-lg max-w-md w-full" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
+             <View box="square" className="p-6 max-w-md w-full" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
               <h2 className="text-lg font-bold mb-4">Connect to OpenCode Server</h2>
+              <Separator className="mb-4" />
               <p className="text-sm mb-4">Enter your OpenCode server URL:</p>
               <Input
                 placeholder="http://192.168.1.100:4096"
@@ -1140,6 +1321,7 @@ export default function OpenCodeChatTUI() {
                 }}
               />
               <p className="text-xs opacity-70 mb-4">Find your IP: macOS/Linux: ifconfig | grep inet, Windows: ipconfig</p>
+              <Separator className="mb-4" />
               <Button
                 variant="foreground0"
                 box="round"
@@ -1148,7 +1330,7 @@ export default function OpenCodeChatTUI() {
               >
                 Connect
               </Button>
-            </div>
+            </View>
           </Dialog>
         )}
 
@@ -1156,54 +1338,138 @@ export default function OpenCodeChatTUI() {
           {showModelPicker && (
             <Dialog
               open={showModelPicker}
-              onClose={() => setShowModelPicker(false)}
+              onClose={() => {
+                setShowModelPicker(false);
+                setModelSearchQuery('');
+                setSelectedModelIndex(0);
+              }}
             >
-             <div className="p-6 rounded-lg max-w-md w-full max-h-[80vh] overflow-hidden" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
+             <View box="square" className="p-6 max-w-md w-full max-h-[80vh] overflow-hidden" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
               <h2 className="text-lg font-bold mb-4">Select Model</h2>
+              <Separator className="mb-4" />
                <div className="mb-4">
                  <Input
+                   ref={modelSearchInputRef}
                    placeholder="Search models..."
                    size="small"
                    value={modelSearchQuery}
                    onChange={(e) => setModelSearchQuery(e.target.value)}
+                   onKeyDown={(e) => {
+                     if (e.key === 'ArrowDown') {
+                       e.preventDefault();
+                       setSelectedModelIndex((prev) => 
+                         prev < filteredModels.length - 1 ? prev + 1 : prev
+                       );
+                     } else if (e.key === 'ArrowUp') {
+                       e.preventDefault();
+                       setSelectedModelIndex((prev) => prev > 0 ? prev - 1 : prev);
+                     } else if (e.key === 'Enter' && filteredModels.length > 0) {
+                       e.preventDefault();
+                       selectModel(filteredModels[selectedModelIndex]);
+                       setShowModelPicker(false);
+                       setModelSearchQuery('');
+                       setSelectedModelIndex(0);
+                     } else if (e.key === 'Escape') {
+                       e.preventDefault();
+                       setShowModelPicker(false);
+                       setModelSearchQuery('');
+                       setSelectedModelIndex(0);
+                     }
+                   }}
                  />
                </div>
                <div className="max-h-64 overflow-y-auto space-y-2">
-                 {filteredModels.map((model) => (
-                  <div
-                    key={`${model.providerID}/${model.modelID}`}
-                    className="p-3 rounded cursor-pointer transition-colors"
-                    style={{
-                      backgroundColor: selectedModel?.providerID === model.providerID && selectedModel?.modelID === model.modelID
-                        ? 'var(--theme-primary)'
-                        : 'var(--theme-backgroundAlt)',
-                      color: selectedModel?.providerID === model.providerID && selectedModel?.modelID === model.modelID
-                        ? 'var(--theme-background)'
-                        : 'var(--theme-foreground)',
-                    }}
-                    onClick={() => {
-                      selectModel(model);
-                      setShowModelPicker(false);
-                    }}
-                  >
-                    <div className="font-medium">{model.name}</div>
-                    <div className="text-xs opacity-70">{model.providerID}/{model.modelID}</div>
-                  </div>
-                ))}
+                 {filteredModels.length === 0 ? (
+                   <div className="text-center text-sm py-4 opacity-70">
+                     No models found
+                   </div>
+                 ) : (
+                   filteredModels.map((model, index) => {
+                     const isSelected = index === selectedModelIndex;
+                     return (
+                       <div
+                         key={`${model.providerID}/${model.modelID}`}
+                         className="p-3 rounded cursor-pointer transition-colors"
+                         style={{
+                           backgroundColor: isSelected
+                             ? 'var(--theme-primary)'
+                             : 'var(--theme-backgroundAlt)',
+                           color: isSelected
+                             ? 'var(--theme-background)'
+                             : 'var(--theme-foreground)',
+                         }}
+                         onClick={() => {
+                           selectModel(model);
+                           setShowModelPicker(false);
+                           setModelSearchQuery('');
+                           setSelectedModelIndex(0);
+                         }}
+                       >
+                         <div className="flex items-center justify-between">
+                           <div className="flex-1">
+                             <div className="font-medium">{model.name}</div>
+                             <div className="text-xs opacity-70">{model.providerID}/{model.modelID}</div>
+                           </div>
+                           {isSelected && (
+                             <Badge variant="background2" cap="round" className="text-xs">
+                               ↵
+                             </Badge>
+                           )}
+                         </div>
+                       </div>
+                     );
+                   })
+                 )}
               </div>
-              <div className="mt-4 flex justify-end">
+              <Separator className="mt-4 mb-4" />
+              <div className="flex justify-between items-center">
+                <div className="text-xs opacity-70">
+                  Use ↑↓ arrows to navigate, Enter to select
+                </div>
                 <Button
                   variant="foreground0"
                   box="round"
-                  onClick={() => setShowModelPicker(false)}
+                  onClick={() => {
+                    setShowModelPicker(false);
+                    setModelSearchQuery('');
+                    setSelectedModelIndex(0);
+                  }}
                   size="small"
                 >
                   Cancel
                 </Button>
               </div>
-            </div>
+            </View>
           </Dialog>
         )}
-      </div>
+
+        {/* Agent Picker */}
+        {showAgentPicker && (
+          <AgentPicker
+            agents={agents}
+            selectedAgent={currentAgent}
+            onSelect={selectAgent}
+            onClose={() => setShowAgentPicker(false)}
+          />
+        )}
+
+        {/* Session Picker */}
+        {showSessionPicker && (
+          <SessionPicker
+            sessions={sessions.filter(s => 
+              s.projectID === currentProject?.id || 
+              s.directory === currentProject?.worktree
+            )}
+            currentSession={currentSession}
+            onSelect={switchSession}
+            onDelete={deleteSession}
+            onCreate={async (title) => {
+              await createSession({ title });
+              await loadSessions();
+            }}
+            onClose={() => setShowSessionPicker(false)}
+          />
+        )}
+      </View>
     );
   }

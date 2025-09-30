@@ -5,11 +5,11 @@ interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, '
   className?: string;
 }
 
-export const Input: React.FC<InputProps> = ({
+export const Input = React.forwardRef<HTMLInputElement, InputProps>(({
   size,
   className = '',
   ...props
-}) => {
+}, ref) => {
   const inputProps: Record<string, string> = {};
 
   if (size) {
@@ -18,10 +18,13 @@ export const Input: React.FC<InputProps> = ({
 
   return (
     <input
+      ref={ref}
       is-="input"
       className={className}
       {...inputProps}
       {...props}
     />
   );
-};
+});
+
+Input.displayName = 'Input';
