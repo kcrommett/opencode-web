@@ -19,7 +19,7 @@ export const CommandPicker: React.FC<CommandPickerProps> = ({
 
   return (
     <div 
-      className="absolute bottom-full left-0 right-0 mb-2 rounded border overflow-hidden shadow-lg max-h-64 overflow-y-auto"
+      className="absolute bottom-full left-0 right-0 mb-2 rounded border overflow-hidden shadow-lg max-h-64 overflow-y-auto scrollbar"
       style={{ 
         backgroundColor: 'var(--theme-backgroundAlt)',
         borderColor: 'var(--theme-primary)',

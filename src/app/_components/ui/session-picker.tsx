@@ -36,7 +36,7 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
       onClick={onClose}
     >
       <div 
-        className="rounded border overflow-hidden shadow-lg max-w-md w-full max-h-[80vh] overflow-y-auto"
+        className="rounded border overflow-hidden shadow-lg max-w-md w-full max-h-[80vh] overflow-y-auto scrollbar"
         style={{ 
           backgroundColor: 'var(--theme-background)',
           borderColor: 'var(--theme-primary)',
@@ -79,7 +79,7 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
         
         <Separator />
 
-        <div className="px-4 py-2 space-y-2 max-h-96 overflow-y-auto">
+        <div className="px-4 py-2 space-y-2 max-h-96 overflow-y-auto scrollbar">
           {sessions.length === 0 ? (
             <div className="text-center text-sm py-4 opacity-70">
               No sessions yet. Create one above.

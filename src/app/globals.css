@@ -153,3 +153,32 @@ body {
   border-radius: 0 !important;
   background-image: none !important;
 }
+
+/* WebTUI Scrollbar Styles */
+.scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--theme-backgroundAccent) var(--theme-backgroundAlt);
+}
+
+.scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.scrollbar::-webkit-scrollbar-track {
+  background: var(--theme-backgroundAlt);
+  border-left: 1px solid var(--theme-border);
+}
+
+.scrollbar::-webkit-scrollbar-thumb {
+  background: var(--theme-backgroundAccent);
+  border: 1px solid var(--theme-border);
+}
+
+.scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--theme-border);
+}
+
+.scrollbar::-webkit-scrollbar-corner {
+  background: var(--theme-backgroundAlt);
+}

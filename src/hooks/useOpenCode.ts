@@ -387,11 +387,22 @@ export function useOpenCode() {
         setCurrentSession(null);
         setMessages([]);
         setSessions([]);
-        await loadSessions();
+        const response = await openCodeService.getSessions(project.worktree);
+        const data = response.data || [];
+        const sessionsData: Session[] = data.map((session: SessionResponse) => ({
+          id: session.id,
+          title: session.title,
+          directory: session.directory,
+          projectID: session.projectID,
+          createdAt: session.time?.created ? new Date(session.time.created * 1000) : undefined,
+          updatedAt: session.time?.updated ? new Date(session.time.updated * 1000) : undefined,
+          messageCount: undefined,
+        }));
+        setSessions(sessionsData);
       } catch (error) {
         console.error('Failed to switch project:', error);
       }
-    }, [loadSessions]);
+    }, []);
 
     const loadFiles = useCallback(async (directory?: string) => {
       try {

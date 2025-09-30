@@ -26,7 +26,7 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
       onClick={onClose}
     >
       <div 
-        className="rounded border overflow-hidden shadow-lg max-w-md w-full max-h-[80vh] overflow-y-auto"
+        className="rounded border overflow-hidden shadow-lg max-w-md w-full max-h-[80vh] overflow-y-auto scrollbar"
         style={{ 
           backgroundColor: 'var(--theme-background)',
           borderColor: 'var(--theme-primary)',
@@ -40,11 +40,11 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
         </div>
         
         <div className="px-4 pb-4 space-y-2">
-          {agents.map((agent) => {
-            const isSelected = selectedAgent?.id === agent.id;
+          {agents.map((agent, index) => {
+            const isSelected = selectedAgent && selectedAgent.id === agent.id;
             return (
               <div
-                key={agent.id}
+                key={`agent-${agent.id}-${index}`}
                 className="p-3 rounded cursor-pointer transition-colors"
                 style={{
                   backgroundColor: isSelected ? 'var(--theme-primary)' : 'var(--theme-backgroundAlt)',

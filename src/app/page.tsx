@@ -452,21 +452,28 @@ export default function OpenCodeChatTUI() {
    };
 
    const handleCommandSelect = (command: Command) => {
-     setInput(`/${command.name} `);
      setShowCommandPicker(false);
      
      if (command.name === 'models') {
+       setInput('');
        setShowModelPicker(true);
      } else if (command.name === 'themes') {
+       setInput('');
        setShowThemes(true);
      } else if (command.name === 'help') {
+       setInput('');
        setShowHelp(true);
      } else if (command.name === 'sessions') {
+       setInput('');
        setShowSessionPicker(true);
      } else if (command.name === 'agents') {
+       setInput('');
        setShowAgentPicker(true);
      } else if (['new', 'clear', 'undo', 'redo', 'share', 'unshare', 'init', 'compact', 'details', 'export', 'editor', 'exit'].includes(command.name)) {
+       setInput('');
        void handleCommand(`/${command.name}`);
+     } else {
+       setInput(`/${command.name} `);
      }
    };
 
@@ -657,7 +664,7 @@ export default function OpenCodeChatTUI() {
                         <h3 className="text-sm font-medium">Projects</h3>
                       </View>
                       <Separator className="mb-2" />
-                     <div className="flex-1 overflow-y-auto space-y-2">
+                     <div className="flex-1 overflow-y-auto scrollbar space-y-2">
                        {sortedProjects.length > 0 ? (
                          sortedProjects.map((project) => (
                            <View
@@ -732,7 +739,7 @@ export default function OpenCodeChatTUI() {
                            Project: {currentProject.worktree}
                          </div>
                        </div>
-                         <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+                         <div className="flex-1 overflow-y-auto scrollbar space-y-2 min-h-0">
                             {sessions.filter(session => 
                               session.projectID === currentProject?.id || 
                               session.directory === currentProject?.worktree
@@ -871,7 +878,7 @@ export default function OpenCodeChatTUI() {
                    </Button>
                  </div>
                  <Separator />
-                  <div className="flex-1 overflow-y-auto space-y-2">
+                  <div className="flex-1 overflow-y-auto scrollbar space-y-2">
                     {sortedFiles.length > 0 ? (
                       sortedFiles.map((file) => {
                         const isDirectory = file.type === 'directory';
@@ -939,7 +946,7 @@ export default function OpenCodeChatTUI() {
             {activeTab === "workspace" && (
              <div className="flex-1 flex flex-col overflow-hidden">
               {/* Chat Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
+              <div className="flex-1 overflow-y-auto scrollbar p-4 space-y-4 min-h-0">
                 {messages.length === 0 && !loading && (
                   <div className="flex justify-start">
                     <View box="round" className="max-w-xs p-3" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
@@ -1054,7 +1061,7 @@ export default function OpenCodeChatTUI() {
                         className="w-full bg-[#1e1e2e] text-[#cdd6f4] border-[#89b4fa] resize-none"
                       />
                      {showFileSuggestions && fileSuggestions.length > 0 && (
-                       <div className="absolute top-full left-0 right-0 bg-[#1e1e2e] border border-[#89b4fa] rounded mt-1 max-h-32 overflow-y-auto z-10">
+                       <div className="absolute top-full left-0 right-0 bg-[#1e1e2e] border border-[#89b4fa] rounded mt-1 max-h-32 overflow-y-auto scrollbar z-10">
                          {fileSuggestions.map((file, index) => (
                            <div
                              key={index}
@@ -1104,7 +1111,7 @@ export default function OpenCodeChatTUI() {
                   <div className="flex-1 overflow-hidden">
                     <Pre
                       size="small"
-                      className="bg-[#313244] p-4 rounded text-[#cdd6f4] break-words whitespace-pre-wrap overflow-y-auto h-full"
+                      className="bg-[#313244] p-4 rounded text-[#cdd6f4] break-words whitespace-pre-wrap overflow-y-auto scrollbar h-full"
                     >
                       {fileContent ?? "Unable to read file"}
                     </Pre>
@@ -1126,8 +1133,8 @@ export default function OpenCodeChatTUI() {
             open={showHelp}
             onClose={() => setShowHelp(false)}
           >
-           <View box="square" className="p-6 max-w-2xl w-full max-h-[90vh] overflow-hidden" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
-             <div className="flex justify-between items-center mb-4">
+           <View box="square" className="p-6 max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
+             <div className="flex justify-between items-center mb-4 flex-shrink-0">
                <h2 className="text-lg font-bold">OpenCode Commands</h2>
                <Button
                  variant="foreground0"
@@ -1138,9 +1145,9 @@ export default function OpenCodeChatTUI() {
                  ✕
                </Button>
              </div>
-             <Separator className="mb-4" />
+             <Separator className="mb-4 flex-shrink-0" />
              
-             <div className="space-y-6 overflow-y-auto max-h-[70vh]">
+             <div className="space-y-6 overflow-y-auto scrollbar flex-1 pb-4">
                <div>
                  <div className="text-xs font-bold uppercase mb-2 opacity-60">Session</div>
                  <div className="space-y-1 font-mono text-sm">
@@ -1246,7 +1253,7 @@ export default function OpenCodeChatTUI() {
              <View box="square" className="p-6 max-w-md w-full max-h-[80vh] overflow-hidden" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
               <h2 className="text-lg font-bold mb-4">Select Theme</h2>
               <Separator className="mb-4" />
-              <div className="max-h-96 overflow-y-auto space-y-2 mb-4">
+              <div className="max-h-96 overflow-y-auto scrollbar space-y-2 mb-4">
                 {themeList.map((theme) => (
                   <div
                     key={theme.id}
@@ -1378,7 +1385,7 @@ export default function OpenCodeChatTUI() {
                    }}
                  />
                </div>
-               <div className="max-h-64 overflow-y-auto space-y-2">
+               <div className="max-h-64 overflow-y-auto scrollbar space-y-2">
                  {filteredModels.length === 0 ? (
                    <div className="text-center text-sm py-4 opacity-70">
                      No models found
