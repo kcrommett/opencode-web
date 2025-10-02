@@ -36,6 +36,7 @@ function RootLayout() {
       lang="en"
       data-webtui-theme="catppuccin-mocha"
       className="antialiased"
+      suppressHydrationWarning
     >
       <head>
         <meta charSet="utf-8" />

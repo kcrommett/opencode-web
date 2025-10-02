@@ -224,11 +224,40 @@ export async function findSymbols(query: string) {
 export async function readFile(filePath: string, directory?: string) {
   const params: Record<string, string> = { path: filePath }
   if (directory) params.directory = directory
-  const response = await fetch(buildUrl('/file/content', params))
+  const url = buildUrl('/file', params)
+  const response = await fetch(url)
   if (!response.ok) {
     throw new Error(`Failed to read file: ${response.statusText}`)
   }
-  return response.json()
+  
+  const data = await response.json()
+  
+  if (data && typeof data === 'object' && 'content' in data) {
+    const isImage = /\.(png|jpg|jpeg|gif|svg|webp|bmp|ico)$/i.test(filePath)
+    
+    if (isImage && typeof data.content === 'string') {
+      try {
+        const binaryString = data.content
+        const bytes = new Uint8Array(binaryString.length)
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i)
+        }
+        
+        let binary = ''
+        const chunkSize = 0x8000
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
+        }
+        const base64 = btoa(binary)
+        return { ...data, content: base64 }
+      } catch (e) {
+        console.error('Failed to convert image to base64:', e)
+        return data
+      }
+    }
+  }
+  
+  return data
 }
 
 export async function getFileStatus() {
@@ -419,7 +448,7 @@ export async function listFiles(path: string, directory?: string) {
 export async function readFileContent(filePath: string, directory?: string) {
   const params: Record<string, string> = { path: filePath }
   if (directory) params.directory = directory
-  const response = await fetch(buildUrl('/file/content', params))
+  const response = await fetch(buildUrl('/file', params))
   if (!response.ok) {
     throw new Error(`Failed to read file content: ${response.statusText}`)
   }

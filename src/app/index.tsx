@@ -560,9 +560,15 @@ function OpenCodeChatTUI() {
 
     const handleFileSelect = async (filePath: string) => {
       try {
-        const content = await readFile(filePath);
+        const result = await readFile(filePath);
         setSelectedFile(filePath);
-        setFileContent(content ?? "Unable to read file");
+        if (result && typeof result === 'object' && 'content' in result) {
+          setFileContent(result.content);
+        } else if (typeof result === 'string') {
+          setFileContent(result);
+        } else {
+          setFileContent("Unable to read file");
+        }
       } catch (err) {
         console.error("Failed to read file:", err);
         setFileContent("Error reading file");
@@ -1244,11 +1250,25 @@ function OpenCodeChatTUI() {
                   <div className="flex-1 overflow-hidden">
                     {isImageFile(selectedFile) ? (
                       <div className="flex items-center justify-center h-full bg-[#313244] rounded p-4 overflow-auto scrollbar">
-                        <img
-                          src={`data:image/*;base64,${btoa(fileContent || '')}`}
-                          alt={selectedFile}
-                          className="max-w-full max-h-full object-contain"
-                        />
+                        {fileContent ? (
+                          <img
+                            src={`data:image/${selectedFile.split('.').pop()};base64,${fileContent}`}
+                            alt={selectedFile}
+                            className="max-w-full max-h-full object-contain"
+                            onError={(e) => {
+                              console.error('Image load error for:', selectedFile);
+                              e.currentTarget.style.display = 'none';
+                              const errorMsg = document.createElement('div');
+                              errorMsg.textContent = 'Failed to load image. The file may be binary data that cannot be displayed.';
+                              errorMsg.className = 'text-red-400 text-center p-4';
+                              e.currentTarget.parentElement?.appendChild(errorMsg);
+                            }}
+                          />
+                        ) : (
+                          <div className="text-center text-sm" style={{ color: 'var(--theme-muted)' }}>
+                            No image data available
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <pre className="hljs bg-[#0d1117] p-4 rounded overflow-y-auto scrollbar h-full text-sm font-mono m-0">
