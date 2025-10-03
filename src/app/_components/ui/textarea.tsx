@@ -19,7 +19,8 @@ export const Textarea: React.FC<TextareaProps> = ({
   return (
     <textarea
       is-="textarea"
-      className={className}
+      className={`${className} tap-highlight-none`}
+      style={{ fontSize: '16px', ...props.style }}
       {...textareaProps}
       {...props}
     />

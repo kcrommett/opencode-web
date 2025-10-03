@@ -23,8 +23,7 @@
 @import '@webtui/css/components/radio.css';
 @import '@webtui/css/components/switch.css';
 @import '@webtui/css/components/pre.css';
-
-@import '@webtui/theme-catppuccin';
+@import '@webtui/css/components/badge.css';
 
 :root {
   --theme-background: #1e1e2e;
@@ -42,6 +41,15 @@
   
   --background: var(--theme-background);
   --foreground: var(--theme-foreground);
+  
+  /* Map theme variables to WebTUI variables */
+  --background0: var(--theme-background);
+  --background1: var(--theme-backgroundAlt);
+  --background2: var(--theme-backgroundAccent);
+  --background3: var(--theme-border);
+  --foreground0: var(--theme-primary);
+  --foreground1: var(--theme-foreground);
+  --foreground2: var(--theme-foregroundAlt);
 }
 
 @theme inline {
@@ -86,78 +94,127 @@ body {
   height: 100%;
 }
 
-/* Button Enhancements */
+/* Button Enhancements - Override WebTUI defaults */
+button[is-="button"],
 [is-="button"] {
   padding: 0.5rem 1rem !important;
-  border: 1px solid var(--color-border, #45475a) !important;
-  transition: all 0.2s ease;
+  border: 2px solid var(--theme-primary) !important;
+  transition: all 0.2s ease !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  font-weight: 500;
+  font-weight: 500 !important;
   line-height: 1 !important;
   background-color: transparent !important;
   background-image: none !important;
   height: auto !important;
-  border-radius: 0 !important;
-  color: #cdd6f4 !important;
+  border-radius: 4px !important;
+  color: var(--theme-primary) !important;
+  box-sizing: border-box !important;
 }
 
+button[is-="button"]:hover:not(:disabled),
 [is-="button"]:hover:not(:disabled) {
-  background-color: #45475a !important;
+  background-color: var(--theme-backgroundAccent) !important;
   background-image: none !important;
-  border-color: #89b4fa !important;
+  border-color: var(--theme-primary) !important;
 }
 
+button[is-="button"]:focus,
 [is-="button"]:focus {
   font-weight: 500 !important;
   text-decoration: none !important;
-  outline: 2px solid #89b4fa !important;
+  outline: 2px solid var(--theme-primary) !important;
   outline-offset: 2px !important;
 }
 
+button[is-="button"]:disabled,
 [is-="button"]:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
   text-decoration: none !important;
 }
 
-[is-="button"][data-variant="foreground0"] {
-  background-color: #89b4fa !important;
+button[is-="button"][variant-="foreground0"],
+[is-="button"][variant-="foreground0"] {
+  background-color: var(--theme-primary) !important;
   background-image: none !important;
-  color: #1e1e2e !important;
-  border-color: #89b4fa !important;
+  color: var(--theme-background) !important;
+  border: 2px solid var(--theme-primary) !important;
+  --button-primary: var(--theme-primary) !important;
+  --button-secondary: var(--theme-background) !important;
 }
 
-[is-="button"][data-variant="foreground0"]:hover:not(:disabled) {
-  background-color: #74c7ec !important;
+button[is-="button"][variant-="foreground0"]:hover:not(:disabled),
+[is-="button"][variant-="foreground0"]:hover:not(:disabled) {
+  background-color: var(--theme-primaryHover) !important;
   background-image: none !important;
-  border-color: #74c7ec !important;
+  border: 2px solid var(--theme-primaryHover) !important;
 }
 
-[is-="button"][data-size="small"] {
-  padding: 0.375rem 0.875rem !important;
+[is-="button"][size-="small"] {
+  padding: 0.5rem 0.875rem !important;
+  min-height: 44px;
+  min-width: 44px;
   font-size: 0.875rem;
   height: auto !important;
 }
 
-[is-="button"][data-size="large"] {
+@media (min-width: 1024px) {
+  [is-="button"][size-="small"] {
+    min-height: auto;
+    min-width: auto;
+    padding: 0.375rem 0.875rem !important;
+  }
+}
+
+[is-="button"][size-="large"] {
   padding: 0.625rem 1.25rem !important;
   font-size: 1rem;
   height: auto !important;
 }
 
-[is-="button"][data-box="square"],
-[is-="button"][data-box="round"],
-[is-="button"][data-box="double"] {
-  border-radius: 0 !important;
+[is-="button"][box-="square"],
+[is-="button"][box-="round"],
+[is-="button"][box-="double"] {
+  border-radius: 4px !important;
   background-image: none !important;
+  border: 2px solid var(--theme-primary) !important;
+}
+
+/* Badge Enhancements - Override WebTUI defaults */
+[is-~="badge"][variant-="foreground0"],
+[is-~="badge"]:not([variant-]) {
+  --badge-color: var(--theme-primary) !important;
+  --badge-text: var(--theme-background) !important;
+  background-image: linear-gradient(90deg,transparent 0,transparent calc(1ch - 1px),var(--theme-primary) calc(1ch - 1px),var(--theme-primary) calc(100% - 1ch + 1px),transparent calc(100% - 1ch + 1px),transparent) !important;
+  color: var(--theme-background) !important;
+}
+
+[is-~="badge"][variant-="foreground0"]:before,
+[is-~="badge"][variant-="foreground0"]:after,
+[is-~="badge"]:not([variant-]):before,
+[is-~="badge"]:not([variant-]):after {
+  background-color: var(--theme-primary) !important;
+}
+
+[is-~="badge"][variant-="foreground1"] {
+  --badge-color: var(--theme-foreground) !important;
+  --badge-text: var(--theme-background) !important;
+  background-image: linear-gradient(90deg,transparent 0,transparent calc(1ch - 1px),var(--theme-foreground) calc(1ch - 1px),var(--theme-foreground) calc(100% - 1ch + 1px),transparent calc(100% - 1ch + 1px),transparent) !important;
+  color: var(--theme-background) !important;
+}
+
+[is-~="badge"][variant-="foreground1"]:before,
+[is-~="badge"][variant-="foreground1"]:after {
+  background-color: var(--theme-foreground) !important;
 }
 
 /* WebTUI Scrollbar Styles */
 .scrollbar {
   scrollbar-width: thin;
   scrollbar-color: var(--theme-backgroundAccent) var(--theme-backgroundAlt);
+  -webkit-overflow-scrolling: touch;
 }
 
 .scrollbar::-webkit-scrollbar {
@@ -183,6 +240,16 @@ body {
   background: var(--theme-backgroundAlt);
 }
 
+/* Hide scrollbar on mobile for cleaner UI */
+@media (max-width: 640px) {
+  .scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar {
+    scrollbar-width: none;
+  }
+}
+
 /* Syntax Highlighting with Line Numbers */
 .hljs {
   white-space: pre;
@@ -198,4 +265,58 @@ body {
   border-right: 1px solid var(--theme-border);
   color: var(--theme-muted);
   user-select: none;
+}
+
+/* Theme-aware utility classes */
+@layer utilities {
+  .bg-theme-background { background-color: var(--theme-background) !important; }
+  .bg-theme-background-alt { background-color: var(--theme-backgroundAlt) !important; }
+  .bg-theme-background-accent { background-color: var(--theme-backgroundAccent) !important; }
+  .bg-theme-primary { background-color: var(--theme-primary) !important; }
+  
+  .text-theme-foreground { color: var(--theme-foreground) !important; }
+  .text-theme-foreground-alt { color: var(--theme-foregroundAlt) !important; }
+  .text-theme-primary { color: var(--theme-primary) !important; }
+  .text-theme-muted { color: var(--theme-muted) !important; }
+  .text-theme-error { color: var(--theme-error) !important; }
+  .text-theme-success { color: var(--theme-success) !important; }
+  .text-theme-warning { color: var(--theme-warning) !important; }
+  
+  .border-theme-border { border-color: var(--theme-border) !important; }
+  .border-theme-primary { border-color: var(--theme-primary) !important; }
+  
+  .hover\:bg-theme-background-accent:hover { background-color: var(--theme-backgroundAccent) !important; }
+  .hover\:bg-theme-primary:hover { background-color: var(--theme-primary) !important; }
+}
+
+/* Mobile-specific utilities */
+@layer utilities {
+  .touch-action-manipulation {
+    touch-action: manipulation;
+  }
+  
+  .tap-highlight-none {
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  .smooth-scroll {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+  
+  .min-touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Mobile viewport optimizations */
+@media (max-width: 640px) {
+  body {
+    overflow-x: hidden;
+  }
+  
+  input, textarea, select {
+    font-size: 16px !important;
+  }
 }

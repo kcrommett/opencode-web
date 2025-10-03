@@ -19,21 +19,21 @@ export const Button: React.FC<ButtonProps> = ({
   const buttonProps: Record<string, string> = {};
 
   if (variant) {
-    buttonProps[`data-variant`] = variant;
+    buttonProps[`variant-`] = variant;
   }
 
   if (box) {
-    buttonProps[`data-box`] = box;
+    buttonProps[`box-`] = box;
   }
 
   if (size) {
-    buttonProps[`data-size`] = size;
+    buttonProps[`size-`] = size;
   }
 
   return (
     <button
       is-="button"
-      className={className}
+      className={`${className} tap-highlight-none touch-action-manipulation`}
       {...buttonProps}
       {...props}
     >

@@ -426,6 +426,15 @@ export function applyTheme(themeId: string): void {
     root.style.setProperty(`--theme-${key}`, value);
   });
 
+  // Map theme variables to WebTUI variables
+  root.style.setProperty('--background0', theme.colors.background);
+  root.style.setProperty('--background1', theme.colors.backgroundAlt);
+  root.style.setProperty('--background2', theme.colors.backgroundAccent);
+  root.style.setProperty('--background3', theme.colors.border);
+  root.style.setProperty('--foreground0', theme.colors.primary);
+  root.style.setProperty('--foreground1', theme.colors.foreground);
+  root.style.setProperty('--foreground2', theme.colors.foregroundAlt);
+
   localStorage.setItem('opencode-theme', themeId);
 }
 

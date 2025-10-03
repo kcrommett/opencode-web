@@ -16,3 +16,7 @@ export { Range } from './range';
 export { Progress } from './progress';
 export { Spinner } from './spinner';
 export { View } from './view';
+export { MobileSidebar } from './mobile-sidebar';
+export { HamburgerMenu } from './hamburger-menu';
+export { BottomSheet } from './bottom-sheet';
+export { ResponsiveDialog } from './responsive-dialog';

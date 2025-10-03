@@ -9,6 +9,8 @@ import {
   Pre,
   Dialog,
   Separator,
+  MobileSidebar,
+  HamburgerMenu,
 } from "@/app/_components/ui";
 import { CommandPicker } from "@/app/_components/ui/command-picker";
 import { AgentPicker } from "@/app/_components/ui/agent-picker";
@@ -20,6 +22,7 @@ import { getCommandSuggestions, completeCommand, type Command } from "@/lib/comm
 import { useTheme } from "@/hooks/useTheme";
 import { themeList } from "@/lib/themes";
 import { detectLanguage, highlightCode, isImageFile, addLineNumbers } from "@/lib/highlight";
+import { useIsMobile } from "@/lib/breakpoints";
 import 'highlight.js/styles/github-dark.css';
 
 export const Route = createFileRoute('/')({
@@ -57,6 +60,7 @@ function OpenCodeChatTUI() {
   const [showSessionPicker, setShowSessionPicker] = useState(false);
   const [selectedModelIndex, setSelectedModelIndex] = useState(0);
   const [showDetails, setShowDetails] = useState(true);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const modelSearchInputRef = useRef<HTMLInputElement>(null);
   
@@ -992,8 +996,8 @@ function OpenCodeChatTUI() {
     );
   }
 
-  return (
-       <View box="square" className="h-screen font-mono overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
+   return (
+        <View box="square" className="h-screen font-mono overflow-hidden flex flex-col pt-4 lg:pt-0" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
         {/* Top Bar */}
          <div className="px-4 py-2 flex items-center justify-between" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
            {isConnected === false && (
@@ -1003,15 +1007,22 @@ function OpenCodeChatTUI() {
            )}
          </div>
         <div className="px-4 py-2 flex items-center justify-between" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
-         <div className="flex items-center gap-4">
+         <div className="flex items-center gap-2 lg:gap-4">
+            <HamburgerMenu
+              isOpen={isMobileSidebarOpen}
+              onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+            />
             <Badge variant="foreground1" cap="round">
               opencode web
             </Badge>
-            {isConnected !== null && (
-              <Badge variant={isConnected ? "background2" : "foreground0"} cap="round">
-                {isConnected ? "Connected" : "Disconnected"}
-              </Badge>
-            )}
+             {isConnected !== null && (
+               <div className="flex items-center gap-2">
+                 <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                 <Badge variant={isConnected ? "background2" : "foreground0"} cap="round" className="hidden sm:inline">
+                   {isConnected ? "Connected" : "Disconnected"}
+                 </Badge>
+               </div>
+             )}
             <div className="flex gap-2">
               {["workspace", "files"].map((tab) => (
                 <Button
@@ -1027,7 +1038,7 @@ function OpenCodeChatTUI() {
               ))}
             </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="hidden lg:flex items-center gap-2">
            <Button
              variant="foreground0"
              box="round"
@@ -1053,8 +1064,8 @@ function OpenCodeChatTUI() {
 
           {/* Main Content */}
           <div className="flex-1 flex overflow-hidden gap-0">
-          {/* Sidebar */}
-           <View box="square" className="w-80 md:w-80 sm:w-full flex flex-col p-4" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+          {/* Desktop Sidebar - hidden on mobile */}
+           <View box="square" className="hidden lg:flex lg:w-80 flex-col p-4" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
           <div className="flex-1 overflow-hidden">
                {activeTab === "workspace" && (
                   <div className="h-full flex flex-col overflow-hidden">
@@ -1072,8 +1083,8 @@ function OpenCodeChatTUI() {
                              key={project.id}
                              className={`p-2 cursor-pointer transition-colors ${
                                currentProject?.id === project.id
-                                 ? "bg-[#89b4fa] text-[#1e1e2e]"
-                                 : "bg-[#1e1e2e] hover:bg-[#45475a]"
+                                 ? "bg-theme-primary text-theme-background"
+                                 : "bg-theme-background hover:bg-theme-background-accent"
                              }`}
                              onClick={() => handleProjectSwitch(project)}
                            >
@@ -1132,9 +1143,9 @@ function OpenCodeChatTUI() {
                            value={newSessionTitle}
                            onChange={(e) => setNewSessionTitle(e.target.value)}
                            placeholder="Session title..."
-                           size="small"
-                           className="bg-[#1e1e2e] text-[#cdd6f4] border-[#89b4fa]"
-                         />
+                          size="small"
+                          className="bg-theme-background text-theme-foreground border-theme-primary"
+                        />
                          <div className="text-xs opacity-70 mt-1 truncate">
                            Project: {currentProject.worktree}
                          </div>
@@ -1149,8 +1160,8 @@ function OpenCodeChatTUI() {
                               key={session.id}
                               className={`p-2 cursor-pointer transition-colors ${
                                 currentSession?.id === session.id
-                                  ? "bg-[#89b4fa] text-[#1e1e2e]"
-                                  : "bg-[#1e1e2e] hover:bg-[#45475a]"
+                                  ? "bg-theme-primary text-theme-background"
+                                  : "bg-theme-background hover:bg-theme-background-accent"
                               }`}
                               onClick={() => handleSessionSwitch(session.id)}
                             >
@@ -1227,7 +1238,7 @@ function OpenCodeChatTUI() {
                     onChange={(e) => setFileSearchQuery(e.target.value)}
                     placeholder="Search files..."
                     size="small"
-                    className="bg-[#1e1e2e] text-[#cdd6f4] border-[#89b4fa]"
+                    className="bg-theme-background text-theme-foreground border-theme-primary"
                   />
                   <Button
                     variant="foreground0"
@@ -1238,9 +1249,9 @@ function OpenCodeChatTUI() {
                      Search
                    </Button>
                    {showSearchResults && searchResults.length > 0 && (
-                     <div className="mt-2 p-2 bg-[#11111b] rounded">
+                     <div className="mt-2 p-2 bg-theme-background-alt rounded">
                        <div className="flex justify-between items-center mb-2">
-                         <span className="text-sm font-medium text-[#cdd6f4]">
+                         <span className="text-sm font-medium text-theme-foreground">
                            Results ({searchResults.length})
                          </span>
                          <Button
@@ -1257,7 +1268,7 @@ function OpenCodeChatTUI() {
                          {searchResults.map((filePath, idx) => (
                            <div
                              key={idx}
-                             className="p-2 bg-[#1e1e2e] hover:bg-[#45475a] rounded cursor-pointer text-sm text-[#cdd6f4]"
+                             className="p-2 bg-theme-background hover:bg-theme-background-accent rounded cursor-pointer text-sm text-theme-foreground"
                              onClick={() => {
                                void handleFileSelect(filePath);
                                setShowSearchResults(false);
@@ -1271,7 +1282,7 @@ function OpenCodeChatTUI() {
                    )}
                  </div>
                  <Separator />
-                 <div className="flex items-center justify-between text-xs text-[#cdd6f4]">
+                 <div className="flex items-center justify-between text-xs text-theme-foreground">
                    <div className="flex flex-wrap items-center gap-1">
                      <Button
                        box="square"
@@ -1285,7 +1296,7 @@ function OpenCodeChatTUI() {
                        const fullPath = breadcrumbParts.slice(0, index + 1).join('/');
                        return (
                          <span key={fullPath} className="flex items-center gap-1">
-                           <span className="text-[#6c7086]">/</span>
+                           <span className="text-theme-muted">/</span>
                            <Button
                              box="square"
                              size="small"
@@ -1321,8 +1332,8 @@ function OpenCodeChatTUI() {
                             key={file.path}
                             className={`px-2 py-1 transition-colors cursor-pointer ${
                               isSelected
-                                ? "bg-[#89b4fa] text-[#1e1e2e]"
-                                : "bg-[#1e1e2e] hover:bg-[#45475a]"
+                                ? "bg-theme-primary text-theme-background"
+                                : "bg-theme-background hover:bg-theme-background-accent"
                             }`}
                             onClick={() => {
                               if (isDirectory) {
@@ -1349,9 +1360,177 @@ function OpenCodeChatTUI() {
                   Path: {fileDirectory === '.' ? '/' : `/${fileDirectory}`} • {sortedFiles.length} items
                 </div>
                </div>
-             )}
+              )}
           </div>
         </View>
+
+        {/* Mobile Sidebar Drawer */}
+        <MobileSidebar
+          isOpen={isMobileSidebarOpen}
+          onClose={() => setIsMobileSidebarOpen(false)}
+        >
+          {/* Mobile Menu Actions */}
+          <div className="flex gap-2 mb-4 flex-shrink-0">
+            <Button
+              variant="foreground0"
+              box="round"
+              onClick={() => {
+                openHelp();
+                setIsMobileSidebarOpen(false);
+              }}
+              size="small"
+              className="flex-1"
+            >
+              Help
+            </Button>
+            <Button
+              variant="foreground0"
+              box="round"
+              onClick={() => {
+                openThemes();
+                setIsMobileSidebarOpen(false);
+              }}
+              size="small"
+              className="flex-1"
+            >
+              Themes
+            </Button>
+          </div>
+
+          {activeTab === "workspace" && (
+            <div className="h-full flex flex-col gap-4 overflow-hidden">
+              {/* Projects Section */}
+              <div className="flex flex-col flex-1 min-h-0">
+                <h3 className="text-sm font-medium mb-2">Projects</h3>
+                <Separator className="mb-2" />
+                <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
+                  {sortedProjects.length > 0 ? (
+                    sortedProjects.map((project) => (
+                      <View
+                        box="round"
+                        key={project.id}
+                        className={`p-2 cursor-pointer transition-colors ${
+                          currentProject?.id === project.id
+                            ? "bg-theme-primary text-theme-background"
+                            : "bg-theme-background hover:bg-theme-background-accent"
+                        }`}
+                        onClick={() => {
+                          handleProjectSwitch(project);
+                          setIsMobileSidebarOpen(false);
+                        }}
+                      >
+                        <div className="font-medium text-sm truncate">
+                          {project.worktree}
+                        </div>
+                        <div className="text-xs opacity-70 truncate">
+                          VCS: {project.vcs || 'Unknown'}
+                        </div>
+                      </View>
+                    ))
+                  ) : (
+                    <div className="text-center text-sm py-4" style={{ color: 'var(--theme-muted)' }}>
+                      No projects found
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Sessions Section */}
+              <div className="flex flex-col flex-1 min-h-0">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-sm font-medium">Sessions</h3>
+                  <Button
+                    variant="foreground0"
+                    box="round"
+                    onClick={handleCreateSession}
+                    size="small"
+                  >
+                    New
+                  </Button>
+                </div>
+                <Separator className="mb-2" />
+                {!currentProject ? (
+                  <div className="flex-1 flex items-center justify-center text-sm" style={{ color: 'var(--theme-muted)' }}>
+                    Select a project first
+                  </div>
+                ) : (
+                  <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
+                    {sessions.filter(session => 
+                      session.projectID === currentProject?.id || 
+                      session.directory === currentProject?.worktree
+                    ).map((session) => (
+                      <View
+                        box="round"
+                        key={session.id}
+                        className={`p-2 cursor-pointer transition-colors ${
+                          currentSession?.id === session.id
+                            ? "bg-theme-primary text-theme-background"
+                            : "bg-theme-background hover:bg-theme-background-accent"
+                        }`}
+                        onClick={() => {
+                          handleSessionSwitch(session.id);
+                          setIsMobileSidebarOpen(false);
+                        }}
+                      >
+                        <div className="font-medium text-sm truncate">
+                          {session.title}
+                        </div>
+                        <div className="text-xs opacity-70">
+                          {session.createdAt?.toLocaleDateString() || "Unknown"}
+                        </div>
+                      </View>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === "files" && (
+            <div className="h-full flex flex-col gap-2 overflow-hidden">
+              <h3 className="text-sm font-medium">Files</h3>
+              <Separator />
+              <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
+                {sortedFiles.length > 0 ? (
+                  sortedFiles.map((file) => {
+                    const isDirectory = file.type === 'directory';
+                    const isSelected = !isDirectory && selectedFile === file.path;
+                    return (
+                      <View
+                        box="round"
+                        key={file.path}
+                        className={`px-2 py-1 transition-colors cursor-pointer ${
+                          isSelected
+                            ? "bg-theme-primary text-theme-background"
+                            : "bg-theme-background hover:bg-theme-background-accent"
+                        }`}
+                        onClick={() => {
+                          if (isDirectory) {
+                            void handleDirectoryOpen(file.path);
+                          } else {
+                            void handleFileSelect(file.path);
+                            setIsMobileSidebarOpen(false);
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="text-base">{isDirectory ? '📁' : '📄'}</span>
+                          <span className="truncate">{file.name}</span>
+                        </div>
+                      </View>
+                    );
+                  })
+                ) : (
+                  <div className="text-center text-sm py-4" style={{ color: 'var(--theme-muted)' }}>
+                    No files loaded
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </MobileSidebar>
 
         <Separator direction="vertical" />
 
@@ -1416,14 +1595,14 @@ function OpenCodeChatTUI() {
                     key={message.id}
                     className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}
                   >
-                    <View
-                      box="round"
-                      className="max-w-2xl p-3"
-                      style={{
-                        backgroundColor: message.type === "user" ? 'var(--theme-primary)' : 'var(--theme-backgroundAlt)',
-                        color: message.type === "user" ? 'var(--theme-background)' : 'var(--theme-foreground)'
-                      }}
-                    >
+                     <View
+                       box="round"
+                       className="max-w-full sm:max-w-2xl p-3"
+                       style={{
+                         backgroundColor: message.type === "user" ? 'var(--theme-primary)' : 'var(--theme-backgroundAlt)',
+                         color: message.type === "user" ? 'var(--theme-background)' : 'var(--theme-foreground)'
+                       }}
+                     >
                       {message.parts && message.parts.length > 0 ? (
                         <div className="space-y-2">
                           {message.parts.map((part, idx) => (
@@ -1492,16 +1671,16 @@ function OpenCodeChatTUI() {
                  {/* Input Area */}
                  <View box="square" className="p-4 space-y-3" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
                       <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-center gap-2 text-xs text-[#cdd6f4]">
+                      <div className="flex items-center gap-2 text-xs text-theme-foreground">
                         <span className="font-medium">Model:</span>
-                        <span className="text-[#89b4fa]">{selectedModel?.name || 'Loading...'}</span>
-                        <span className="text-[#6c7086]">•</span>
+                        <span className="text-theme-primary">{selectedModel?.name || 'Loading...'}</span>
+                        <span className="text-theme-muted">•</span>
                         <span className="font-medium">Session:</span>
-                        <span className="text-[#89b4fa]">{currentSession?.title || 'No session'}</span>
+                        <span className="text-theme-primary">{currentSession?.title || 'No session'}</span>
                        {input.startsWith('/') && (
                          <>
-                           <span className="text-[#6c7086]">•</span>
-                           <span className="text-[#f38ba8] font-medium">Command Mode</span>
+                           <span className="text-theme-muted">•</span>
+                           <span className="text-theme-error font-medium">Command Mode</span>
                          </>
                        )}
                      </div>
@@ -1509,51 +1688,51 @@ function OpenCodeChatTUI() {
                        Agent: {currentAgent?.name || 'None'}
                      </Badge>
                    </div>
-                  <div className="flex gap-3 items-end">
-                   <div className="flex-1 relative">
-                      {showCommandPicker && (
-                        <CommandPicker
-                          commands={commandSuggestions}
-                          onSelect={handleCommandSelect}
-                          selectedIndex={selectedCommandIndex}
-                        />
-                      )}
-                      <Textarea
-                        value={input}
-                        onChange={(e) => handleInputChange(e.target.value)}
-                        onKeyDown={handleKeyDown}
+                   <div className="flex flex-col sm:flex-row gap-3 items-end">
+                    <div className="flex-1 relative">
+                       {showCommandPicker && (
+                         <CommandPicker
+                           commands={commandSuggestions}
+                           onSelect={handleCommandSelect}
+                           selectedIndex={selectedCommandIndex}
+                         />
+                       )}
+                       <Textarea
+                         value={input}
+                         onChange={(e) => handleInputChange(e.target.value)}
+                         onKeyDown={handleKeyDown}
                          placeholder="Type your message, Tab to switch agent, /models to select model..."
-                        rows={2}
-                        size="large"
-                        className="w-full bg-[#1e1e2e] text-[#cdd6f4] border-[#89b4fa] resize-none"
-                      />
-                     {showFileSuggestions && fileSuggestions.length > 0 && (
-                       <div className="absolute top-full left-0 right-0 bg-[#1e1e2e] border border-[#89b4fa] rounded mt-1 max-h-32 overflow-y-auto scrollbar z-10">
-                         {fileSuggestions.map((file, index) => (
-                           <div
-                             key={index}
-                             className="p-2 hover:bg-[#45475a] cursor-pointer text-[#cdd6f4]"
-                             onClick={() => {
-                               setInput(input.replace(/@\w*$/, `@${file}`));
-                               setShowFileSuggestions(false);
-                             }}
-                           >
-                             {file}
-                           </div>
-                         ))}
-                       </div>
-                     )}
-                    </div>
-                     <Button
-                       variant="foreground0"
-                       box="square"
-                       onClick={handleSend}
-                       disabled={!input.trim()}
-                       className="px-6 py-2"
-                     >
-                       Send
-                      </Button>
-                  </div>
+                         rows={2}
+                         size="large"
+                         className="w-full bg-theme-background text-theme-foreground border-theme-primary resize-none"
+                       />
+                      {showFileSuggestions && fileSuggestions.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 bg-theme-background border border-theme-primary rounded mt-1 max-h-32 overflow-y-auto scrollbar z-10">
+                          {fileSuggestions.map((file, index) => (
+                            <div
+                              key={index}
+                              className="p-2 hover:bg-theme-background-accent cursor-pointer text-theme-foreground"
+                              onClick={() => {
+                                setInput(input.replace(/@\w*$/, `@${file}`));
+                                setShowFileSuggestions(false);
+                              }}
+                            >
+                              {file}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                     </div>
+                      <Button
+                        variant="foreground0"
+                        box="square"
+                        onClick={handleSend}
+                        disabled={!input.trim()}
+                        className="px-6 py-2 w-full sm:w-auto"
+                      >
+                        Send
+                       </Button>
+                   </div>
                 </View>
              </div>
            )}
@@ -1596,7 +1775,7 @@ function OpenCodeChatTUI() {
                   </div>
                   <div className="flex-1 overflow-hidden">
                     {isImageFile(selectedFile) ? (
-                      <div className="flex items-center justify-center h-full bg-[#313244] rounded p-4 overflow-auto scrollbar">
+                      <div className="flex items-center justify-center h-full bg-theme-backgroundAccent rounded p-4 overflow-auto scrollbar">
                         {fileContent ? (
                           <img
                             src={`data:image/${selectedFile.split('.').pop()};base64,${fileContent}`}
@@ -1618,7 +1797,7 @@ function OpenCodeChatTUI() {
                         )}
                       </div>
                     ) : (
-                      <pre className="hljs bg-[#0d1117] p-4 rounded overflow-y-auto scrollbar h-full text-sm font-mono m-0">
+                      <pre className="hljs bg-theme-background p-4 rounded overflow-y-auto scrollbar h-full text-sm font-mono m-0">
                         <code
                           dangerouslySetInnerHTML={{
                             __html: addLineNumbers(
@@ -1668,15 +1847,15 @@ function OpenCodeChatTUI() {
                  <div className="text-xs font-bold uppercase mb-2 opacity-60">Session</div>
                  <div className="space-y-1 font-mono text-sm">
                    <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
-                     <span className="text-[#89b4fa]">/new</span>
+                     <span className="text-theme-primary">/new</span>
                      <span className="opacity-70">Start a new session</span>
                    </div>
                    <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
-                     <span className="text-[#89b4fa]">/clear</span>
+                     <span className="text-theme-primary">/clear</span>
                      <span className="opacity-70">Clear current session</span>
                    </div>
                    <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
-                     <span className="text-[#89b4fa]">/sessions</span>
+                     <span className="text-theme-primary">/sessions</span>
                      <span className="opacity-70">View all sessions</span>
                    </div>
                  </div>
@@ -1686,11 +1865,11 @@ function OpenCodeChatTUI() {
                  <div className="text-xs font-bold uppercase mb-2 opacity-60">Model</div>
                  <div className="space-y-1 font-mono text-sm">
                    <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
-                     <span className="text-[#89b4fa]">/models</span>
+                     <span className="text-theme-primary">/models</span>
                      <span className="opacity-70">Open model picker</span>
                    </div>
                    <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
-                     <span className="text-[#89b4fa]">/model &lt;provider&gt;/&lt;model&gt;</span>
+                     <span className="text-theme-primary">/model &lt;provider&gt;/&lt;model&gt;</span>
                      <span className="opacity-70">Select specific model</span>
                    </div>
                  </div>
@@ -1700,7 +1879,7 @@ function OpenCodeChatTUI() {
                  <div className="text-xs font-bold uppercase mb-2 opacity-60">Agent</div>
                  <div className="space-y-1 font-mono text-sm">
                    <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
-                     <span className="text-[#89b4fa]">/agents</span>
+                     <span className="text-theme-primary">/agents</span>
                      <span className="opacity-70">Select agent</span>
                    </div>
                  </div>
@@ -1710,7 +1889,7 @@ function OpenCodeChatTUI() {
                  <div className="text-xs font-bold uppercase mb-2 opacity-60">Theme</div>
                  <div className="space-y-1 font-mono text-sm">
                    <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
-                     <span className="text-[#89b4fa]">/themes</span>
+                     <span className="text-theme-primary">/themes</span>
                      <span className="opacity-70">Open theme picker</span>
                    </div>
                  </div>
@@ -1720,11 +1899,11 @@ function OpenCodeChatTUI() {
                  <div className="text-xs font-bold uppercase mb-2 opacity-60">File Operations</div>
                  <div className="space-y-1 font-mono text-sm">
                    <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
-                     <span className="text-[#89b4fa]">/undo</span>
+                     <span className="text-theme-primary">/undo</span>
                      <span className="opacity-70">Undo last file changes</span>
                    </div>
                    <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
-                     <span className="text-[#89b4fa]">/redo</span>
+                     <span className="text-theme-primary">/redo</span>
                      <span className="opacity-70">Redo last undone changes</span>
                    </div>
                  </div>
@@ -1734,19 +1913,19 @@ function OpenCodeChatTUI() {
                   <div className="text-xs font-bold uppercase mb-2 opacity-60">Other</div>
                   <div className="space-y-1 font-mono text-sm">
                     <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
-                      <span className="text-[#89b4fa]">/help</span>
+                      <span className="text-theme-primary">/help</span>
                       <span className="opacity-70">Show this help dialog</span>
                     </div>
                     <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
-                      <span className="text-[#89b4fa]">/share</span>
+                      <span className="text-theme-primary">/share</span>
                       <span className="opacity-70">Share current session</span>
                     </div>
                     <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
-                      <span className="text-[#89b4fa]">/export</span>
+                      <span className="text-theme-primary">/export</span>
                       <span className="opacity-70">Export session</span>
                     </div>
                     <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
-                      <span className="text-[#89b4fa]">/debug</span>
+                      <span className="text-theme-primary">/debug</span>
                       <span className="opacity-70">Export session data (JSON)</span>
                     </div>
                   </div>
