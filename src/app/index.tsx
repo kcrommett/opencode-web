@@ -38,12 +38,15 @@ function OpenCodeChatTUI() {
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [fileSuggestions, setFileSuggestions] = useState<string[]>([]);
   const [showFileSuggestions, setShowFileSuggestions] = useState(false);
+  const [searchResults, setSearchResults] = useState<string[]>([]);
+  const [showSearchResults, setShowSearchResults] = useState(false);
   const [commandSuggestions, setCommandSuggestions] = useState<Command[]>([]);
   const [showCommandPicker, setShowCommandPicker] = useState(false);
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
   const [showAgentPicker, setShowAgentPicker] = useState(false);
   const [showSessionPicker, setShowSessionPicker] = useState(false);
   const [selectedModelIndex, setSelectedModelIndex] = useState(0);
+  const [showDetails, setShowDetails] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const modelSearchInputRef = useRef<HTMLInputElement>(null);
   
@@ -88,6 +91,14 @@ function OpenCodeChatTUI() {
           agents,
           currentAgent,
           selectAgent,
+          extractTextFromParts,
+          runShell,
+          revertMessage,
+          unrevertSession,
+          shareSession,
+          unshareSession,
+          initSession,
+          summarizeSession,
         } = useOpenCodeContext();
 
    // Removed automatic session creation to prevent spam
@@ -123,19 +134,49 @@ function OpenCodeChatTUI() {
    };
 
    const handleShellCommand = async (command: string) => {
-     try {
-       // TODO: Implement shell command execution
-       const shellMessage = {
-         id: `assistant-${Date.now()}`,
-         type: "assistant" as const,
-         content: `Shell command not yet implemented: ${command}`,
-         timestamp: new Date(),
-       };
-       setMessages((prev) => [...prev, shellMessage]);
-     } catch (error) {
-       console.error('Failed to execute shell command:', error);
-     }
-   };
+      if (!currentSession) {
+        const errorMsg = {
+          id: `assistant-${Date.now()}`,
+          type: "assistant" as const,
+          content: "No active session. Create a session first.",
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, errorMsg]);
+        return;
+      }
+      
+      try {
+        const userMessage = {
+          id: `user-${Date.now()}`,
+          type: "user" as const,
+          content: `$ ${command}`,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, userMessage]);
+        
+        const response = await runShell(currentSession.id, command, []);
+        
+        if (response.data) {
+          const assistantMessage = {
+            id: response.data.info.id,
+            type: "assistant" as const,
+            content: extractTextFromParts(response.data.parts),
+            parts: response.data.parts,
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, assistantMessage]);
+        }
+      } catch (error) {
+        console.error('Failed to execute shell command:', error);
+        const errorMsg = {
+          id: `assistant-${Date.now()}`,
+          type: "assistant" as const,
+          content: `Command failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, errorMsg]);
+      }
+    };
 
    const handleCommand = async (command: string) => {
      const parsed = parseCommand(command);
@@ -205,110 +246,322 @@ function OpenCodeChatTUI() {
            setShowAgentPicker(true);
            break;
         case "undo":
-          try {
-            // TODO: Call revert API
-            const undoMessage = {
+          if (!currentSession || messages.length === 0) {
+            const errorMsg = {
               id: `assistant-${Date.now()}`,
               type: "assistant" as const,
-              content: "Undo completed. Files reverted.",
+              content: "No messages to undo.",
               timestamp: new Date(),
             };
-            setMessages((prev) => [...prev, undoMessage]);
-            // Refresh files
-            await loadFiles(fileDirectory);
-          } catch {
-
-           const errorMessage = {
-             id: `assistant-${Date.now()}`,
-             type: "assistant" as const,
-             content: "Undo failed.",
-             timestamp: new Date(),
-           };
-           setMessages((prev) => [...prev, errorMessage]);
-         }
-         break;
+            setMessages((prev) => [...prev, errorMsg]);
+            break;
+          }
+          
+          try {
+            const lastAssistantMsg = [...messages]
+              .reverse()
+              .find(m => m.type === 'assistant');
+            
+            if (!lastAssistantMsg) {
+              throw new Error('No assistant message to revert');
+            }
+            
+            await revertMessage(currentSession.id, lastAssistantMsg.id);
+            await loadSessions();
+            
+            const successMsg = {
+              id: `assistant-${Date.now()}`,
+              type: "assistant" as const,
+              content: "✅ Undid last message and reverted file changes.",
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, successMsg]);
+            
+            if (activeTab === 'files') {
+              await loadFiles(fileDirectory);
+            }
+          } catch (error) {
+            const errorMsg = {
+              id: `assistant-${Date.now()}`,
+              type: "assistant" as const,
+              content: `Undo failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, errorMsg]);
+          }
+          break;
         case "redo":
-          try {
-            // TODO: Call unrevert API
-            const redoMessage = {
+          if (!currentSession) {
+            const errorMsg = {
               id: `assistant-${Date.now()}`,
               type: "assistant" as const,
-              content: "Redo completed. Files restored.",
+              content: "No active session.",
               timestamp: new Date(),
             };
-            setMessages((prev) => [...prev, redoMessage]);
-            // Refresh files
-            await loadFiles(fileDirectory);
-          } catch {
-
-           const errorMessage = {
+            setMessages((prev) => [...prev, errorMsg]);
+            break;
+          }
+          
+          try {
+            await unrevertSession(currentSession.id);
+            await loadSessions();
+            
+            const successMsg = {
+              id: `assistant-${Date.now()}`,
+              type: "assistant" as const,
+              content: "✅ Restored reverted changes.",
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, successMsg]);
+            
+            if (activeTab === 'files') {
+              await loadFiles(fileDirectory);
+            }
+          } catch (error) {
+            const errorMsg = {
+              id: `assistant-${Date.now()}`,
+              type: "assistant" as const,
+              content: `Redo failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, errorMsg]);
+          }
+          break;
+       case "share":
+         if (!currentSession) {
+           const errorMsg = {
              id: `assistant-${Date.now()}`,
              type: "assistant" as const,
-             content: "Redo failed.",
+             content: "No active session to share.",
              timestamp: new Date(),
            };
-           setMessages((prev) => [...prev, errorMessage]);
+           setMessages((prev) => [...prev, errorMsg]);
+           break;
          }
-         break;
-       case "share":
-         // TODO: Implement share
-         const shareMessage = {
-           id: `assistant-${Date.now()}`,
-           type: "assistant" as const,
-           content: "Share not yet implemented.",
-           timestamp: new Date(),
-         };
-         setMessages((prev) => [...prev, shareMessage]);
+         
+         try {
+           const sharedSession = await shareSession(currentSession.id);
+           
+           const shareUrl = sharedSession?.share?.url || 'No URL available';
+           
+           await navigator.clipboard.writeText(shareUrl);
+           
+           const successMsg = {
+             id: `assistant-${Date.now()}`,
+             type: "assistant" as const,
+             content: `✅ Session shared!\n\nURL: ${shareUrl}\n\n(Copied to clipboard)`,
+             timestamp: new Date(),
+           };
+           setMessages((prev) => [...prev, successMsg]);
+           
+           await loadSessions();
+         } catch (error) {
+           const errorMsg = {
+             id: `assistant-${Date.now()}`,
+             type: "assistant" as const,
+             content: `Share failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+             timestamp: new Date(),
+           };
+           setMessages((prev) => [...prev, errorMsg]);
+         }
          break;
        case "unshare":
-         // TODO: Implement unshare
-         const unshareMessage = {
-           id: `assistant-${Date.now()}`,
-           type: "assistant" as const,
-           content: "Unshare not yet implemented.",
-           timestamp: new Date(),
-         };
-         setMessages((prev) => [...prev, unshareMessage]);
+         if (!currentSession) {
+           const errorMsg = {
+             id: `assistant-${Date.now()}`,
+             type: "assistant" as const,
+             content: "No active session.",
+             timestamp: new Date(),
+           };
+           setMessages((prev) => [...prev, errorMsg]);
+           break;
+         }
+         
+         try {
+           await unshareSession(currentSession.id);
+           
+           const successMsg = {
+             id: `assistant-${Date.now()}`,
+             type: "assistant" as const,
+             content: "✅ Session is no longer shared.",
+             timestamp: new Date(),
+           };
+           setMessages((prev) => [...prev, successMsg]);
+           
+           await loadSessions();
+         } catch (error) {
+           const errorMsg = {
+             id: `assistant-${Date.now()}`,
+             type: "assistant" as const,
+             content: `Unshare failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+             timestamp: new Date(),
+           };
+           setMessages((prev) => [...prev, errorMsg]);
+         }
          break;
        case "init":
-         // TODO: Implement init
-         const initMessage = {
-           id: `assistant-${Date.now()}`,
-           type: "assistant" as const,
-           content: "Init not yet implemented.",
-           timestamp: new Date(),
-         };
-         setMessages((prev) => [...prev, initMessage]);
+         if (!currentSession || !selectedModel) {
+           const errorMsg = {
+             id: `assistant-${Date.now()}`,
+             type: "assistant" as const,
+             content: "Need an active session and selected model.",
+             timestamp: new Date(),
+           };
+           setMessages((prev) => [...prev, errorMsg]);
+           break;
+         }
+         
+         try {
+           const lastMessage = messages[messages.length - 1];
+           const messageID = lastMessage?.id || '';
+           
+           await initSession(
+             currentSession.id,
+             messageID,
+             selectedModel.providerID,
+             selectedModel.modelID
+           );
+           
+           const successMsg = {
+             id: `assistant-${Date.now()}`,
+             type: "assistant" as const,
+             content: "✅ Project initialized. AGENTS.md has been created/updated.",
+             timestamp: new Date(),
+           };
+           setMessages((prev) => [...prev, successMsg]);
+           
+           if (activeTab === 'files') {
+             await loadFiles(fileDirectory);
+           }
+         } catch (error) {
+           const errorMsg = {
+             id: `assistant-${Date.now()}`,
+             type: "assistant" as const,
+             content: `Init failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+             timestamp: new Date(),
+           };
+           setMessages((prev) => [...prev, errorMsg]);
+         }
          break;
        case "compact":
-         // TODO: Implement compact
-         const compactMessage = {
-           id: `assistant-${Date.now()}`,
-           type: "assistant" as const,
-           content: "Compact not yet implemented.",
-           timestamp: new Date(),
-         };
-         setMessages((prev) => [...prev, compactMessage]);
+         if (!currentSession) {
+           const errorMsg = {
+             id: `assistant-${Date.now()}`,
+             type: "assistant" as const,
+             content: "No active session to compact.",
+             timestamp: new Date(),
+           };
+           setMessages((prev) => [...prev, errorMsg]);
+           break;
+         }
+         
+         try {
+           const infoMsg = {
+             id: `assistant-${Date.now()}`,
+             type: "assistant" as const,
+             content: "🔄 Compacting session... This may take a moment.",
+             timestamp: new Date(),
+           };
+           setMessages((prev) => [...prev, infoMsg]);
+           
+           await summarizeSession(currentSession.id);
+           await loadSessions();
+           
+           const successMsg = {
+             id: `assistant-${Date.now()}`,
+             type: "assistant" as const,
+             content: "✅ Session compacted successfully.",
+             timestamp: new Date(),
+           };
+           setMessages((prev) => [...prev, successMsg]);
+         } catch (error) {
+           const errorMsg = {
+             id: `assistant-${Date.now()}`,
+             type: "assistant" as const,
+             content: `Compact failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+             timestamp: new Date(),
+           };
+           setMessages((prev) => [...prev, errorMsg]);
+         }
          break;
        case "details":
-         // TODO: Implement details toggle
-         const detailsMessage = {
+         setShowDetails(prev => !prev);
+         const detailsMsg = {
            id: `assistant-${Date.now()}`,
            type: "assistant" as const,
-           content: "Details toggle not yet implemented.",
+           content: `Details ${!showDetails ? 'shown' : 'hidden'}.`,
            timestamp: new Date(),
          };
-         setMessages((prev) => [...prev, detailsMessage]);
+         setMessages((prev) => [...prev, detailsMsg]);
          break;
         case "export":
-          // TODO: Implement export
-          const exportMessage = {
-            id: `assistant-${Date.now()}`,
-            type: "assistant" as const,
-            content: "Export not yet implemented.",
-            timestamp: new Date(),
-          };
-          setMessages((prev) => [...prev, exportMessage]);
+          if (!currentSession || messages.length === 0) {
+            const errorMsg = {
+              id: `assistant-${Date.now()}`,
+              type: "assistant" as const,
+              content: "No session to export.",
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, errorMsg]);
+            break;
+          }
+          
+          try {
+            let markdown = `# ${currentSession.title || currentSession.id}\n\n`;
+            markdown += `Project: ${currentProject?.worktree || 'Unknown'}\n`;
+            markdown += `Created: ${currentSession.createdAt?.toLocaleString() || 'Unknown'}\n`;
+            markdown += `Messages: ${messages.length}\n\n`;
+            markdown += `---\n\n`;
+            
+            messages.forEach((msg, idx) => {
+              const role = msg.type === 'user' ? '**User**' : '**Assistant**';
+              markdown += `## Message ${idx + 1} - ${role}\n\n`;
+              markdown += `_${msg.timestamp.toLocaleString()}_\n\n`;
+              
+              if (msg.parts && msg.parts.length > 0) {
+                msg.parts.forEach(part => {
+                  if (part.type === 'text' && 'text' in part) {
+                    markdown += `${part.text}\n\n`;
+                  } else if (part.type === 'tool' && 'tool' in part) {
+                    markdown += `**Tool:** ${part.tool}\n`;
+                    if ('state' in part && part.state) {
+                      markdown += `**Status:** ${part.state.status}\n\n`;
+                    }
+                  }
+                });
+              } else {
+                markdown += `${msg.content}\n\n`;
+              }
+              
+              markdown += `---\n\n`;
+            });
+            
+            const blob = new Blob([markdown], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${currentSession.title || 'session'}-${Date.now()}.md`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            const successMsg = {
+              id: `assistant-${Date.now()}`,
+              type: "assistant" as const,
+              content: "✅ Session exported as markdown.",
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, successMsg]);
+          } catch (error) {
+            const errorMsg = {
+              id: `assistant-${Date.now()}`,
+              type: "assistant" as const,
+              content: `Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, errorMsg]);
+          }
           break;
         case "debug":
           try {
@@ -366,24 +619,38 @@ function OpenCodeChatTUI() {
           }
           break;
         case "editor":
-         // TODO: Implement editor
-         const editorMessage = {
-           id: `assistant-${Date.now()}`,
-           type: "assistant" as const,
-           content: "Editor not yet implemented.",
-           timestamp: new Date(),
-         };
-         setMessages((prev) => [...prev, editorMessage]);
+         if (args && args.length > 0) {
+           const filePath = args[0];
+           await handleFileSelect(filePath);
+           setActiveTab('files');
+           const successMsg = {
+             id: `assistant-${Date.now()}`,
+             type: "assistant" as const,
+             content: `Opened ${filePath} in file viewer.`,
+             timestamp: new Date(),
+           };
+           setMessages((prev) => [...prev, successMsg]);
+         } else {
+           const errorMsg = {
+             id: `assistant-${Date.now()}`,
+             type: "assistant" as const,
+             content: "Usage: /editor <file-path>",
+             timestamp: new Date(),
+           };
+           setMessages((prev) => [...prev, errorMsg]);
+         }
          break;
        case "exit":
-         // TODO: Implement exit
-         const exitMessage = {
+         setMessages([]);
+         setInput("");
+         setActiveTab("workspace");
+         const exitMsg = {
            id: `assistant-${Date.now()}`,
            type: "assistant" as const,
-           content: "Exit not yet implemented.",
+           content: "Messages cleared. Use /new to start a new session.",
            timestamp: new Date(),
          };
-         setMessages((prev) => [...prev, exitMessage]);
+         setMessages((prev) => [...prev, exitMsg]);
          break;
        default:
          const unknownMessage = {
@@ -551,8 +818,11 @@ function OpenCodeChatTUI() {
   const handleFileSearch = async () => {
     if (!fileSearchQuery.trim()) return;
     try {
-      await searchFiles(fileSearchQuery);
-      // TODO: Display search results in UI
+      const results = await searchFiles(fileSearchQuery);
+      if (results && Array.isArray(results)) {
+        setSearchResults(results);
+        setShowSearchResults(true);
+      }
     } catch (err) {
       console.error("Failed to search files:", err);
     }
@@ -922,6 +1192,38 @@ function OpenCodeChatTUI() {
                   >
                      Search
                    </Button>
+                   {showSearchResults && searchResults.length > 0 && (
+                     <div className="mt-2 p-2 bg-[#11111b] rounded">
+                       <div className="flex justify-between items-center mb-2">
+                         <span className="text-sm font-medium text-[#cdd6f4]">
+                           Results ({searchResults.length})
+                         </span>
+                         <Button
+                           variant="foreground0"
+                           box="round"
+                           size="small"
+                           onClick={() => setShowSearchResults(false)}
+                           className="!py-0 !px-2"
+                         >
+                           ✕
+                         </Button>
+                       </div>
+                       <div className="space-y-1 max-h-48 overflow-y-auto scrollbar">
+                         {searchResults.map((filePath, idx) => (
+                           <div
+                             key={idx}
+                             className="p-2 bg-[#1e1e2e] hover:bg-[#45475a] rounded cursor-pointer text-sm text-[#cdd6f4]"
+                             onClick={() => {
+                               void handleFileSelect(filePath);
+                               setShowSearchResults(false);
+                             }}
+                           >
+                             {filePath}
+                           </div>
+                         ))}
+                       </div>
+                     </div>
+                   )}
                  </div>
                  <Separator />
                  <div className="flex items-center justify-between text-xs text-[#cdd6f4]">

@@ -4,9 +4,9 @@
 
 This document outlines the comprehensive plan to enhance opencode-web with proper message part rendering, file viewer improvements, and completion of missing features.
 
-**Last Updated:** 2025-09-30  
-**Status:** Phase 1 & 2 Complete ✅  
-**Estimated Timeline:** 2-3 weeks
+**Last Updated:** 2025-10-03  
+**Status:** Phase 1, 2 & 3 Complete ✅  
+**Estimated Timeline:** 1-2 weeks remaining
 
 ---
 
@@ -33,23 +33,25 @@ This document outlines the comprehensive plan to enhance opencode-web with prope
 - Project switching
 - Model/Agent selection
 
-### TODOs Found (13 items)
+### TODOs Status (13 items)
 
 | Line | Location | Issue | Status |
 |------|----------|-------|--------|
-| 123 | `src/app/index.tsx` | Shell command execution | Not implemented |
-| 205 | `src/app/index.tsx` | Revert API call | Endpoint exists, needs wiring |
-| 228 | `src/app/index.tsx` | Unrevert API call | Endpoint exists, needs wiring |
-| 250 | `src/app/index.tsx` | Share session | Endpoint exists, needs wiring |
-| 260 | `src/app/index.tsx` | Unshare session | Endpoint exists, needs wiring |
-| 270 | `src/app/index.tsx` | Init session | Endpoint exists, needs wiring |
-| 280 | `src/app/index.tsx` | Compact session | Endpoint exists, needs wiring |
-| 290 | `src/app/index.tsx` | Details toggle | UI state needed |
-| 300 | `src/app/index.tsx` | Export session | Needs implementation |
-| 310 | `src/app/index.tsx` | Editor integration | Needs design |
-| 320 | `src/app/index.tsx` | Exit action | Needs design |
-| 496 | `src/app/index.tsx` | Search results display | UI needed |
-| 1330 | `src/app/index.tsx` | Server URL configuration | Dialog incomplete |
+| 127 | `src/app/index.tsx` | Shell command execution | ✅ COMPLETE |
+| 209 | `src/app/index.tsx` | Revert API call | ✅ COMPLETE |
+| 232 | `src/app/index.tsx` | Unrevert API call | ✅ COMPLETE |
+| 254 | `src/app/index.tsx` | Share session | ✅ COMPLETE |
+| 264 | `src/app/index.tsx` | Unshare session | ✅ COMPLETE |
+| 274 | `src/app/index.tsx` | Init session | ✅ COMPLETE |
+| 284 | `src/app/index.tsx` | Compact session | ✅ COMPLETE |
+| 294 | `src/app/index.tsx` | Details toggle | ✅ COMPLETE |
+| 304 | `src/app/index.tsx` | Export session | ✅ COMPLETE |
+| 369 | `src/app/index.tsx` | Editor integration | ✅ COMPLETE |
+| 379 | `src/app/index.tsx` | Exit action | ✅ COMPLETE |
+| 555 | `src/app/index.tsx` | Search results display | ✅ COMPLETE |
+| 1499 | `src/app/index.tsx` | Server URL configuration | ⏳ Pending (low priority) |
+
+**Progress: 12/13 TODOs Complete (92%)**
 
 ---
 
@@ -637,9 +639,11 @@ function addLineNumbers(code: string): string {
 
 ---
 
-### Phase 3: Complete Missing Command Implementations 🟢 MEDIUM PRIORITY
+### Phase 3: Complete Missing Command Implementations ✅ COMPLETED
 
 **Goal:** Wire up all existing API endpoints to UI commands
+
+**Status:** ✅ Complete (2025-10-03)
 
 #### Task 3.1: Implement Shell Command Execution
 

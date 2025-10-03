@@ -54,6 +54,14 @@ interface OpenCodeContextType {
    currentAgent: ReturnType<typeof useOpenCode>['currentAgent'];
    selectAgent: ReturnType<typeof useOpenCode>['selectAgent'];
    loadAgents: ReturnType<typeof useOpenCode>['loadAgents'];
+   extractTextFromParts: ReturnType<typeof useOpenCode>['extractTextFromParts'];
+   runShell: ReturnType<typeof useOpenCode>['runShell'];
+   revertMessage: ReturnType<typeof useOpenCode>['revertMessage'];
+   unrevertSession: ReturnType<typeof useOpenCode>['unrevertSession'];
+   shareSession: ReturnType<typeof useOpenCode>['shareSession'];
+   unshareSession: ReturnType<typeof useOpenCode>['unshareSession'];
+   initSession: ReturnType<typeof useOpenCode>['initSession'];
+   summarizeSession: ReturnType<typeof useOpenCode>['summarizeSession'];
  }
 
 const OpenCodeContext = createContext<OpenCodeContextType | undefined>(undefined);

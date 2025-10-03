@@ -887,7 +887,88 @@ export function useOpenCode() {
            loadSessions();
          }
        }
-     }, [currentProject, loadSessions]);
+      }, [currentProject, loadSessions]);
+
+     const extractTextFromParts = useCallback((parts?: Part[]): string => {
+       if (!parts || parts.length === 0) return '';
+       
+       const textParts = parts.filter(part => part.type === 'text' && 'text' in part);
+       if (textParts.length > 0) {
+         return textParts.map(part => 'text' in part ? part.text : '').join('\n');
+       }
+       
+       return '';
+     }, []);
+
+     const runShell = useCallback(async (sessionId: string, command: string, args: string[] = []) => {
+       try {
+         const response = await openCodeService.runShell(sessionId, command, args, currentProject?.worktree);
+         return response;
+       } catch (error) {
+         console.error('Failed to run shell command:', error);
+         throw error;
+       }
+     }, [currentProject?.worktree]);
+
+     const revertMessage = useCallback(async (sessionId: string, messageID: string) => {
+       try {
+         const response = await openCodeService.revertMessage(sessionId, messageID, currentProject?.worktree);
+         return response;
+       } catch (error) {
+         console.error('Failed to revert message:', error);
+         throw error;
+       }
+     }, [currentProject?.worktree]);
+
+     const unrevertSession = useCallback(async (sessionId: string) => {
+       try {
+         const response = await openCodeService.unrevertMessage(sessionId, currentProject?.worktree);
+         return response;
+       } catch (error) {
+         console.error('Failed to unrevert session:', error);
+         throw error;
+       }
+     }, [currentProject?.worktree]);
+
+     const shareSession = useCallback(async (sessionId: string) => {
+       try {
+         const response = await openCodeService.shareSession(sessionId, currentProject?.worktree);
+         return response.data;
+       } catch (error) {
+         console.error('Failed to share session:', error);
+         throw error;
+       }
+     }, [currentProject?.worktree]);
+
+     const unshareSession = useCallback(async (sessionId: string) => {
+       try {
+         const response = await openCodeService.unshareSession(sessionId, currentProject?.worktree);
+         return response.data;
+       } catch (error) {
+         console.error('Failed to unshare session:', error);
+         throw error;
+       }
+     }, [currentProject?.worktree]);
+
+     const initSession = useCallback(async (sessionId: string, messageID: string, providerID: string, modelID: string) => {
+       try {
+         const response = await openCodeService.initSession(sessionId, messageID, providerID, modelID, currentProject?.worktree);
+         return response.data;
+       } catch (error) {
+         console.error('Failed to init session:', error);
+         throw error;
+       }
+     }, [currentProject?.worktree]);
+
+     const summarizeSession = useCallback(async (sessionId: string) => {
+       try {
+         const response = await openCodeService.summarizeSession(sessionId, currentProject?.worktree);
+         return response.data;
+       } catch (error) {
+         console.error('Failed to summarize session:', error);
+         throw error;
+       }
+     }, [currentProject?.worktree]);
 
      return {
        currentSession,
@@ -941,5 +1022,13 @@ export function useOpenCode() {
           currentAgent,
           selectAgent,
           loadAgents,
+          extractTextFromParts,
+          runShell,
+          revertMessage,
+          unrevertSession,
+          shareSession,
+          unshareSession,
+          initSession,
+          summarizeSession,
        };
  }
