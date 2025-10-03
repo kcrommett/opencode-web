@@ -69,17 +69,17 @@ export const openCodeService = {
     }
   },
 
-  async sendMessage(sessionId: string, content: string, providerID = "anthropic", modelID = "claude-3-5-sonnet-20241022") {
+  async sendMessage(sessionId: string, content: string, providerID = "anthropic", modelID = "claude-3-5-sonnet-20241022", directory?: string) {
     try {
-      const response = await serverFns.sendMessage({ data: { sessionId, content, providerID, modelID } });
+      const response = await serverFns.sendMessage({ data: { sessionId, content, providerID, modelID, directory } });
       return { data: response, error: null };
     } catch (error) {
       return { data: null, error: handleOpencodeError(error) };
     }
   },
 
-  async getMessages(sessionId: string) {
-    const response = await serverFns.getMessages({ data: { sessionId } });
+  async getMessages(sessionId: string, directory?: string) {
+    const response = await serverFns.getMessages({ data: { sessionId, directory } });
     return { data: response };
   },
 
@@ -93,27 +93,27 @@ export const openCodeService = {
     }
   },
 
-  async getSession(sessionId: string) {
+  async getSession(sessionId: string, directory?: string) {
     try {
-      const response = await serverFns.getSession({ data: { sessionId } });
+      const response = await serverFns.getSession({ data: { sessionId, directory } });
       return { data: response };
     } catch (error) {
       throw error;
     }
   },
 
-  async updateSession(sessionId: string, updates: { title?: string }) {
+  async updateSession(sessionId: string, updates: { title?: string }, directory?: string) {
     try {
-      const response = await serverFns.updateSession({ data: { sessionId, title: updates.title } });
+      const response = await serverFns.updateSession({ data: { sessionId, title: updates.title, directory } });
       return { data: response };
     } catch (error) {
       throw error;
     }
   },
 
-  async deleteSession(sessionId: string) {
+  async deleteSession(sessionId: string, directory?: string) {
     try {
-      const response = await serverFns.deleteSession({ data: { sessionId } });
+      const response = await serverFns.deleteSession({ data: { sessionId, directory } });
       return { data: response };
     } catch (error) {
       throw error;
@@ -128,90 +128,90 @@ export const openCodeService = {
     }
   },
 
-  async initSession(sessionId: string, messageID: string, providerID: string, modelID: string) {
+  async initSession(sessionId: string, messageID: string, providerID: string, modelID: string, directory?: string) {
     try {
-      const response = await serverFns.initSession({ data: { sessionId, messageID, providerID, modelID } });
+      const response = await serverFns.initSession({ data: { sessionId, messageID, providerID, modelID, directory } });
       return { data: response };
     } catch (error) {
       throw error;
     }
   },
 
-  async abortSession(sessionId: string) {
+  async abortSession(sessionId: string, directory?: string) {
     try {
-      const response = await serverFns.abortSession({ data: { sessionId } });
+      const response = await serverFns.abortSession({ data: { sessionId, directory } });
       return { data: response };
     } catch (error) {
       throw error;
     }
   },
 
-  async shareSession(sessionId: string) {
+  async shareSession(sessionId: string, directory?: string) {
     try {
-      const response = await serverFns.shareSession({ data: { sessionId } });
+      const response = await serverFns.shareSession({ data: { sessionId, directory } });
       return { data: response };
     } catch (error) {
       throw error;
     }
   },
 
-  async unshareSession(sessionId: string) {
+  async unshareSession(sessionId: string, directory?: string) {
     try {
-      const response = await serverFns.unshareSession({ data: { sessionId } });
+      const response = await serverFns.unshareSession({ data: { sessionId, directory } });
       return { data: response };
     } catch (error) {
       throw error;
     }
   },
 
-  async summarizeSession(sessionId: string) {
+  async summarizeSession(sessionId: string, directory?: string) {
     try {
-      const response = await serverFns.summarizeSession({ data: { sessionId } });
+      const response = await serverFns.summarizeSession({ data: { sessionId, directory } });
       return { data: response };
     } catch (error) {
       throw error;
     }
   },
 
-  async getSessionMessage(sessionId: string, messageID: string) {
+  async getSessionMessage(sessionId: string, messageID: string, directory?: string) {
     try {
-      const response = await serverFns.getMessage({ data: { sessionId, messageId: messageID } });
+      const response = await serverFns.getMessage({ data: { sessionId, messageId: messageID, directory } });
       return { data: response };
     } catch (error) {
       throw error;
     }
   },
 
-  async sendCommand(sessionId: string, command: string, args?: string[]) {
+  async sendCommand(sessionId: string, command: string, args?: string[], directory?: string) {
     try {
-      const response = await serverFns.runCommand({ data: { sessionId, command, args } });
+      const response = await serverFns.runCommand({ data: { sessionId, command, args, directory } });
       return { data: response };
     } catch (error) {
       throw error;
     }
   },
 
-  async runShell(sessionId: string, command: string, args?: string[]) {
+  async runShell(sessionId: string, command: string, args?: string[], directory?: string) {
     try {
-      const response = await serverFns.runCommand({ data: { sessionId, command, args } });
+      const response = await serverFns.runCommand({ data: { sessionId, command, args, directory } });
       return { data: response };
     } catch (error) {
       throw error;
     }
   },
 
-  async revertMessage(sessionId: string, messageID: string) {
+  async revertMessage(sessionId: string, messageID: string, directory?: string) {
     try {
-      const response = await serverFns.revertMessage({ data: { sessionId, messageID } });
+      const response = await serverFns.revertMessage({ data: { sessionId, messageID, directory } });
       return { data: response };
     } catch (error) {
       throw error;
     }
   },
 
-  async unrevertMessage(sessionId: string) {
+  async unrevertMessage(sessionId: string, directory?: string) {
     try {
-      const response = await serverFns.unrevertSession({ data: { sessionId } });
+      const response = await serverFns.unrevertSession({ data: { sessionId, directory } });
       return { data: response };
     } catch (error) {
       throw error;
@@ -384,18 +384,18 @@ export const openCodeService = {
     }
   },
 
-  async getSessionChildren(sessionId: string) {
+  async getSessionChildren(sessionId: string, directory?: string) {
     try {
-      const response = await serverFns.getSessionChildren({ data: { sessionId } });
+      const response = await serverFns.getSessionChildren({ data: { sessionId, directory } });
       return { data: response };
     } catch (error) {
       throw error;
     }
   },
 
-  async respondToPermission(sessionId: string, permissionId: string, permissionResponse: boolean) {
+  async respondToPermission(sessionId: string, permissionId: string, permissionResponse: boolean, directory?: string) {
     try {
-      const response = await serverFns.respondToPermission({ data: { sessionId, permissionId, response: permissionResponse } });
+      const response = await serverFns.respondToPermission({ data: { sessionId, permissionId, response: permissionResponse, directory } });
       return { data: response };
     } catch (error) {
       throw error;
@@ -433,4 +433,16 @@ export function handleOpencodeError(error: unknown): string {
     return error.message
   }
   return `Unknown error occurred: ${JSON.stringify(error)}`
+}
+
+export function isSessionNotFoundError(error: unknown): boolean {
+  const errorStr = handleOpencodeError(error).toLowerCase();
+  return (
+    errorStr.includes('enoent') ||
+    errorStr.includes('no such file') ||
+    errorStr.includes('session not found') ||
+    errorStr.includes('bad request') ||
+    errorStr.includes('404') ||
+    errorStr.includes('cannot find session')
+  );
 }

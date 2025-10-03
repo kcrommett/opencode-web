@@ -38,8 +38,10 @@ export async function getSessions(directory?: string) {
   return response.json()
 }
 
-export async function getSession(sessionId: string) {
-  const response = await fetch(buildUrl(`/session/${sessionId}`))
+export async function getSession(sessionId: string, directory?: string) {
+  const response = await fetch(
+    buildUrl(`/session/${sessionId}`, directory ? { directory } : undefined)
+  )
   if (!response.ok) {
     throw new Error(`Failed to get session: ${response.statusText}`)
   }
@@ -62,10 +64,13 @@ export async function createSession(
   return response.json()
 }
 
-export async function deleteSession(sessionId: string) {
-  const response = await fetch(buildUrl(`/session/${sessionId}`), {
-    method: 'DELETE',
-  })
+export async function deleteSession(sessionId: string, directory?: string) {
+  const response = await fetch(
+    buildUrl(`/session/${sessionId}`, directory ? { directory } : undefined),
+    {
+      method: 'DELETE',
+    }
+  )
   if (!response.ok) {
     throw new Error(`Failed to delete session: ${response.statusText}`)
   }
@@ -75,29 +80,35 @@ export async function deleteSession(sessionId: string) {
 export async function updateSession(
   sessionId: string,
   updates: { title?: string },
+  directory?: string,
 ) {
-  const response = await fetch(buildUrl(`/session/${sessionId}`), {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updates),
-  })
+  const response = await fetch(
+    buildUrl(`/session/${sessionId}`, directory ? { directory } : undefined),
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    }
+  )
   if (!response.ok) {
     throw new Error(`Failed to update session: ${response.statusText}`)
   }
   return response.json()
 }
 
-export async function getMessages(sessionId: string) {
-  const response = await fetch(buildUrl(`/session/${sessionId}/message`))
+export async function getMessages(sessionId: string, directory?: string) {
+  const response = await fetch(
+    buildUrl(`/session/${sessionId}/message`, directory ? { directory } : undefined)
+  )
   if (!response.ok) {
     throw new Error(`Failed to get messages: ${response.statusText}`)
   }
   return response.json()
 }
 
-export async function getMessage(sessionId: string, messageId: string) {
+export async function getMessage(sessionId: string, messageId: string, directory?: string) {
   const response = await fetch(
-    buildUrl(`/session/${sessionId}/message/${messageId}`),
+    buildUrl(`/session/${sessionId}/message/${messageId}`, directory ? { directory } : undefined)
   )
   if (!response.ok) {
     throw new Error(`Failed to get message: ${response.statusText}`)
@@ -110,68 +121,110 @@ export async function sendMessage(
   content: string,
   providerID?: string,
   modelID?: string,
+  directory?: string,
 ) {
-  const body: Record<string, unknown> = { content }
-  if (providerID) body.providerID = providerID
-  if (modelID) body.modelID = modelID
+  const body: Record<string, unknown> = {
+    parts: [
+      {
+        type: 'text',
+        text: content,
+      },
+    ],
+  }
+  if (providerID && modelID) {
+    body.model = { providerID, modelID }
+  }
 
-  const response = await fetch(buildUrl(`/session/${sessionId}/message`), {
+  const url = buildUrl(
+    `/session/${sessionId}/message`,
+    directory ? { directory } : undefined
+  )
+
+  const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
+  
   if (!response.ok) {
-    throw new Error(`Failed to send message: ${response.statusText}`)
+    const errorText = await response.text()
+    let errorMessage = response.statusText
+    
+    try {
+      const errorJson = JSON.parse(errorText)
+      if (errorJson.data?.message) {
+        errorMessage = errorJson.data.message
+      }
+    } catch {
+      errorMessage = errorText || response.statusText
+    }
+    
+    throw new Error(errorMessage)
   }
   return response.json()
 }
 
-export async function abortSession(sessionId: string) {
-  const response = await fetch(buildUrl(`/session/${sessionId}/abort`), {
-    method: 'POST',
-  })
+export async function abortSession(sessionId: string, directory?: string) {
+  const response = await fetch(
+    buildUrl(`/session/${sessionId}/abort`, directory ? { directory } : undefined),
+    {
+      method: 'POST',
+    }
+  )
   if (!response.ok) {
     throw new Error(`Failed to abort session: ${response.statusText}`)
   }
   return response.ok
 }
 
-export async function shareSession(sessionId: string) {
-  const response = await fetch(buildUrl(`/session/${sessionId}/share`), {
-    method: 'POST',
-  })
+export async function shareSession(sessionId: string, directory?: string) {
+  const response = await fetch(
+    buildUrl(`/session/${sessionId}/share`, directory ? { directory } : undefined),
+    {
+      method: 'POST',
+    }
+  )
   if (!response.ok) {
     throw new Error(`Failed to share session: ${response.statusText}`)
   }
   return response.json()
 }
 
-export async function unshareSession(sessionId: string) {
-  const response = await fetch(buildUrl(`/session/${sessionId}/share`), {
-    method: 'DELETE',
-  })
+export async function unshareSession(sessionId: string, directory?: string) {
+  const response = await fetch(
+    buildUrl(`/session/${sessionId}/share`, directory ? { directory } : undefined),
+    {
+      method: 'DELETE',
+    }
+  )
   if (!response.ok) {
     throw new Error(`Failed to unshare session: ${response.statusText}`)
   }
   return response.json()
 }
 
-export async function revertMessage(sessionId: string, messageID: string) {
-  const response = await fetch(buildUrl(`/session/${sessionId}/revert`), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messageID }),
-  })
+export async function revertMessage(sessionId: string, messageID: string, directory?: string) {
+  const response = await fetch(
+    buildUrl(`/session/${sessionId}/revert`, directory ? { directory } : undefined),
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messageID }),
+    }
+  )
   if (!response.ok) {
     throw new Error(`Failed to revert message: ${response.statusText}`)
   }
   return response.ok
 }
 
-export async function unrevertSession(sessionId: string) {
-  const response = await fetch(buildUrl(`/session/${sessionId}/unrevert`), {
-    method: 'POST',
-  })
+export async function unrevertSession(sessionId: string, directory?: string) {
+  const response = await fetch(
+    buildUrl(`/session/${sessionId}/unrevert`, directory ? { directory } : undefined),
+    {
+      method: 'POST',
+    }
+  )
   if (!response.ok) {
     throw new Error(`Failed to unrevert session: ${response.statusText}`)
   }
@@ -182,15 +235,19 @@ export async function runCommand(
   sessionId: string,
   command: string,
   args?: string[],
+  directory?: string,
 ) {
   const body: Record<string, unknown> = { command }
   if (args) body.args = args
 
-  const response = await fetch(buildUrl(`/session/${sessionId}/shell`), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
+  const response = await fetch(
+    buildUrl(`/session/${sessionId}/shell`, directory ? { directory } : undefined),
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }
+  )
   if (!response.ok) {
     throw new Error(`Failed to run command: ${response.statusText}`)
   }
@@ -248,9 +305,13 @@ export async function respondToPermission(
   sessionId: string,
   permissionId: string,
   permissionResponse: boolean,
+  directory?: string,
 ) {
   const response = await fetch(
-    buildUrl(`/session/${sessionId}/permissions/${permissionId}`),
+    buildUrl(
+      `/session/${sessionId}/permissions/${permissionId}`,
+      directory ? { directory } : undefined
+    ),
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -289,8 +350,10 @@ export async function getConfig() {
   return response.json()
 }
 
-export async function getSessionChildren(sessionId: string) {
-  const response = await fetch(buildUrl(`/session/${sessionId}/children`))
+export async function getSessionChildren(sessionId: string, directory?: string) {
+  const response = await fetch(
+    buildUrl(`/session/${sessionId}/children`, directory ? { directory } : undefined)
+  )
   if (!response.ok) {
     throw new Error(`Failed to get session children: ${response.statusText}`)
   }
@@ -302,22 +365,29 @@ export async function initSession(
   messageID: string,
   providerID: string,
   modelID: string,
+  directory?: string,
 ) {
-  const response = await fetch(buildUrl(`/session/${sessionId}/init`), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messageID, providerID, modelID }),
-  })
+  const response = await fetch(
+    buildUrl(`/session/${sessionId}/init`, directory ? { directory } : undefined),
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messageID, providerID, modelID }),
+    }
+  )
   if (!response.ok) {
     throw new Error(`Failed to init session: ${response.statusText}`)
   }
   return response.ok
 }
 
-export async function summarizeSession(sessionId: string) {
-  const response = await fetch(buildUrl(`/session/${sessionId}/summarize`), {
-    method: 'POST',
-  })
+export async function summarizeSession(sessionId: string, directory?: string) {
+  const response = await fetch(
+    buildUrl(`/session/${sessionId}/summarize`, directory ? { directory } : undefined),
+    {
+      method: 'POST',
+    }
+  )
   if (!response.ok) {
     throw new Error(`Failed to summarize session: ${response.statusText}`)
   }

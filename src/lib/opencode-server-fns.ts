@@ -20,9 +20,9 @@ export const getSessions = createServerFn({ method: 'GET' })
   })
 
 export const getSession = createServerFn({ method: 'GET' })
-  .inputValidator((data: { sessionId: string }) => data)
+  .inputValidator((data: { sessionId: string; directory?: string }) => data)
   .handler(async ({ data }) => {
-    return httpApi.getSession(data.sessionId)
+    return httpApi.getSession(data.sessionId, data.directory)
   })
 
 export const createSession = createServerFn({ method: 'POST' })
@@ -37,27 +37,27 @@ export const createSession = createServerFn({ method: 'POST' })
   })
 
 export const deleteSession = createServerFn({ method: 'POST' })
-  .inputValidator((data: { sessionId: string }) => data)
+  .inputValidator((data: { sessionId: string; directory?: string }) => data)
   .handler(async ({ data }) => {
-    return httpApi.deleteSession(data.sessionId)
+    return httpApi.deleteSession(data.sessionId, data.directory)
   })
 
 export const updateSession = createServerFn({ method: 'POST' })
-  .inputValidator((data: { sessionId: string; title?: string }) => data)
+  .inputValidator((data: { sessionId: string; title?: string; directory?: string }) => data)
   .handler(async ({ data }) => {
-    return httpApi.updateSession(data.sessionId, { title: data.title })
+    return httpApi.updateSession(data.sessionId, { title: data.title }, data.directory)
   })
 
 export const getMessages = createServerFn({ method: 'GET' })
-  .inputValidator((data: { sessionId: string }) => data)
+  .inputValidator((data: { sessionId: string; directory?: string }) => data)
   .handler(async ({ data }) => {
-    return httpApi.getMessages(data.sessionId)
+    return httpApi.getMessages(data.sessionId, data.directory)
   })
 
 export const getMessage = createServerFn({ method: 'GET' })
-  .inputValidator((data: { sessionId: string; messageId: string }) => data)
+  .inputValidator((data: { sessionId: string; messageId: string; directory?: string }) => data)
   .handler(async ({ data }) => {
-    return httpApi.getMessage(data.sessionId, data.messageId)
+    return httpApi.getMessage(data.sessionId, data.messageId, data.directory)
   })
 
 export const sendMessage = createServerFn({ method: 'POST' })
@@ -67,6 +67,7 @@ export const sendMessage = createServerFn({ method: 'POST' })
       content: string
       providerID?: string
       modelID?: string
+      directory?: string
     }) => data,
   )
   .handler(async ({ data }) => {
@@ -75,45 +76,46 @@ export const sendMessage = createServerFn({ method: 'POST' })
       data.content,
       data.providerID,
       data.modelID,
+      data.directory,
     )
   })
 
 export const abortSession = createServerFn({ method: 'POST' })
-  .inputValidator((data: { sessionId: string }) => data)
+  .inputValidator((data: { sessionId: string; directory?: string }) => data)
   .handler(async ({ data }) => {
-    return httpApi.abortSession(data.sessionId)
+    return httpApi.abortSession(data.sessionId, data.directory)
   })
 
 export const shareSession = createServerFn({ method: 'POST' })
-  .inputValidator((data: { sessionId: string }) => data)
+  .inputValidator((data: { sessionId: string; directory?: string }) => data)
   .handler(async ({ data }) => {
-    return httpApi.shareSession(data.sessionId)
+    return httpApi.shareSession(data.sessionId, data.directory)
   })
 
 export const unshareSession = createServerFn({ method: 'POST' })
-  .inputValidator((data: { sessionId: string }) => data)
+  .inputValidator((data: { sessionId: string; directory?: string }) => data)
   .handler(async ({ data }) => {
-    return httpApi.unshareSession(data.sessionId)
+    return httpApi.unshareSession(data.sessionId, data.directory)
   })
 
 export const revertMessage = createServerFn({ method: 'POST' })
-  .inputValidator((data: { sessionId: string; messageID: string }) => data)
+  .inputValidator((data: { sessionId: string; messageID: string; directory?: string }) => data)
   .handler(async ({ data }) => {
-    return httpApi.revertMessage(data.sessionId, data.messageID)
+    return httpApi.revertMessage(data.sessionId, data.messageID, data.directory)
   })
 
 export const unrevertSession = createServerFn({ method: 'POST' })
-  .inputValidator((data: { sessionId: string }) => data)
+  .inputValidator((data: { sessionId: string; directory?: string }) => data)
   .handler(async ({ data }) => {
-    return httpApi.unrevertSession(data.sessionId)
+    return httpApi.unrevertSession(data.sessionId, data.directory)
   })
 
 export const runCommand = createServerFn({ method: 'POST' })
   .inputValidator(
-    (data: { sessionId: string; command: string; args?: string[] }) => data,
+    (data: { sessionId: string; command: string; args?: string[]; directory?: string }) => data,
   )
   .handler(async ({ data }) => {
-    return httpApi.runCommand(data.sessionId, data.command, data.args)
+    return httpApi.runCommand(data.sessionId, data.command, data.args, data.directory)
   })
 
 export const findFiles = createServerFn({ method: 'GET' })
@@ -152,6 +154,7 @@ export const respondToPermission = createServerFn({ method: 'POST' })
       sessionId: string
       permissionId: string
       response: boolean
+      directory?: string
     }) => data,
   )
   .handler(async ({ data }) => {
@@ -159,6 +162,7 @@ export const respondToPermission = createServerFn({ method: 'POST' })
       data.sessionId,
       data.permissionId,
       data.response,
+      data.directory,
     )
   })
 
@@ -177,9 +181,9 @@ export const getConfig = createServerFn({ method: 'GET' }).handler(async () => {
 })
 
 export const getSessionChildren = createServerFn({ method: 'GET' })
-  .inputValidator((data: { sessionId: string }) => data)
+  .inputValidator((data: { sessionId: string; directory?: string }) => data)
   .handler(async ({ data }) => {
-    return httpApi.getSessionChildren(data.sessionId)
+    return httpApi.getSessionChildren(data.sessionId, data.directory)
   })
 
 export const initSession = createServerFn({ method: 'POST' })
@@ -189,6 +193,7 @@ export const initSession = createServerFn({ method: 'POST' })
       messageID: string
       providerID: string
       modelID: string
+      directory?: string
     }) => data,
   )
   .handler(async ({ data }) => {
@@ -197,13 +202,14 @@ export const initSession = createServerFn({ method: 'POST' })
       data.messageID,
       data.providerID,
       data.modelID,
+      data.directory,
     )
   })
 
 export const summarizeSession = createServerFn({ method: 'POST' })
-  .inputValidator((data: { sessionId: string }) => data)
+  .inputValidator((data: { sessionId: string; directory?: string }) => data)
   .handler(async ({ data }) => {
-    return httpApi.summarizeSession(data.sessionId)
+    return httpApi.summarizeSession(data.sessionId, data.directory)
   })
 
 export const appendPrompt = createServerFn({ method: 'POST' })

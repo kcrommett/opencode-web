@@ -173,9 +173,36 @@ export function useOpenCode() {
       const savedSessionId = localStorage.getItem('opencode-current-session');
       if (savedSessionId) {
         console.log('[Hydration] Restoring session from localStorage:', savedSessionId);
-        setCurrentSession({
-          id: savedSessionId,
-          title: 'Loading...',
+        
+        const savedProjectStr = localStorage.getItem('opencode-current-project');
+        let projectDirectory: string | undefined;
+        if (savedProjectStr) {
+          try {
+            const savedProject = JSON.parse(savedProjectStr);
+            projectDirectory = savedProject.worktree;
+          } catch (error) {
+            console.error('[Hydration] Error parsing saved project:', error);
+          }
+        }
+        
+        openCodeService.getSession(savedSessionId, projectDirectory).then((response) => {
+          if (response.data) {
+            const session = response.data as unknown as { id: string; title?: string; directory?: string; projectID?: string; time?: { created?: number; updated?: number } };
+            setCurrentSession({
+              id: session.id,
+              title: session.title,
+              directory: session.directory,
+              projectID: session.projectID,
+              createdAt: session.time?.created ? new Date(session.time.created) : undefined,
+              updatedAt: session.time?.updated ? new Date(session.time.updated) : undefined,
+            });
+          } else {
+            console.log('[Hydration] Session not found on server, clearing localStorage');
+            localStorage.removeItem('opencode-current-session');
+          }
+        }).catch((error) => {
+          console.error('[Hydration] Error loading session:', error);
+          localStorage.removeItem('opencode-current-session');
         });
       }
 
@@ -291,7 +318,7 @@ export function useOpenCode() {
      }
    }, [currentProject]);
 
-    const sendMessage = useCallback(async (content: string, providerID?: string, modelID?: string) => {
+     const sendMessage = useCallback(async (content: string, providerID?: string, modelID?: string) => {
       if (!currentSession) {
         throw new Error('No active session');
       }
@@ -326,7 +353,19 @@ export function useOpenCode() {
         setMessages(prev => [...prev, userMessage]);
 
         // For now, use non-streaming; implement streaming later
-        const response = await openCodeService.sendMessage(currentSession.id, content, providerID, modelID);
+        const response = await openCodeService.sendMessage(
+          currentSession.id, 
+          content, 
+          providerID, 
+          modelID,
+          currentProject?.worktree
+        );
+        if (response.error) {
+          if (response.error.includes('ENOENT') || response.error.includes('no such file')) {
+            throw new Error('Session not found on server. Please create a new session.');
+          }
+          throw new Error(response.error);
+        }
         if (response.error) {
           throw new Error(response.error);
         }
@@ -359,14 +398,14 @@ export function useOpenCode() {
       } catch (error) {
         console.error('Failed to send message:', error);
         throw new Error(handleOpencodeError(error));
-      } finally {
-        setLoading(false);
-      }
-      }, [currentSession]); // eslint-disable-line react-hooks/exhaustive-deps
+       } finally {
+         setLoading(false);
+       }
+       }, [currentSession, currentProject]); // eslint-disable-line react-hooks/exhaustive-deps
 
    const loadMessages = useCallback(async (sessionId: string) => {
      try {
-       const response = await openCodeService.getMessages(sessionId);
+       const response = await openCodeService.getMessages(sessionId, currentProject?.worktree);
        const messagesArray = (response.data as unknown as OpenCodeMessage[]) || [];
        const loadedMessages: Message[] = messagesArray.map((msg: OpenCodeMessage, index: number) => {
          const parts = msg.parts || [];
@@ -388,10 +427,10 @@ export function useOpenCode() {
          };
        });
        setMessages(loadedMessages);
-      } catch {
-        // Silently handle errors when server is unavailable
-      }
-    }, []);
+     } catch {
+       // Silently handle errors when server is unavailable
+     }
+   }, [currentProject]);
 
    const loadProjects = useCallback(async () => {
      if (loadedProjectsRef.current) return;
@@ -473,18 +512,18 @@ export function useOpenCode() {
       }
     }, [sessions, loadMessages]);
 
-    const deleteSession = useCallback(async (sessionId: string) => {
-      try {
-        await openCodeService.deleteSession(sessionId);
-        setSessions(prev => prev.filter(s => s.id !== sessionId));
-        if (currentSession?.id === sessionId) {
-          setCurrentSession(null);
-          setMessages([]);
-        }
-      } catch (error) {
-        console.error('Failed to delete session:', error);
-      }
-    }, [currentSession]);
+   const deleteSession = useCallback(async (sessionId: string) => {
+     try {
+       await openCodeService.deleteSession(sessionId, currentProject?.worktree);
+       setSessions(prev => prev.filter(s => s.id !== sessionId));
+       if (currentSession?.id === sessionId) {
+         setCurrentSession(null);
+         setMessages([]);
+       }
+     } catch (error) {
+       console.error('Failed to delete session:', error);
+     }
+   }, [currentSession, currentProject]);
 
     const clearAllSessions = useCallback(async () => {
       try {
