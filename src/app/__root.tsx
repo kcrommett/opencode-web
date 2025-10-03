@@ -15,9 +15,12 @@ export const Route = createRootRoute({
         name: "viewport",
         content: "width=device-width, initial-scale=1",
       },
-      { title: "opencode web" },
       { name: "description", content: "A web-based IDE for opencode projects" },
     ],
+    links: [
+      { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
+    ],
+    title: "opencode web",
   }),
   component: RootLayout,
   notFoundComponent: () => (
@@ -41,6 +44,8 @@ function RootLayout() {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>opencode web</title>
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <script
           dangerouslySetInnerHTML={{
             __html: `

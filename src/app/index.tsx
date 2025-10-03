@@ -30,11 +30,21 @@ function OpenCodeChatTUI() {
   const [input, setInput] = useState("");
   const [newSessionTitle, setNewSessionTitle] = useState("");
   const [newSessionDirectory, setNewSessionDirectory] = useState("");
-  const [activeTab, setActiveTab] = useState("workspace");
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('opencode-active-tab') || 'workspace';
+    }
+    return 'workspace';
+  });
   const [fileSearchQuery, setFileSearchQuery] = useState("");
   const [modelSearchQuery, setModelSearchQuery] = useState("");
 
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('opencode-selected-file');
+    }
+    return null;
+  });
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [fileSuggestions, setFileSuggestions] = useState<string[]>([]);
   const [showFileSuggestions, setShowFileSuggestions] = useState(false);
@@ -900,10 +910,12 @@ function OpenCodeChatTUI() {
    const handleTabChange = (tab: string) => {
      setActiveTab(tab);
      if (tab === "files") {
-       void handleDirectoryOpen(fileDirectory || '.');
+       if (files.length === 0) {
+         void handleDirectoryOpen(fileDirectory || '.');
+       }
      }
      if (tab === "workspace") {
-       void loadSessions(); // Reload sessions for the current project
+       void loadSessions();
      }
    };
 
@@ -935,6 +947,39 @@ function OpenCodeChatTUI() {
   useEffect(() => {
     setSelectedModelIndex(0);
   }, [modelSearchQuery]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('opencode-active-tab', activeTab);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (selectedFile) {
+        localStorage.setItem('opencode-selected-file', selectedFile);
+      } else {
+        localStorage.removeItem('opencode-selected-file');
+      }
+    }
+  }, [selectedFile]);
+
+  useEffect(() => {
+    const restoreFilesTab = async () => {
+      if (isHydrated && activeTab === 'files') {
+        console.log('[Hydration] Restoring files tab state');
+        if (files.length === 0) {
+          console.log('[Hydration] Loading files for directory:', fileDirectory);
+          await loadFiles(fileDirectory || '.');
+        }
+        if (selectedFile && !fileContent) {
+          console.log('[Hydration] Restoring selected file content:', selectedFile);
+          await handleFileSelect(selectedFile);
+        }
+      }
+    };
+    void restoreFilesTab();
+  }, [isHydrated, activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isHydrated) {
     return (

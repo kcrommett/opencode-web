@@ -156,80 +156,114 @@ export function useOpenCode() {
         const loadedProjectsRef = useRef(false);
         const loadedSessionsRef = useRef(false);
 
-    useEffect(() => {
-      if (typeof window === 'undefined') return;
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const savedProjectStr = localStorage.getItem('opencode-current-project');
+    if (savedProjectStr) {
+      try {
+        const savedProject = JSON.parse(savedProjectStr);
+        console.log('[Hydration] Restoring project from localStorage:', savedProject);
+        setCurrentProject(savedProject);
+      } catch (error) {
+        console.error('[Hydration] Error parsing saved project:', error);
+      }
+    }
+
+    const savedSessionId = localStorage.getItem('opencode-current-session');
+    if (savedSessionId) {
+      console.log('[Hydration] Restoring session from localStorage:', savedSessionId);
       
       const savedProjectStr = localStorage.getItem('opencode-current-project');
+      let projectDirectory: string | undefined;
       if (savedProjectStr) {
         try {
           const savedProject = JSON.parse(savedProjectStr);
-          console.log('[Hydration] Restoring project from localStorage:', savedProject);
-          setCurrentProject(savedProject);
+          projectDirectory = savedProject.worktree;
         } catch (error) {
           console.error('[Hydration] Error parsing saved project:', error);
         }
       }
-
-      const savedSessionId = localStorage.getItem('opencode-current-session');
-      if (savedSessionId) {
-        console.log('[Hydration] Restoring session from localStorage:', savedSessionId);
-        
-        const savedProjectStr = localStorage.getItem('opencode-current-project');
-        let projectDirectory: string | undefined;
-        if (savedProjectStr) {
-          try {
-            const savedProject = JSON.parse(savedProjectStr);
-            projectDirectory = savedProject.worktree;
-          } catch (error) {
-            console.error('[Hydration] Error parsing saved project:', error);
-          }
-        }
-        
-        openCodeService.getSession(savedSessionId, projectDirectory).then((response) => {
-          if (response.data) {
-            const session = response.data as unknown as { id: string; title?: string; directory?: string; projectID?: string; time?: { created?: number; updated?: number } };
-            setCurrentSession({
-              id: session.id,
-              title: session.title,
-              directory: session.directory,
-              projectID: session.projectID,
-              createdAt: session.time?.created ? new Date(session.time.created) : undefined,
-              updatedAt: session.time?.updated ? new Date(session.time.updated) : undefined,
-            });
-          } else {
-            console.log('[Hydration] Session not found on server, clearing localStorage');
-            localStorage.removeItem('opencode-current-session');
-          }
-        }).catch((error) => {
-          console.error('[Hydration] Error loading session:', error);
-          localStorage.removeItem('opencode-current-session');
-        });
-      }
-
-      const savedModelStr = localStorage.getItem('opencode-selected-model');
-      if (savedModelStr) {
-        try {
-          const savedModel = JSON.parse(savedModelStr);
-          console.log('[Hydration] Restoring model from localStorage:', savedModel);
-          setSelectedModel(savedModel);
-        } catch (error) {
-          console.error('[Hydration] Error parsing saved model:', error);
-        }
-      }
-
-      const savedAgentStr = localStorage.getItem('opencode-current-agent');
-      if (savedAgentStr) {
-        try {
-          const savedAgent = JSON.parse(savedAgentStr);
-          console.log('[Hydration] Restoring agent from localStorage:', savedAgent);
-          setCurrentAgent(savedAgent);
-        } catch (error) {
-          console.error('[Hydration] Error parsing saved agent:', error);
-        }
-      }
       
-      setIsHydrated(true);
-    }, []);
+      openCodeService.getSession(savedSessionId, projectDirectory).then(async (response) => {
+        if (response.data) {
+          const session = response.data as unknown as { id: string; title?: string; directory?: string; projectID?: string; time?: { created?: number; updated?: number } };
+          setCurrentSession({
+            id: session.id,
+            title: session.title,
+            directory: session.directory,
+            projectID: session.projectID,
+            createdAt: session.time?.created ? new Date(session.time.created) : undefined,
+            updatedAt: session.time?.updated ? new Date(session.time.updated) : undefined,
+          });
+          
+          try {
+            const messagesResponse = await openCodeService.getMessages(savedSessionId, projectDirectory);
+            const messagesArray = (messagesResponse.data as unknown as OpenCodeMessage[]) || [];
+            const loadedMessages: Message[] = messagesArray.map((msg: OpenCodeMessage, index: number) => {
+              const parts = msg.parts || [];
+              const textPart = parts.find((part: Part) => part.type === 'text');
+              const content = (textPart && 'text' in textPart ? textPart.text : '') || '';
+              
+              return {
+                id: msg.info?.id || `msg-${index}`,
+                type: msg.info?.role === 'user' ? 'user' : 'assistant',
+                content,
+                parts,
+                timestamp: new Date(msg.info?.time?.created || Date.now()),
+                metadata: msg.info?.role === 'assistant' && 'tokens' in (msg.info || {}) ? {
+                  tokens: (msg.info as {tokens?: {input: number; output: number; reasoning: number}}).tokens,
+                  cost: (msg.info as {cost?: number}).cost,
+                  model: (msg.info as {modelID?: string}).modelID,
+                  agent: (msg.info as {mode?: string}).mode
+                } : undefined
+              };
+            });
+            setMessages(loadedMessages);
+            console.log('[Hydration] Loaded messages for session:', loadedMessages.length);
+          } catch (error) {
+            console.error('[Hydration] Error loading messages:', error);
+          }
+        } else {
+          console.log('[Hydration] Session not found on server, clearing localStorage');
+          localStorage.removeItem('opencode-current-session');
+        }
+      }).catch((error) => {
+        console.error('[Hydration] Error loading session:', error);
+        localStorage.removeItem('opencode-current-session');
+      });
+    }
+
+    const savedModelStr = localStorage.getItem('opencode-selected-model');
+    if (savedModelStr) {
+      try {
+        const savedModel = JSON.parse(savedModelStr);
+        console.log('[Hydration] Restoring model from localStorage:', savedModel);
+        setSelectedModel(savedModel);
+      } catch (error) {
+        console.error('[Hydration] Error parsing saved model:', error);
+      }
+    }
+
+    const savedAgentStr = localStorage.getItem('opencode-current-agent');
+    if (savedAgentStr) {
+      try {
+        const savedAgent = JSON.parse(savedAgentStr);
+        console.log('[Hydration] Restoring agent from localStorage:', savedAgent);
+        setCurrentAgent(savedAgent);
+      } catch (error) {
+        console.error('[Hydration] Error parsing saved agent:', error);
+      }
+    }
+
+    const savedActiveTab = localStorage.getItem('opencode-active-tab');
+    const savedSelectedFile = localStorage.getItem('opencode-selected-file');
+    if (savedActiveTab || savedSelectedFile) {
+      console.log('[Hydration] Restoring tab/file state from localStorage:', { savedActiveTab, savedSelectedFile });
+    }
+    
+    setIsHydrated(true);
+  }, []);
 
     useEffect(() => {
      const checkConnection = async () => {
@@ -299,17 +333,18 @@ export function useOpenCode() {
         if (!session) {
           throw new Error('Failed to create session');
         }
-       const newSession: Session = {
-         id: session.id,
-         title: title || session.title,
-         directory: sessionDirectory || session.directory,
-          projectID: session.projectID || currentProject?.id,
-         createdAt: session.createdAt ? new Date(session.createdAt) : new Date(),
-         updatedAt: session.updatedAt ? new Date(session.updatedAt) : undefined,
-       };
-       setCurrentSession(newSession);
-       setMessages([]);
-       return newSession;
+        const newSession: Session = {
+          id: session.id,
+          title: title || session.title,
+          directory: sessionDirectory || session.directory,
+           projectID: session.projectID || currentProject?.id,
+          createdAt: session.createdAt ? new Date(session.createdAt) : new Date(),
+          updatedAt: session.updatedAt ? new Date(session.updatedAt) : undefined,
+        };
+        setCurrentSession(newSession);
+        setSessions(prev => [newSession, ...prev]);
+        setMessages([]);
+        return newSession;
      } catch (error) {
        console.error('Failed to create session:', error);
        throw new Error(handleOpencodeError(error));
