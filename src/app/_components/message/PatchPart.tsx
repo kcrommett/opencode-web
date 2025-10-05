@@ -13,9 +13,9 @@ export function PatchPart({ part }: PatchPartProps) {
   const diff = 'diff' in part ? part.diff : '';
   
   return (
-    <div className="border border-[var(--theme-border)] rounded-md overflow-hidden bg-[var(--theme-backgroundAlt)] mb-2">
+    <div className="border border-theme-border rounded-md overflow-hidden bg-theme-background-alt mb-2">
       <div 
-        className="flex items-center justify-between p-3 cursor-pointer hover:bg-[var(--theme-background)]"
+        className="flex items-center justify-between p-3 cursor-pointer hover:bg-theme-background"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center gap-2">
@@ -25,7 +25,7 @@ export function PatchPart({ part }: PatchPartProps) {
         </div>
       </div>
       {isExpanded && diff !== undefined && diff !== '' && (
-        <div className="border-t border-[var(--theme-border)] p-3 bg-[var(--theme-background)]">
+        <div className="border-t border-theme-border p-3 bg-theme-background">
           <pre className="text-xs font-mono whitespace-pre-wrap break-words">
             {String(diff)}
           </pre>

@@ -18,7 +18,7 @@ export function FilePart({ part }: FilePartProps) {
   };
   
   return (
-    <div className="border border-[var(--theme-border)] rounded-md p-3 bg-[var(--theme-backgroundAlt)] mb-2">
+    <div className="border border-theme-border rounded-md p-3 bg-theme-background-alt mb-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span>📎</span>

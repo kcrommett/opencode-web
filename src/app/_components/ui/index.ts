@@ -1,5 +1,6 @@
 // WebTUI React Components
 export { Badge } from './badge';
+export { StatusBadge } from './status-badge';
 export { Button } from './button';
 export { Input } from './input';
 export { Textarea } from './textarea';

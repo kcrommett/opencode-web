@@ -24,9 +24,9 @@ export function ToolPart({ part, showDetails }: ToolPartProps) {
       case 'running':
         return <Spinner size="small" />;
       case 'completed':
-        return <span className="text-green-500">✅</span>;
+        return <span className="text-theme-success">✅</span>;
       case 'error':
-        return <span className="text-red-500">❌</span>;
+        return <span className="text-theme-error">❌</span>;
       default:
         return <span className="opacity-50">⏳</span>;
     }
@@ -35,18 +35,18 @@ export function ToolPart({ part, showDetails }: ToolPartProps) {
   const getStatusColor = () => {
     switch (status) {
       case 'running':
-        return 'bg-blue-500/10 border-blue-500/30';
+        return 'status-card running';
       case 'completed':
-        return 'bg-green-500/10 border-green-500/30';
+        return 'status-card completed';
       case 'error':
-        return 'bg-red-500/10 border-red-500/30';
+        return 'status-card error';
       default:
-        return 'bg-gray-500/10 border-gray-500/30';
+        return 'status-card';
     }
   };
   
   return (
-    <div className={`border rounded-md overflow-hidden mb-2 ${getStatusColor()}`}>
+    <div className={getStatusColor()}>
       <div className="flex items-center justify-between p-3">
         <div className="flex items-center gap-2">
           {getStatusIcon()}
@@ -58,16 +58,16 @@ export function ToolPart({ part, showDetails }: ToolPartProps) {
       </div>
       
       {showDetails && input !== undefined && (
-        <div className="border-t border-[var(--theme-border)]">
+        <div className="border-t border-theme-border">
           <div 
-            className="px-3 py-2 cursor-pointer hover:bg-[var(--theme-backgroundAlt)] flex items-center justify-between"
+            className="px-3 py-2 cursor-pointer hover:bg-theme-background-alt flex items-center justify-between"
             onClick={() => setShowInput(!showInput)}
           >
             <span className="text-xs font-medium opacity-70">Input {showInput ? '[-]' : '[+]'}</span>
           </div>
           {showInput && (
             <div className="px-3 pb-3">
-              <pre className="text-xs font-mono whitespace-pre-wrap break-words bg-[var(--theme-background)] p-2 rounded">
+              <pre className="text-xs font-mono whitespace-pre-wrap break-words bg-theme-background p-2 rounded">
                 {typeof input === 'string' ? input : JSON.stringify(input, null, 2)}
               </pre>
             </div>
@@ -76,9 +76,9 @@ export function ToolPart({ part, showDetails }: ToolPartProps) {
       )}
       
       {output !== undefined && (
-        <div className="border-t border-[var(--theme-border)]">
+        <div className="border-t border-theme-border">
           <div 
-            className="px-3 py-2 cursor-pointer hover:bg-[var(--theme-backgroundAlt)] flex items-center justify-between"
+            className="px-3 py-2 cursor-pointer hover:bg-theme-background-alt flex items-center justify-between"
             onClick={() => setShowOutput(!showOutput)}
           >
             <span className="text-xs font-medium opacity-70">
@@ -87,7 +87,7 @@ export function ToolPart({ part, showDetails }: ToolPartProps) {
           </div>
           {showOutput && (
             <div className="px-3 pb-3">
-              <pre className="text-xs font-mono whitespace-pre-wrap break-words bg-[var(--theme-background)] p-2 rounded">
+              <pre className="text-xs font-mono whitespace-pre-wrap break-words bg-theme-background p-2 rounded">
                 {typeof output === 'string' ? output : JSON.stringify(output, null, 2)}
               </pre>
             </div>

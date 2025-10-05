@@ -987,7 +987,7 @@ function OpenCodeChatTUI() {
 
   if (!isHydrated) {
     return (
-      <View box="square" className="h-screen font-mono overflow-hidden flex items-center justify-center" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
+      <View box="square" className="h-screen font-mono overflow-hidden flex items-center justify-center bg-theme-background text-theme-foreground">
         <div className="text-center">
           <div className="text-4xl mb-4">⏳</div>
           <div className="text-lg">Loading OpenCode Web...</div>
@@ -997,16 +997,20 @@ function OpenCodeChatTUI() {
   }
 
    return (
-        <View box="square" className="h-screen font-mono overflow-hidden flex flex-col pt-4 lg:pt-0" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
+        <View box="square" className="font-mono overflow-hidden flex flex-col bg-theme-background text-theme-foreground" style={{
+          height: 'calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom))',
+          marginTop: 'env(safe-area-inset-top)',
+          marginBottom: 'env(safe-area-inset-bottom)'
+        }}>
         {/* Top Bar */}
-         <div className="px-4 py-2 flex items-center justify-between" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+         <div className="px-4 py-2 flex items-center justify-between bg-theme-background-alt">
            {isConnected === false && (
-             <div className="px-2 py-1 rounded text-xs" style={{ backgroundColor: 'var(--theme-error)', color: 'var(--theme-background)' }}>
+             <div className="px-2 py-1 rounded text-xs bg-theme-error text-theme-background">
                Disconnected from OpenCode server
              </div>
            )}
          </div>
-        <div className="px-4 py-2 flex items-center justify-between" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+        <div className="px-4 py-2 flex items-center justify-between bg-theme-background-alt">
          <div className="flex items-center gap-2 lg:gap-4">
             <HamburgerMenu
               isOpen={isMobileSidebarOpen}
@@ -1017,7 +1021,7 @@ function OpenCodeChatTUI() {
             </Badge>
              {isConnected !== null && (
                <div className="flex items-center gap-2">
-                 <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                 <div className={`connection-indicator ${isConnected ? 'connected' : 'disconnected'}`} />
                  <Badge variant={isConnected ? "background2" : "foreground0"} cap="round" className="hidden sm:inline">
                    {isConnected ? "Connected" : "Disconnected"}
                  </Badge>
@@ -1065,29 +1069,29 @@ function OpenCodeChatTUI() {
           {/* Main Content */}
           <div className="flex-1 flex overflow-hidden gap-0">
           {/* Desktop Sidebar - hidden on mobile */}
-           <View box="square" className="hidden lg:flex lg:w-80 flex-col p-4" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+           <View box="square" className="hidden lg:flex lg:w-80 flex-col p-4 bg-theme-background-alt">
           <div className="flex-1 overflow-hidden">
                {activeTab === "workspace" && (
                   <div className="h-full flex flex-col overflow-hidden">
                     {/* Projects Section - 50% height */}
                     <div className="flex flex-col h-1/2 min-h-0">
-                      <View box="square" className="p-2 mb-2" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                      <View box="square" className="p-2 mb-2 bg-theme-background-alt">
                         <h3 className="text-sm font-medium">Projects</h3>
                       </View>
                       <Separator className="mb-2" />
                   <div className="flex-1 overflow-y-auto scrollbar space-y-1">
                        {sortedProjects.length > 0 ? (
                          sortedProjects.map((project) => (
-                           <View
-                             box="round"
-                             key={project.id}
-                             className={`p-2 cursor-pointer transition-colors ${
-                               currentProject?.id === project.id
-                                 ? "bg-theme-primary text-theme-background"
-                                 : "bg-theme-background hover:bg-theme-background-accent"
-                             }`}
-                             onClick={() => handleProjectSwitch(project)}
-                           >
+                            <View
+                              box="round"
+                              key={project.id}
+                              className={`p-2 cursor-pointer transition-colors ${
+                                currentProject?.id === project.id
+                                  ? "bg-theme-primary/20 border-theme-primary text-theme-foreground"
+                                  : "bg-theme-background hover:bg-theme-background-accent"
+                              }`}
+                              onClick={() => handleProjectSwitch(project)}
+                            >
                              <div className="font-medium text-sm truncate">
                                {project.worktree}
                              </div>
@@ -1097,7 +1101,7 @@ function OpenCodeChatTUI() {
                            </View>
                         ))
                       ) : (
-                      <div className="text-center text-sm py-4" style={{ color: 'var(--theme-muted)' }}>
+                      <div className="text-center text-sm py-4 text-theme-muted">
                           No projects found
                         </div>
                      )}
@@ -1108,7 +1112,7 @@ function OpenCodeChatTUI() {
                   
                    {/* Sessions Section - 50% height */}
                    <div className="flex flex-col h-1/2 min-h-0">
-                     <View box="square" className="p-2 mb-2" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                     <View box="square" className="p-2 mb-2 bg-theme-background-alt">
                        <div className="flex justify-between items-center">
                          <h3 className="text-sm font-medium">Sessions</h3>
                         <div className="flex gap-2">
@@ -1133,7 +1137,7 @@ function OpenCodeChatTUI() {
                      </View>
                      <Separator className="mb-2" />
                      {!currentProject ? (
-                     <div className="flex-1 flex items-center justify-center text-sm" style={{ color: 'var(--theme-muted)' }}>
+                     <div className="flex-1 flex items-center justify-center text-sm text-theme-muted">
                        Select a project first to view sessions
                      </div>
                    ) : (
@@ -1155,16 +1159,16 @@ function OpenCodeChatTUI() {
                               session.projectID === currentProject?.id || 
                               session.directory === currentProject?.worktree
                             ).map((session) => (
-                            <View
-                              box="round"
-                              key={session.id}
-                              className={`p-2 cursor-pointer transition-colors ${
-                                currentSession?.id === session.id
-                                  ? "bg-theme-primary text-theme-background"
-                                  : "bg-theme-background hover:bg-theme-background-accent"
-                              }`}
-                              onClick={() => handleSessionSwitch(session.id)}
-                            >
+                             <View
+                               box="round"
+                               key={session.id}
+                               className={`p-2 cursor-pointer transition-colors ${
+                                 currentSession?.id === session.id
+                                   ? "bg-theme-primary/20 border-theme-primary text-theme-foreground"
+                                   : "bg-theme-background hover:bg-theme-background-accent"
+                               }`}
+                               onClick={() => handleSessionSwitch(session.id)}
+                             >
                              <div className="flex justify-between items-start">
                                <div className="flex-1 min-w-0">
                                  <div className="font-medium text-sm truncate">
@@ -1203,7 +1207,7 @@ function OpenCodeChatTUI() {
                             </View>
                           ))}
                            {sessions.length === 0 && (
-                            <div className="text-center text-sm py-4" style={{ color: 'var(--theme-muted)' }}>
+                            <div className="text-center text-sm py-4 text-theme-muted">
                               No sessions for this project yet
                             </div>
                           )}
@@ -1218,7 +1222,7 @@ function OpenCodeChatTUI() {
 
              {activeTab === "files" && (
                <div className="space-y-4 h-full flex flex-col">
-                 <View box="square" className="p-2 mb-2" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                 <View box="square" className="p-2 mb-2 bg-theme-background-alt">
                    <div className="flex items-center justify-between">
                      <h3 className="text-sm font-medium">Files</h3>
                      <Button
@@ -1327,22 +1331,22 @@ function OpenCodeChatTUI() {
                         const isDirectory = file.type === 'directory';
                         const isSelected = !isDirectory && selectedFile === file.path;
                         return (
-                          <View
-                            box="round"
-                            key={file.path}
-                            className={`px-2 py-1 transition-colors cursor-pointer ${
-                              isSelected
-                                ? "bg-theme-primary text-theme-background"
-                                : "bg-theme-background hover:bg-theme-background-accent"
-                            }`}
-                            onClick={() => {
-                              if (isDirectory) {
-                                void handleDirectoryOpen(file.path);
-                              } else {
-                                void handleFileSelect(file.path);
-                              }
-                            }}
-                          >
+                           <View
+                             box="round"
+                             key={file.path}
+                             className={`px-2 py-1 transition-colors cursor-pointer ${
+                               isSelected
+                                 ? "bg-theme-primary/20 border-theme-primary text-theme-foreground"
+                                 : "bg-theme-background hover:bg-theme-background-accent"
+                             }`}
+                             onClick={() => {
+                               if (isDirectory) {
+                                 void handleDirectoryOpen(file.path);
+                               } else {
+                                 void handleFileSelect(file.path);
+                               }
+                             }}
+                           >
                            <div className="flex items-center gap-2 text-sm">
                              <span className="text-base">{isDirectory ? '📁' : '📄'}</span>
                              <span className="truncate">{file.name}</span>
@@ -1351,7 +1355,7 @@ function OpenCodeChatTUI() {
                         );
                       })
                     ) : (
-                     <div className="text-center text-sm py-4" style={{ color: 'var(--theme-muted)' }}>
+                     <div className="text-center text-sm py-4 text-theme-muted">
                        No files loaded
                      </div>
                    )}
@@ -1411,7 +1415,7 @@ function OpenCodeChatTUI() {
                         key={project.id}
                         className={`p-2 cursor-pointer transition-colors ${
                           currentProject?.id === project.id
-                            ? "bg-theme-primary text-theme-background"
+                            ? "bg-theme-primary/20 border-theme-primary text-theme-foreground"
                             : "bg-theme-background hover:bg-theme-background-accent"
                         }`}
                         onClick={() => {
@@ -1428,7 +1432,7 @@ function OpenCodeChatTUI() {
                       </View>
                     ))
                   ) : (
-                    <div className="text-center text-sm py-4" style={{ color: 'var(--theme-muted)' }}>
+                    <div className="text-center text-sm py-4 text-theme-muted">
                       No projects found
                     </div>
                   )}
@@ -1452,7 +1456,7 @@ function OpenCodeChatTUI() {
                 </div>
                 <Separator className="mb-2" />
                 {!currentProject ? (
-                  <div className="flex-1 flex items-center justify-center text-sm" style={{ color: 'var(--theme-muted)' }}>
+                  <div className="flex-1 flex items-center justify-center text-sm text-theme-muted">
                     Select a project first
                   </div>
                 ) : (
@@ -1466,7 +1470,7 @@ function OpenCodeChatTUI() {
                         key={session.id}
                         className={`p-2 cursor-pointer transition-colors ${
                           currentSession?.id === session.id
-                            ? "bg-theme-primary text-theme-background"
+                            ? "bg-theme-primary/20 border-theme-primary text-theme-foreground"
                             : "bg-theme-background hover:bg-theme-background-accent"
                         }`}
                         onClick={() => {
@@ -1503,7 +1507,7 @@ function OpenCodeChatTUI() {
                         key={file.path}
                         className={`px-2 py-1 transition-colors cursor-pointer ${
                           isSelected
-                            ? "bg-theme-primary text-theme-background"
+                            ? "bg-theme-primary/20 border-theme-primary text-theme-foreground"
                             : "bg-theme-background hover:bg-theme-background-accent"
                         }`}
                         onClick={() => {
@@ -1523,7 +1527,7 @@ function OpenCodeChatTUI() {
                     );
                   })
                 ) : (
-                  <div className="text-center text-sm py-4" style={{ color: 'var(--theme-muted)' }}>
+                  <div className="text-center text-sm py-4 text-theme-muted">
                     No files loaded
                   </div>
                 )}
@@ -1535,11 +1539,11 @@ function OpenCodeChatTUI() {
         <Separator direction="vertical" />
 
         {/* Main Editor Area */}
-        <View box="square" className="flex-1 flex flex-col gap-0" style={{ backgroundColor: 'var(--theme-background)' }}>
+        <View box="square" className="flex-1 flex flex-col gap-0 bg-theme-background">
            {/* Header */}
-           <div className="px-4 py-2 flex justify-between items-center" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+           <div className="px-4 py-2 flex justify-between items-center bg-theme-background-alt">
             <div className="flex items-center gap-2">
-                 <span className="text-base font-normal" style={{ color: 'var(--theme-foreground)' }}>
+                 <span className="text-base font-normal text-theme-foreground">
                   OpenCode Chat Sessions: {currentSession?.title || currentSession?.id.slice(0, 8)}... . Project: {currentProject?.worktree}
                 </span>
                </div>
@@ -1554,15 +1558,14 @@ function OpenCodeChatTUI() {
               <div className="flex-1 overflow-y-auto scrollbar p-4 space-y-4 min-h-0">
                 {messages.length === 0 && !loading && (
                   <div className="flex items-center justify-center h-full">
-                    <View box="round" className="max-w-lg p-6 text-center" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                    <View box="round" className="max-w-lg p-6 text-center bg-theme-background-alt">
                       <div className="text-4xl mb-4">👋</div>
-                      <h2 className="text-xl font-bold mb-3" style={{ color: 'var(--theme-foreground)' }}>
+                      <h2 className="text-xl font-bold mb-3 text-theme-foreground">
                         Welcome to OpenCode Web!
                       </h2>
                       <Pre
                         size="small"
-                        className="break-words whitespace-pre-wrap overflow-wrap-anywhere mb-4"
-                        style={{ color: 'var(--theme-foreground)', opacity: 0.8 }}
+                        className="break-words whitespace-pre-wrap overflow-wrap-anywhere mb-4 text-theme-foreground opacity-80"
                       >
                         {!currentProject 
                           ? "Select a project from the sidebar to get started, or create a new session to begin chatting with OpenCode."
@@ -1597,11 +1600,11 @@ function OpenCodeChatTUI() {
                   >
                      <View
                        box="round"
-                       className="max-w-full sm:max-w-2xl p-3"
-                       style={{
-                         backgroundColor: message.type === "user" ? 'var(--theme-primary)' : 'var(--theme-backgroundAlt)',
-                         color: message.type === "user" ? 'var(--theme-background)' : 'var(--theme-foreground)'
-                       }}
+                       className={`max-w-full sm:max-w-2xl p-3 ${
+                         message.type === "user" 
+                           ? "bg-theme-primary/20 border-theme-primary text-theme-foreground" 
+                           : "bg-theme-background-alt text-theme-foreground"
+                       }`}
                      >
                       {message.parts && message.parts.length > 0 ? (
                         <div className="space-y-2">
@@ -1645,12 +1648,12 @@ function OpenCodeChatTUI() {
                 ))}
                 {loading && (
                   <div className="flex justify-start">
-                    <View box="round" className="max-w-xs p-3" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
-                      <Pre size="small" style={{ color: 'var(--theme-foreground)' }}>
+                    <View box="round" className="max-w-xs p-3 bg-theme-background-alt">
+                      <Pre size="small" className="text-theme-foreground">
                         <div className="flex space-x-1">
-                          <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: 'var(--theme-primary)' }} />
-                          <div className="w-2 h-2 rounded-full animate-bounce [animation-delay:0.1s]" style={{ backgroundColor: 'var(--theme-primary)' }} />
-                          <div className="w-2 h-2 rounded-full animate-bounce [animation-delay:0.2s]" style={{ backgroundColor: 'var(--theme-primary)' }} />
+                          <div className="w-2 h-2 rounded-full animate-bounce bg-theme-primary" />
+                          <div className="w-2 h-2 rounded-full animate-bounce [animation-delay:0.1s] bg-theme-primary" />
+                          <div className="w-2 h-2 rounded-full animate-bounce [animation-delay:0.2s] bg-theme-primary" />
                         </div>
                       </Pre>
                       <Badge
@@ -1669,7 +1672,7 @@ function OpenCodeChatTUI() {
                  <Separator />
 
                  {/* Input Area */}
-                 <View box="square" className="p-4 space-y-3" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                 <View box="square" className="p-2 sm:p-4 space-y-3 bg-theme-background-alt">
                       <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-2 text-xs text-theme-foreground">
                         <span className="font-medium">Model:</span>
@@ -1688,8 +1691,8 @@ function OpenCodeChatTUI() {
                        Agent: {currentAgent?.name || 'None'}
                      </Badge>
                    </div>
-                   <div className="flex flex-col sm:flex-row gap-3 items-end">
-                    <div className="flex-1 relative">
+                   <div className="flex flex-col sm:flex-row gap-3 items-stretch">
+                    <div className="flex-1 relative w-full">
                        {showCommandPicker && (
                          <CommandPicker
                            commands={commandSuggestions}
@@ -1738,7 +1741,7 @@ function OpenCodeChatTUI() {
            )}
 
             {activeTab === "files" && (
-             <div className="flex-1 p-4 flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--theme-background)' }}>
+             <div className="flex-1 p-4 flex flex-col overflow-hidden bg-theme-background">
               {selectedFile ? (
                 <>
                   <div className="flex justify-between items-center mb-4">
@@ -1791,7 +1794,7 @@ function OpenCodeChatTUI() {
                             }}
                           />
                         ) : (
-                          <div className="text-center text-sm" style={{ color: 'var(--theme-muted)' }}>
+                          <div className="text-center text-sm text-theme-muted">
                             No image data available
                           </div>
                         )}
@@ -1813,7 +1816,7 @@ function OpenCodeChatTUI() {
                   </div>
                 </>
                ) : (
-                <div className="flex-1 flex items-center justify-center" style={{ color: 'var(--theme-muted)' }}>
+                <div className="flex-1 flex items-center justify-center text-theme-muted">
                   Select a file to view its contents
                 </div>
               )}
@@ -1828,7 +1831,7 @@ function OpenCodeChatTUI() {
             open={showHelp}
             onClose={() => setShowHelp(false)}
           >
-           <View box="square" className="p-6 max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
+           <View box="square" className="p-6 max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col bg-theme-background text-theme-foreground">
              <div className="flex justify-between items-center mb-4 flex-shrink-0">
                <h2 className="text-lg font-bold">OpenCode Commands</h2>
                <Button
@@ -1846,15 +1849,15 @@ function OpenCodeChatTUI() {
                <div>
                  <div className="text-xs font-bold uppercase mb-2 opacity-60">Session</div>
                  <div className="space-y-1 font-mono text-sm">
-                   <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                   <div className="flex justify-between p-2 rounded bg-theme-background-alt">
                      <span className="text-theme-primary">/new</span>
                      <span className="opacity-70">Start a new session</span>
                    </div>
-                   <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                   <div className="flex justify-between p-2 rounded bg-theme-background-alt">
                      <span className="text-theme-primary">/clear</span>
                      <span className="opacity-70">Clear current session</span>
                    </div>
-                   <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                   <div className="flex justify-between p-2 rounded bg-theme-background-alt">
                      <span className="text-theme-primary">/sessions</span>
                      <span className="opacity-70">View all sessions</span>
                    </div>
@@ -1864,11 +1867,11 @@ function OpenCodeChatTUI() {
                <div>
                  <div className="text-xs font-bold uppercase mb-2 opacity-60">Model</div>
                  <div className="space-y-1 font-mono text-sm">
-                   <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                   <div className="flex justify-between p-2 rounded bg-theme-background-alt">
                      <span className="text-theme-primary">/models</span>
                      <span className="opacity-70">Open model picker</span>
                    </div>
-                   <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                   <div className="flex justify-between p-2 rounded bg-theme-background-alt">
                      <span className="text-theme-primary">/model &lt;provider&gt;/&lt;model&gt;</span>
                      <span className="opacity-70">Select specific model</span>
                    </div>
@@ -1878,7 +1881,7 @@ function OpenCodeChatTUI() {
                <div>
                  <div className="text-xs font-bold uppercase mb-2 opacity-60">Agent</div>
                  <div className="space-y-1 font-mono text-sm">
-                   <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                   <div className="flex justify-between p-2 rounded bg-theme-background-alt">
                      <span className="text-theme-primary">/agents</span>
                      <span className="opacity-70">Select agent</span>
                    </div>
@@ -1888,7 +1891,7 @@ function OpenCodeChatTUI() {
                <div>
                  <div className="text-xs font-bold uppercase mb-2 opacity-60">Theme</div>
                  <div className="space-y-1 font-mono text-sm">
-                   <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                   <div className="flex justify-between p-2 rounded bg-theme-background-alt">
                      <span className="text-theme-primary">/themes</span>
                      <span className="opacity-70">Open theme picker</span>
                    </div>
@@ -1898,11 +1901,11 @@ function OpenCodeChatTUI() {
                <div>
                  <div className="text-xs font-bold uppercase mb-2 opacity-60">File Operations</div>
                  <div className="space-y-1 font-mono text-sm">
-                   <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                   <div className="flex justify-between p-2 rounded bg-theme-background-alt">
                      <span className="text-theme-primary">/undo</span>
                      <span className="opacity-70">Undo last file changes</span>
                    </div>
-                   <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                   <div className="flex justify-between p-2 rounded bg-theme-background-alt">
                      <span className="text-theme-primary">/redo</span>
                      <span className="opacity-70">Redo last undone changes</span>
                    </div>
@@ -1912,19 +1915,19 @@ function OpenCodeChatTUI() {
                 <div>
                   <div className="text-xs font-bold uppercase mb-2 opacity-60">Other</div>
                   <div className="space-y-1 font-mono text-sm">
-                    <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                    <div className="flex justify-between p-2 rounded bg-theme-background-alt">
                       <span className="text-theme-primary">/help</span>
                       <span className="opacity-70">Show this help dialog</span>
                     </div>
-                    <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                    <div className="flex justify-between p-2 rounded bg-theme-background-alt">
                       <span className="text-theme-primary">/share</span>
                       <span className="opacity-70">Share current session</span>
                     </div>
-                    <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                    <div className="flex justify-between p-2 rounded bg-theme-background-alt">
                       <span className="text-theme-primary">/export</span>
                       <span className="opacity-70">Export session</span>
                     </div>
-                    <div className="flex justify-between p-2 rounded" style={{ backgroundColor: 'var(--theme-backgroundAlt)' }}>
+                    <div className="flex justify-between p-2 rounded bg-theme-background-alt">
                       <span className="text-theme-primary">/debug</span>
                       <span className="opacity-70">Export session data (JSON)</span>
                     </div>
@@ -1949,24 +1952,18 @@ function OpenCodeChatTUI() {
               open={showThemes}
               onClose={() => setShowThemes(false)}
             >
-             <View box="square" className="p-6 max-w-md w-full max-h-[80vh] overflow-hidden" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
+             <View box="square" className="p-6 max-w-md w-full max-h-[80vh] overflow-hidden bg-theme-background text-theme-foreground">
               <h2 className="text-lg font-bold mb-4">Select Theme</h2>
               <Separator className="mb-4" />
               <div className="max-h-96 overflow-y-auto scrollbar space-y-2 mb-4">
                 {themeList.map((theme) => (
                   <div
                     key={theme.id}
-                    className={`p-3 rounded cursor-pointer transition-colors ${
+                    className={`p-3 rounded cursor-pointer transition-colors border border-theme-border ${
                       currentTheme === theme.id
-                        ? "text-[var(--theme-background)]"
-                        : "hover:bg-opacity-50"
+                        ? "bg-theme-primary/20 border-theme-primary text-theme-foreground"
+                        : "bg-theme-background-alt hover:bg-opacity-50"
                     }`}
-                    style={{
-                      backgroundColor: currentTheme === theme.id ? 'var(--theme-primary)' : 'var(--theme-backgroundAlt)',
-                      borderColor: 'var(--theme-border)',
-                      borderWidth: '1px',
-                      borderStyle: 'solid',
-                    }}
                     onClick={() => {
                       changeTheme(theme.id);
                       setShowThemes(false);
@@ -2014,7 +2011,7 @@ function OpenCodeChatTUI() {
               open={showOnboarding}
               onClose={() => setShowOnboarding(false)}
             >
-             <View box="square" className="p-6 max-w-md w-full" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
+             <View box="square" className="p-6 max-w-md w-full bg-theme-background text-theme-foreground">
               <h2 className="text-lg font-bold mb-4">Connect to OpenCode Server</h2>
               <Separator className="mb-4" />
               <p className="text-sm mb-4">Enter your OpenCode server URL:</p>
@@ -2050,7 +2047,7 @@ function OpenCodeChatTUI() {
                 setSelectedModelIndex(0);
               }}
             >
-             <View box="square" className="p-6 max-w-md w-full max-h-[80vh] overflow-hidden" style={{ backgroundColor: 'var(--theme-background)', color: 'var(--theme-foreground)' }}>
+             <View box="square" className="p-6 max-w-md w-full max-h-[80vh] overflow-hidden bg-theme-background text-theme-foreground">
               <h2 className="text-lg font-bold mb-4">Select Model</h2>
               <Separator className="mb-4" />
                <div className="mb-4">
@@ -2095,15 +2092,11 @@ function OpenCodeChatTUI() {
                      return (
                        <div
                          key={`${model.providerID}/${model.modelID}`}
-                         className="p-3 rounded cursor-pointer transition-colors"
-                         style={{
-                           backgroundColor: isSelected
-                             ? 'var(--theme-primary)'
-                             : 'var(--theme-backgroundAlt)',
-                           color: isSelected
-                             ? 'var(--theme-background)'
-                             : 'var(--theme-foreground)',
-                         }}
+                         className={`p-3 rounded cursor-pointer transition-colors ${
+                           isSelected 
+                             ? "bg-theme-primary/20 border border-theme-primary text-theme-foreground" 
+                             : "bg-theme-background-alt text-theme-foreground"
+                         }`}
                          onClick={() => {
                            selectModel(model);
                            setShowModelPicker(false);
