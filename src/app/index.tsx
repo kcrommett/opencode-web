@@ -11,6 +11,8 @@ import {
   Separator,
   MobileSidebar,
   HamburgerMenu,
+  InstallPrompt,
+  PWAReloadPrompt,
 } from "@/app/_components/ui";
 import { CommandPicker } from "@/app/_components/ui/command-picker";
 import { AgentPicker } from "@/app/_components/ui/agent-picker";
@@ -2263,23 +2265,27 @@ function OpenCodeChatTUI() {
           />
         )}
 
-        {/* Session Picker */}
-        {showSessionPicker && (
-          <SessionPicker
-            sessions={sessions.filter(s => 
-              s.projectID === currentProject?.id || 
-              s.directory === currentProject?.worktree
-            )}
-            currentSession={currentSession}
-            onSelect={switchSession}
-            onDelete={deleteSession}
-            onCreate={async (title) => {
-              await createSession({ title });
-              await loadSessions();
-            }}
-            onClose={() => setShowSessionPicker(false)}
-          />
-        )}
-      </View>
-    );
-  }
+         {/* Session Picker */}
+         {showSessionPicker && (
+           <SessionPicker
+             sessions={sessions.filter(s => 
+               s.projectID === currentProject?.id || 
+               s.directory === currentProject?.worktree
+             )}
+             currentSession={currentSession}
+             onSelect={switchSession}
+             onDelete={deleteSession}
+             onCreate={async (title) => {
+               await createSession({ title });
+               await loadSessions();
+             }}
+             onClose={() => setShowSessionPicker(false)}
+           />
+         )}
+
+         {/* PWA Components */}
+         <InstallPrompt />
+         <PWAReloadPrompt />
+       </View>
+     );
+   }

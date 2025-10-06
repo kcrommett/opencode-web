@@ -418,6 +418,23 @@ export const themes: Record<string, Theme> = {
 
 export const themeList = Object.values(themes);
 
+function updateThemeColor(color: string): void {
+  let metaThemeColor = document.querySelector('meta[name="theme-color"]');
+  
+  if (!metaThemeColor) {
+    metaThemeColor = document.createElement('meta');
+    metaThemeColor.setAttribute('name', 'theme-color');
+    document.head.appendChild(metaThemeColor);
+  }
+  
+  metaThemeColor.setAttribute('content', color);
+  
+  const metaAppleStatusBar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+  if (metaAppleStatusBar) {
+    metaAppleStatusBar.setAttribute('content', 'black-translucent');
+  }
+}
+
 export function applyTheme(themeId: string): void {
   const theme = themes[themeId] || themes.catppuccin;
   const root = document.documentElement;
@@ -434,6 +451,8 @@ export function applyTheme(themeId: string): void {
   root.style.setProperty('--foreground0', theme.colors.primary);
   root.style.setProperty('--foreground1', theme.colors.foreground);
   root.style.setProperty('--foreground2', theme.colors.foregroundAlt);
+
+  updateThemeColor(theme.colors.background);
 
   localStorage.setItem('opencode-theme', themeId);
 }
