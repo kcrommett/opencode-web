@@ -8,7 +8,7 @@ interface ReasoningPartProps {
 }
 
 export function ReasoningPart({ part, showDetails }: ReasoningPartProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
   
   if (part.type !== 'reasoning') return null;
   

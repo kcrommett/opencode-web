@@ -51,11 +51,10 @@ function OpenCodeChatTUI() {
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [fileSuggestions, setFileSuggestions] = useState<string[]>([]);
   const [showFileSuggestions, setShowFileSuggestions] = useState(false);
-  const [searchResults, setSearchResults] = useState<string[]>([]);
-  const [showSearchResults, setShowSearchResults] = useState(false);
   const [commandSuggestions, setCommandSuggestions] = useState<Command[]>([]);
   const [showCommandPicker, setShowCommandPicker] = useState(false);
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
+  const [selectedFileSuggestionIndex, setSelectedFileSuggestionIndex] = useState(0);
   const [showAgentPicker, setShowAgentPicker] = useState(false);
   const [showSessionPicker, setShowSessionPicker] = useState(false);
   const [selectedModelIndex, setSelectedModelIndex] = useState(0);
@@ -63,6 +62,7 @@ function OpenCodeChatTUI() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const modelSearchInputRef = useRef<HTMLInputElement>(null);
+  const fileSearchInputRef = useRef<HTMLInputElement>(null);
   
    const { currentTheme, changeTheme } = useTheme();
     const {
@@ -728,6 +728,9 @@ function OpenCodeChatTUI() {
          e.preventDefault();
          if (showCommandPicker && commandSuggestions.length > 0) {
            handleCommandSelect(commandSuggestions[selectedCommandIndex]);
+         } else if (showFileSuggestions && fileSuggestions.length > 0) {
+           setInput(input.replace(/@\w*$/, `@${fileSuggestions[selectedFileSuggestionIndex]} `));
+           setShowFileSuggestions(false);
          } else {
            handleSend();
          }
@@ -749,19 +752,36 @@ function OpenCodeChatTUI() {
            cycleAgent();
          }
        }
-       if (e.key === "ArrowDown" && showCommandPicker) {
-         e.preventDefault();
-         setSelectedCommandIndex((prev) => 
-           prev < commandSuggestions.length - 1 ? prev + 1 : prev
-         );
+       if (e.key === "ArrowDown") {
+         if (showCommandPicker) {
+           e.preventDefault();
+           setSelectedCommandIndex((prev) => 
+             prev < commandSuggestions.length - 1 ? prev + 1 : prev
+           );
+         } else if (showFileSuggestions) {
+           e.preventDefault();
+           setSelectedFileSuggestionIndex((prev) => 
+             prev < fileSuggestions.length - 1 ? prev + 1 : prev
+           );
+         }
        }
-       if (e.key === "ArrowUp" && showCommandPicker) {
-         e.preventDefault();
-         setSelectedCommandIndex((prev) => prev > 0 ? prev - 1 : prev);
+       if (e.key === "ArrowUp") {
+         if (showCommandPicker) {
+           e.preventDefault();
+           setSelectedCommandIndex((prev) => prev > 0 ? prev - 1 : prev);
+         } else if (showFileSuggestions) {
+           e.preventDefault();
+           setSelectedFileSuggestionIndex((prev) => prev > 0 ? prev - 1 : prev);
+         }
        }
-       if (e.key === "Escape" && showCommandPicker) {
-         e.preventDefault();
-         setShowCommandPicker(false);
+       if (e.key === "Escape") {
+         if (showCommandPicker) {
+           e.preventDefault();
+           setShowCommandPicker(false);
+         } else if (showFileSuggestions) {
+           e.preventDefault();
+           setShowFileSuggestions(false);
+         }
        }
      };
 
@@ -829,18 +849,7 @@ function OpenCodeChatTUI() {
     }
   };
 
-  const handleFileSearch = async () => {
-    if (!fileSearchQuery.trim()) return;
-    try {
-      const results = await searchFiles(fileSearchQuery);
-      if (results && Array.isArray(results)) {
-        setSearchResults(results);
-        setShowSearchResults(true);
-      }
-    } catch (err) {
-      console.error("Failed to search files:", err);
-    }
-  };
+
 
     const handleFileSelect = async (filePath: string) => {
       try {
@@ -893,6 +902,15 @@ function OpenCodeChatTUI() {
     });
   }, [files]);
 
+  const filteredFiles = useMemo(() => {
+    if (!fileSearchQuery.trim()) return sortedFiles;
+    const query = fileSearchQuery.toLowerCase();
+    return sortedFiles.filter(file => 
+      file.name.toLowerCase().includes(query) ||
+      file.path.toLowerCase().includes(query)
+    );
+  }, [sortedFiles, fileSearchQuery]);
+
   const sortedProjects = useMemo(() => {
     return [...projects].sort((a, b) => {
       const aDate = a.updatedAt || a.createdAt || new Date(0);
@@ -911,17 +929,21 @@ function OpenCodeChatTUI() {
     );
   }, [models, modelSearchQuery]);
 
-   const handleTabChange = (tab: string) => {
-     setActiveTab(tab);
-     if (tab === "files") {
-       if (files.length === 0) {
-         void handleDirectoryOpen(fileDirectory || '.');
-       }
-     }
-     if (tab === "workspace") {
-       void loadSessions();
-     }
-   };
+    const handleTabChange = (tab: string) => {
+      setActiveTab(tab);
+      if (tab === "files") {
+        if (files.length === 0) {
+          void handleDirectoryOpen(fileDirectory || '.');
+        }
+        // Focus the file search input when switching to files tab
+        setTimeout(() => {
+          fileSearchInputRef.current?.focus();
+        }, 0);
+      }
+      if (tab === "workspace") {
+        void loadSessions();
+      }
+    };
 
    const cycleAgent = () => {
      if (agents.length === 0) return;
@@ -948,15 +970,26 @@ function OpenCodeChatTUI() {
     }
   }, [showModelPicker]);
 
-  useEffect(() => {
-    setSelectedModelIndex(0);
-  }, [modelSearchQuery]);
+   useEffect(() => {
+     setSelectedModelIndex(0);
+   }, [modelSearchQuery]);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('opencode-active-tab', activeTab);
-    }
-  }, [activeTab]);
+
+
+   useEffect(() => {
+     if (typeof window !== 'undefined') {
+       localStorage.setItem('opencode-active-tab', activeTab);
+     }
+   }, [activeTab]);
+
+   // Focus file search input when files tab becomes active
+   useEffect(() => {
+     if (activeTab === 'files') {
+       setTimeout(() => {
+         fileSearchInputRef.current?.focus();
+       }, 0);
+     }
+   }, [activeTab]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -1081,16 +1114,27 @@ function OpenCodeChatTUI() {
                       <Separator className="mb-2" />
                   <div className="flex-1 overflow-y-auto scrollbar space-y-1">
                        {sortedProjects.length > 0 ? (
-                         sortedProjects.map((project) => (
-                            <View
-                              box="round"
+                         sortedProjects.map((project) => {
+                           const isSelected = currentProject?.id === project.id;
+                           return (
+                            <div
                               key={project.id}
-                              className={`p-2 cursor-pointer transition-colors ${
-                                currentProject?.id === project.id
-                                  ? "bg-theme-primary/20 border-theme-primary text-theme-foreground"
-                                  : "bg-theme-background hover:bg-theme-background-accent"
-                              }`}
+                              className="p-2 cursor-pointer transition-colors rounded"
+                              style={{
+                                backgroundColor: isSelected ? 'var(--theme-primary)' : 'var(--theme-background)',
+                                color: isSelected ? 'var(--theme-background)' : 'var(--theme-foreground)',
+                              }}
                               onClick={() => handleProjectSwitch(project)}
+                              onMouseEnter={(e) => {
+                                if (!isSelected) {
+                                  e.currentTarget.style.backgroundColor = 'var(--theme-backgroundAlt)';
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (!isSelected) {
+                                  e.currentTarget.style.backgroundColor = 'var(--theme-background)';
+                                }
+                              }}
                             >
                              <div className="font-medium text-sm truncate">
                                {project.worktree}
@@ -1098,8 +1142,9 @@ function OpenCodeChatTUI() {
                               <div className="text-xs opacity-70 truncate">
                                 VCS: {project.vcs || 'Unknown'}
                               </div>
-                           </View>
-                        ))
+                           </div>
+                         );
+                        })
                       ) : (
                       <div className="text-center text-sm py-4 text-theme-muted">
                           No projects found
@@ -1158,16 +1203,27 @@ function OpenCodeChatTUI() {
                             {sessions.filter(session => 
                               session.projectID === currentProject?.id || 
                               session.directory === currentProject?.worktree
-                            ).map((session) => (
-                             <View
-                               box="round"
+                            ).map((session) => {
+                              const isSelected = currentSession?.id === session.id;
+                              return (
+                             <div
                                key={session.id}
-                               className={`p-2 cursor-pointer transition-colors ${
-                                 currentSession?.id === session.id
-                                   ? "bg-theme-primary/20 border-theme-primary text-theme-foreground"
-                                   : "bg-theme-background hover:bg-theme-background-accent"
-                               }`}
+                               className="p-2 cursor-pointer transition-colors rounded"
+                               style={{
+                                 backgroundColor: isSelected ? 'var(--theme-primary)' : 'var(--theme-background)',
+                                 color: isSelected ? 'var(--theme-background)' : 'var(--theme-foreground)',
+                               }}
                                onClick={() => handleSessionSwitch(session.id)}
+                               onMouseEnter={(e) => {
+                                 if (!isSelected) {
+                                   e.currentTarget.style.backgroundColor = 'var(--theme-backgroundAlt)';
+                                 }
+                               }}
+                               onMouseLeave={(e) => {
+                                 if (!isSelected) {
+                                   e.currentTarget.style.backgroundColor = 'var(--theme-background)';
+                                 }
+                               }}
                              >
                              <div className="flex justify-between items-start">
                                <div className="flex-1 min-w-0">
@@ -1204,8 +1260,9 @@ function OpenCodeChatTUI() {
                                  ×
                                 </Button>
                               </div>
-                            </View>
-                          ))}
+                            </div>
+                            );
+                          })}
                            {sessions.length === 0 && (
                             <div className="text-center text-sm py-4 text-theme-muted">
                               No sessions for this project yet
@@ -1237,57 +1294,18 @@ function OpenCodeChatTUI() {
                  </View>
                  <Separator />
                  <div className="space-y-2">
-                  <Input
-                    value={fileSearchQuery}
-                    onChange={(e) => setFileSearchQuery(e.target.value)}
-                    placeholder="Search files..."
-                    size="small"
-                    className="bg-theme-background text-theme-foreground border-theme-primary"
-                  />
-                  <Button
-                    variant="foreground0"
-                    box="round"
-                    onClick={handleFileSearch}
-                    size="small"
-                  >
-                     Search
-                   </Button>
-                   {showSearchResults && searchResults.length > 0 && (
-                     <div className="mt-2 p-2 bg-theme-background-alt rounded">
-                       <div className="flex justify-between items-center mb-2">
-                         <span className="text-sm font-medium text-theme-foreground">
-                           Results ({searchResults.length})
-                         </span>
-                         <Button
-                           variant="foreground0"
-                           box="round"
-                           size="small"
-                           onClick={() => setShowSearchResults(false)}
-                           className="!py-0 !px-2"
-                         >
-                           ✕
-                         </Button>
-                       </div>
-                       <div className="space-y-1 max-h-48 overflow-y-auto scrollbar">
-                         {searchResults.map((filePath, idx) => (
-                           <div
-                             key={idx}
-                             className="p-2 bg-theme-background hover:bg-theme-background-accent rounded cursor-pointer text-sm text-theme-foreground"
-                             onClick={() => {
-                               void handleFileSelect(filePath);
-                               setShowSearchResults(false);
-                             }}
-                           >
-                             {filePath}
-                           </div>
-                         ))}
-                       </div>
-                     </div>
-                   )}
+                    <Input
+                      ref={fileSearchInputRef}
+                      value={fileSearchQuery}
+                      onChange={(e) => setFileSearchQuery(e.target.value)}
+                      placeholder="Search files..."
+                      size="small"
+                      className="w-full bg-theme-background text-theme-foreground border-theme-primary"
+                    />
                  </div>
                  <Separator />
-                 <div className="flex items-center justify-between text-xs text-theme-foreground">
-                   <div className="flex flex-wrap items-center gap-1">
+                 <div className="flex items-center justify-between text-xs text-theme-foreground gap-2">
+                   <div className="flex flex-wrap items-center gap-1 flex-1 min-w-0">
                      <Button
                        box="square"
                        size="small"
@@ -1313,32 +1331,47 @@ function OpenCodeChatTUI() {
                        );
                      })}
                    </div>
-                  <Button
-                    variant="foreground0"
-                    box="round"
-                    size="small"
-                    disabled={fileDirectory === '.'}
-                    onClick={() => void handleNavigateUp()}
-                    className="disabled:opacity-40"
-                  >
-                     Up
-                   </Button>
+                   <div className="flex gap-1 flex-shrink-0">
+                     {fileSearchQuery && (
+                       <Button
+                         variant="foreground0"
+                         box="round"
+                         size="small"
+                         onClick={() => setFileSearchQuery("")}
+                       >
+                         Clear
+                       </Button>
+                     )}
+                    <Button
+                      variant="foreground0"
+                      box="round"
+                      size="small"
+                      disabled={fileDirectory === '.' || breadcrumbParts.length === 0}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        void handleNavigateUp();
+                      }}
+                      className="disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Up
+                    </Button>
+                   </div>
                  </div>
                  <Separator />
-                  <div className="flex-1 overflow-y-auto scrollbar space-y-0.5">
-                    {sortedFiles.length > 0 ? (
-                      sortedFiles.map((file) => {
+                   <div className="flex-1 overflow-y-auto scrollbar space-y-0.5">
+                     {filteredFiles.length > 0 ? (
+                       filteredFiles.map((file) => {
                         const isDirectory = file.type === 'directory';
                         const isSelected = !isDirectory && selectedFile === file.path;
                         return (
-                           <View
-                             box="round"
+                           <div
                              key={file.path}
-                             className={`px-2 py-1 transition-colors cursor-pointer ${
-                               isSelected
-                                 ? "bg-theme-primary/20 border-theme-primary text-theme-foreground"
-                                 : "bg-theme-background hover:bg-theme-background-accent"
-                             }`}
+                             className="px-2 py-1 cursor-pointer transition-colors rounded"
+                             style={{
+                               backgroundColor: isSelected ? 'var(--theme-primary)' : 'var(--theme-background)',
+                               color: isSelected ? 'var(--theme-background)' : 'var(--theme-foreground)',
+                             }}
                              onClick={() => {
                                if (isDirectory) {
                                  void handleDirectoryOpen(file.path);
@@ -1346,12 +1379,22 @@ function OpenCodeChatTUI() {
                                  void handleFileSelect(file.path);
                                }
                              }}
+                             onMouseEnter={(e) => {
+                               if (!isSelected) {
+                                 e.currentTarget.style.backgroundColor = 'var(--theme-backgroundAlt)';
+                               }
+                             }}
+                             onMouseLeave={(e) => {
+                               if (!isSelected) {
+                                 e.currentTarget.style.backgroundColor = 'var(--theme-background)';
+                               }
+                             }}
                            >
                            <div className="flex items-center gap-2 text-sm">
                              <span className="text-base">{isDirectory ? '📁' : '📄'}</span>
                              <span className="truncate">{file.name}</span>
                             </div>
-                          </View>
+                          </div>
                         );
                       })
                     ) : (
@@ -1360,9 +1403,9 @@ function OpenCodeChatTUI() {
                      </div>
                    )}
                 </div>
-                <div className="text-xs opacity-50">
-                  Path: {fileDirectory === '.' ? '/' : `/${fileDirectory}`} • {sortedFiles.length} items
-                </div>
+                 <div className="text-xs opacity-50">
+                   Path: {fileDirectory === '.' ? '/' : `/${fileDirectory}`} • {filteredFiles.length} items
+                 </div>
                </div>
               )}
           </div>
@@ -1409,18 +1452,29 @@ function OpenCodeChatTUI() {
                 <Separator className="mb-2" />
                 <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
                   {sortedProjects.length > 0 ? (
-                    sortedProjects.map((project) => (
-                      <View
-                        box="round"
+                    sortedProjects.map((project) => {
+                      const isSelected = currentProject?.id === project.id;
+                      return (
+                      <div
                         key={project.id}
-                        className={`p-2 cursor-pointer transition-colors ${
-                          currentProject?.id === project.id
-                            ? "bg-theme-primary/20 border-theme-primary text-theme-foreground"
-                            : "bg-theme-background hover:bg-theme-background-accent"
-                        }`}
+                        className="p-2 cursor-pointer transition-colors rounded"
+                        style={{
+                          backgroundColor: isSelected ? 'var(--theme-primary)' : 'var(--theme-background)',
+                          color: isSelected ? 'var(--theme-background)' : 'var(--theme-foreground)',
+                        }}
                         onClick={() => {
                           handleProjectSwitch(project);
                           setIsMobileSidebarOpen(false);
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isSelected) {
+                            e.currentTarget.style.backgroundColor = 'var(--theme-backgroundAlt)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isSelected) {
+                            e.currentTarget.style.backgroundColor = 'var(--theme-background)';
+                          }
                         }}
                       >
                         <div className="font-medium text-sm truncate">
@@ -1429,8 +1483,9 @@ function OpenCodeChatTUI() {
                         <div className="text-xs opacity-70 truncate">
                           VCS: {project.vcs || 'Unknown'}
                         </div>
-                      </View>
-                    ))
+                      </div>
+                      );
+                    })
                   ) : (
                     <div className="text-center text-sm py-4 text-theme-muted">
                       No projects found
@@ -1464,18 +1519,29 @@ function OpenCodeChatTUI() {
                     {sessions.filter(session => 
                       session.projectID === currentProject?.id || 
                       session.directory === currentProject?.worktree
-                    ).map((session) => (
-                      <View
-                        box="round"
+                    ).map((session) => {
+                      const isSelected = currentSession?.id === session.id;
+                      return (
+                      <div
                         key={session.id}
-                        className={`p-2 cursor-pointer transition-colors ${
-                          currentSession?.id === session.id
-                            ? "bg-theme-primary/20 border-theme-primary text-theme-foreground"
-                            : "bg-theme-background hover:bg-theme-background-accent"
-                        }`}
+                        className="p-2 cursor-pointer transition-colors rounded"
+                        style={{
+                          backgroundColor: isSelected ? 'var(--theme-primary)' : 'var(--theme-background)',
+                          color: isSelected ? 'var(--theme-background)' : 'var(--theme-foreground)',
+                        }}
                         onClick={() => {
                           handleSessionSwitch(session.id);
                           setIsMobileSidebarOpen(false);
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isSelected) {
+                            e.currentTarget.style.backgroundColor = 'var(--theme-backgroundAlt)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isSelected) {
+                            e.currentTarget.style.backgroundColor = 'var(--theme-background)';
+                          }
                         }}
                       >
                         <div className="font-medium text-sm truncate">
@@ -1484,8 +1550,9 @@ function OpenCodeChatTUI() {
                         <div className="text-xs opacity-70">
                           {session.createdAt?.toLocaleDateString() || "Unknown"}
                         </div>
-                      </View>
-                    ))}
+                      </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1502,14 +1569,13 @@ function OpenCodeChatTUI() {
                     const isDirectory = file.type === 'directory';
                     const isSelected = !isDirectory && selectedFile === file.path;
                     return (
-                      <View
-                        box="round"
+                      <div
                         key={file.path}
-                        className={`px-2 py-1 transition-colors cursor-pointer ${
-                          isSelected
-                            ? "bg-theme-primary/20 border-theme-primary text-theme-foreground"
-                            : "bg-theme-background hover:bg-theme-background-accent"
-                        }`}
+                        className="px-2 py-1 cursor-pointer transition-colors rounded"
+                        style={{
+                          backgroundColor: isSelected ? 'var(--theme-primary)' : 'var(--theme-background)',
+                          color: isSelected ? 'var(--theme-background)' : 'var(--theme-foreground)',
+                        }}
                         onClick={() => {
                           if (isDirectory) {
                             void handleDirectoryOpen(file.path);
@@ -1518,12 +1584,22 @@ function OpenCodeChatTUI() {
                             setIsMobileSidebarOpen(false);
                           }
                         }}
+                        onMouseEnter={(e) => {
+                          if (!isSelected) {
+                            e.currentTarget.style.backgroundColor = 'var(--theme-backgroundAlt)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isSelected) {
+                            e.currentTarget.style.backgroundColor = 'var(--theme-background)';
+                          }
+                        }}
                       >
                         <div className="flex items-center gap-2 text-sm">
                           <span className="text-base">{isDirectory ? '📁' : '📄'}</span>
                           <span className="truncate">{file.name}</span>
                         </div>
-                      </View>
+                      </div>
                     );
                   })
                 ) : (
@@ -1709,22 +1785,57 @@ function OpenCodeChatTUI() {
                          size="large"
                          className="w-full bg-theme-background text-theme-foreground border-theme-primary resize-none"
                        />
-                      {showFileSuggestions && fileSuggestions.length > 0 && (
-                        <div className="absolute top-full left-0 right-0 bg-theme-background border border-theme-primary rounded mt-1 max-h-32 overflow-y-auto scrollbar z-10">
-                          {fileSuggestions.map((file, index) => (
-                            <div
-                              key={index}
-                              className="p-2 hover:bg-theme-background-accent cursor-pointer text-theme-foreground"
-                              onClick={() => {
-                                setInput(input.replace(/@\w*$/, `@${file}`));
-                                setShowFileSuggestions(false);
-                              }}
-                            >
-                              {file}
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                       {showFileSuggestions && fileSuggestions.length > 0 && (
+                         <div 
+                           className="absolute bottom-full left-0 right-0 mb-1 max-h-48 overflow-y-auto scrollbar z-10 shadow-lg rounded border"
+                           style={{
+                             backgroundColor: 'var(--theme-backgroundAlt)',
+                             borderColor: 'var(--theme-primary)',
+                             borderWidth: '1px',
+                           }}
+                         >
+                           {fileSuggestions.map((file, index) => {
+                             const isSelected = index === selectedFileSuggestionIndex;
+                             return (
+                               <div
+                                 key={index}
+                                 className="p-2 cursor-pointer transition-colors text-sm"
+                                 style={{
+                                   backgroundColor: isSelected ? 'var(--theme-primary)' : 'transparent',
+                                   color: isSelected ? 'var(--theme-background)' : 'var(--theme-foreground)',
+                                 }}
+                                 onClick={() => {
+                                   setInput(input.replace(/@\w*$/, `@${file} `));
+                                   setShowFileSuggestions(false);
+                                 }}
+                                 onMouseEnter={(e) => {
+                                   if (!isSelected) {
+                                     e.currentTarget.style.backgroundColor = 'var(--theme-backgroundAlt)';
+                                     e.currentTarget.style.opacity = '0.8';
+                                   }
+                                 }}
+                                 onMouseLeave={(e) => {
+                                   if (!isSelected) {
+                                     e.currentTarget.style.backgroundColor = 'transparent';
+                                     e.currentTarget.style.opacity = '1';
+                                   }
+                                 }}
+                               >
+                                 <div className="flex items-center justify-between gap-2">
+                                   <div className="flex-1 truncate">
+                                     {file}
+                                   </div>
+                                   {isSelected && (
+                                     <Badge variant="background2" cap="round" className="text-xs">
+                                       ↵
+                                     </Badge>
+                                   )}
+                                 </div>
+                               </div>
+                             );
+                           })}
+                         </div>
+                       )}
                      </div>
                       <Button
                         variant="foreground0"

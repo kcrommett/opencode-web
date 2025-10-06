@@ -1,6 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { openCodeService, handleOpencodeError } from '@/lib/opencode-client';
-import type { Part } from "../../node_modules/@opencode-ai/sdk/dist/gen/types.gen";
+
+// Define Part type locally since the SDK import is broken
+type Part =
+  | { type: 'text'; text: string }
+  | { type: 'reasoning'; content: string; signature?: string }
+  | { type: 'tool'; tool: string; args: Record<string, unknown>; result?: unknown }
+  | { type: 'file'; path: string; content: string }
+  | { type: 'step'; title: string; content: string }
+  | { type: 'patch'; path: string; diff: string }
+  | { type: 'agent'; name: string; description?: string }
+  | { type: 'snapshot'; url: string; description?: string };
 
 interface Message {
     id: string;
@@ -500,15 +510,15 @@ export function useOpenCode() {
       try {
         const response = await openCodeService.getSessions(currentProject.worktree);
         const data = response.data || [];
-        const sessionsData: Session[] = data.map((session: SessionResponse) => ({
-          id: session.id,
-          title: session.title,
-          directory: session.directory,
-          projectID: session.projectID,
-          createdAt: session.time?.created ? new Date(session.time.created * 1000) : undefined,
-          updatedAt: session.time?.updated ? new Date(session.time.updated * 1000) : undefined,
-          messageCount: undefined,
-        }));
+         const sessionsData: Session[] = data.map((session: SessionResponse) => ({
+           id: session.id,
+           title: session.title,
+           directory: session.directory,
+           projectID: session.projectID || currentProject?.id,
+           createdAt: session.time?.created ? new Date(session.time.created * 1000) : undefined,
+           updatedAt: session.time?.updated ? new Date(session.time.updated * 1000) : undefined,
+           messageCount: undefined,
+         }));
         setSessions(sessionsData);
         loadedSessionsRef.current = true;
         
@@ -573,49 +583,52 @@ export function useOpenCode() {
       }
     }, [sessions]);
 
-    const switchProject = useCallback(async (project: Project) => {
-      try {
-        setCurrentProject(project);
-        setCurrentSession(null);
-        setMessages([]);
-        setSessions([]);
-        const response = await openCodeService.getSessions(project.worktree);
-        const data = response.data || [];
-        const sessionsData: Session[] = data.map((session: SessionResponse) => ({
-          id: session.id,
-          title: session.title,
-          directory: session.directory,
-          projectID: session.projectID,
-          createdAt: session.time?.created ? new Date(session.time.created * 1000) : undefined,
-          updatedAt: session.time?.updated ? new Date(session.time.updated * 1000) : undefined,
-          messageCount: undefined,
-        }));
-        setSessions(sessionsData);
-      } catch (error) {
-        console.error('Failed to switch project:', error);
-      }
-    }, []);
+     const switchProject = useCallback(async (project: Project) => {
+       try {
+         setCurrentProject(project);
+         setCurrentSession(null);
+         setMessages([]);
+         setSessions([]);
+         loadedSessionsRef.current = false; // Reset flag before fetching
+         const response = await openCodeService.getSessions(project.worktree);
+         const data = response.data || [];
+         const sessionsData: Session[] = data.map((session: SessionResponse) => ({
+           id: session.id,
+           title: session.title,
+           directory: session.directory,
+           projectID: session.projectID || project.id, // Ensure projectID is set
+           createdAt: session.time?.created ? new Date(session.time.created * 1000) : undefined,
+           updatedAt: session.time?.updated ? new Date(session.time.updated * 1000) : undefined,
+           messageCount: undefined,
+         }));
+         setSessions(sessionsData);
+         loadedSessionsRef.current = true; // Prevent loadSessions from running again
+       } catch (error) {
+         console.error('Failed to switch project:', error);
+       }
+     }, []);
 
-    const loadFiles = useCallback(async (directory?: string) => {
-      try {
-        const targetPath = directory || fileDirectory;
-        const baseDirectory = currentProject?.worktree ?? currentPath ?? undefined;
-        const response = await openCodeService.listFiles(targetPath, baseDirectory);
-        const data = response.data || [];
-        const filesData: FileInfo[] = Array.isArray(data) ? data.map((file: FileResponse) => ({
-          path: file.path,
-          name: file.name,
-          type: file.type,
-          absolute: file.absolute,
-          ignored: file.ignored,
-          size: file.size,
-          modifiedAt: file.modifiedAt ? new Date(file.modifiedAt) : undefined,
-        })) : [];
-        setFiles(filesData);
-      } catch (error) {
-        console.error('Failed to load files:', error);
-      }
-    }, [fileDirectory, currentProject, currentPath]);
+     const loadFiles = useCallback(async (directory?: string) => {
+       try {
+         const targetPath = directory || fileDirectory;
+         const baseDirectory = currentProject?.worktree ?? currentPath ?? undefined;
+         const response = await openCodeService.listFiles(targetPath, baseDirectory);
+         const data = response.data || [];
+         const filesData: FileInfo[] = Array.isArray(data) ? data.map((file: FileResponse) => ({
+           path: file.path,
+           name: file.name,
+           type: file.type,
+           absolute: file.absolute,
+           ignored: file.ignored,
+           size: file.size,
+           modifiedAt: file.modifiedAt ? new Date(file.modifiedAt) : undefined,
+         })) : [];
+         setFiles(filesData);
+         setFileDirectory(targetPath);
+       } catch (error) {
+         console.error('Failed to load files:', error);
+       }
+     }, [fileDirectory, currentProject, currentPath]);
 
    const readFile = useCallback(async (filePath: string) => {
       try {
