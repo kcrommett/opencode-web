@@ -502,23 +502,46 @@ function OpenCodeChatTUI() {
             }, 0));
             
             await summarizeSession(currentSession.id, selectedModel.providerID, selectedModel.modelID);
-            console.log('[Compact] Summarization complete, waiting before reload...');
+            console.log('[Compact] Summarization request sent, polling for completion...');
             
-            // Small delay to ensure server has processed the summarization
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            // Reload messages to get updated token counts
-            console.log('[Compact] Reloading messages...');
-            const reloadedMessages = await loadMessages(currentSession.id);
-            console.log('[Compact] Messages reloaded:', reloadedMessages.length);
-            
-            // Calculate tokens from the freshly reloaded messages
-            const totalTokens = reloadedMessages.reduce((sum, msg) => {
+            // Poll until we see token count decrease (or timeout after 30 seconds)
+            const startTime = Date.now();
+            const maxWaitTime = 30000; // 30 seconds
+            const tokensBefore = messages.reduce((sum, msg) => {
               if (msg.metadata?.tokens) {
                 return sum + msg.metadata.tokens.input + msg.metadata.tokens.output + msg.metadata.tokens.reasoning;
               }
               return sum;
             }, 0);
+            
+            let reloadedMessages = messages;
+            let totalTokens = tokensBefore;
+            let pollAttempt = 0;
+            
+            while (totalTokens >= tokensBefore && Date.now() - startTime < maxWaitTime) {
+              pollAttempt++;
+              await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second between polls
+              
+              console.log(`[Compact] Poll attempt ${pollAttempt}...`);
+              reloadedMessages = await loadMessages(currentSession.id);
+              
+              totalTokens = reloadedMessages.reduce((sum, msg) => {
+                if (msg.metadata?.tokens) {
+                  return sum + msg.metadata.tokens.input + msg.metadata.tokens.output + msg.metadata.tokens.reasoning;
+                }
+                return sum;
+              }, 0);
+              
+              console.log(`[Compact] Current tokens: ${totalTokens} (before: ${tokensBefore})`);
+            }
+            
+            if (totalTokens >= tokensBefore) {
+              console.warn('[Compact] Timeout waiting for token reduction');
+            } else {
+              console.log(`[Compact] Token reduction detected after ${pollAttempt} polls`);
+            }
+            
+            console.log('[Compact] Messages reloaded:', reloadedMessages.length);
             console.log('[Compact] Total tokens after compaction:', totalTokens);
             
             // Add success message using the reloaded messages array

@@ -494,7 +494,7 @@ export function useOpenCode() {
             parts,
             timestamp: new Date(msg.info?.time?.created || Date.now()),
             reverted: msg.info?.reverted || false,
-            metadata: msg.info?.role === 'assistant' && 'tokens' in (msg.info || {}) ? {
+            metadata: 'tokens' in (msg.info || {}) ? {
               tokens: (msg.info as {tokens?: {input: number; output: number; reasoning: number}}).tokens,
               cost: (msg.info as {cost?: number}).cost,
               model: (msg.info as {modelID?: string}).modelID,
