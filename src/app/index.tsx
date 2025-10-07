@@ -1113,19 +1113,21 @@ function OpenCodeChatTUI() {
 
    return (
         <View box="square" className="font-mono overflow-hidden flex flex-col bg-theme-background text-theme-foreground" style={{
-          height: 'calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom))',
-          marginTop: 'env(safe-area-inset-top)',
-          marginBottom: 'env(safe-area-inset-bottom)'
+          height: '100dvh',
+          width: '100vw',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0
         }}>
         {/* Top Bar */}
-         <div className="px-4 py-2 flex items-center justify-between bg-theme-background-alt">
-           {isConnected === false && (
-             <div className="px-2 py-1 rounded text-xs bg-theme-error text-theme-background">
-               Disconnected from OpenCode server
-             </div>
-           )}
-         </div>
-        <div className="px-4 py-2 flex items-center justify-between bg-theme-background-alt">
+        <div className="px-4 py-2 flex items-center justify-between bg-theme-background-alt flex-shrink-0">
+          {isConnected === false && (
+            <div className="absolute top-0 left-0 right-0 px-2 py-1 text-center text-xs bg-theme-error text-theme-background z-50">
+              Disconnected from OpenCode server
+            </div>
+          )}
          <div className="flex items-center gap-2 lg:gap-4">
             <HamburgerMenu
               isOpen={isMobileSidebarOpen}

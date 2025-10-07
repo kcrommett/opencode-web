@@ -51,7 +51,7 @@ function RootLayout() {
     >
       <head>
         <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -85,7 +85,7 @@ function RootLayout() {
           }}
         />
       </head>
-      <body className="antialiased">
+      <body className="antialiased" style={{ margin: 0, padding: 0, overflow: 'hidden' }}>
         <OpenCodeProvider>
           <Outlet />
         </OpenCodeProvider>
