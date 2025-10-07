@@ -381,15 +381,31 @@ export async function initSession(
   return response.ok
 }
 
-export async function summarizeSession(sessionId: string, directory?: string) {
+export async function summarizeSession(
+  sessionId: string,
+  providerID: string,
+  modelID: string,
+  directory?: string
+) {
   const response = await fetch(
     buildUrl(`/session/${sessionId}/summarize`, directory ? { directory } : undefined),
     {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ providerID, modelID }),
     }
   )
   if (!response.ok) {
-    throw new Error(`Failed to summarize session: ${response.statusText}`)
+    let errorMessage = response.statusText
+    try {
+      const errorBody = await response.text()
+      if (errorBody) {
+        errorMessage = errorBody
+      }
+    } catch {
+      // Ignore parsing errors, use statusText
+    }
+    throw new Error(`Failed to summarize session: ${errorMessage}`)
   }
   return response.ok
 }

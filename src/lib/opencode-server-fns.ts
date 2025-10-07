@@ -207,9 +207,9 @@ export const initSession = createServerFn({ method: 'POST' })
   })
 
 export const summarizeSession = createServerFn({ method: 'POST' })
-  .inputValidator((data: { sessionId: string; directory?: string }) => data)
+  .inputValidator((data: { sessionId: string; providerID: string; modelID: string; directory?: string }) => data)
   .handler(async ({ data }) => {
-    return httpApi.summarizeSession(data.sessionId, data.directory)
+    return httpApi.summarizeSession(data.sessionId, data.providerID, data.modelID, data.directory)
   })
 
 export const appendPrompt = createServerFn({ method: 'POST' })

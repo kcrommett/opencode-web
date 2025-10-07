@@ -76,6 +76,7 @@ function OpenCodeChatTUI() {
       createSession,
       sendMessage,
       loadSessions,
+      loadMessages,
       switchSession,
       deleteSession,
       clearAllSessions,
@@ -459,47 +460,85 @@ function OpenCodeChatTUI() {
            setMessages((prev) => [...prev, errorMsg]);
          }
          break;
-       case "compact":
-         if (!currentSession) {
-           const errorMsg = {
-             id: `assistant-${Date.now()}`,
-             type: "assistant" as const,
-             content: "No active session to compact.",
-             timestamp: new Date(),
-           };
-           setMessages((prev) => [...prev, errorMsg]);
-           break;
-         }
-         
-         try {
-           const infoMsg = {
-             id: `assistant-${Date.now()}`,
-             type: "assistant" as const,
-             content: "🔄 Compacting session... This may take a moment.",
-             timestamp: new Date(),
-           };
-           setMessages((prev) => [...prev, infoMsg]);
-           
-           await summarizeSession(currentSession.id);
-           await loadSessions();
-           
-           const successMsg = {
-             id: `assistant-${Date.now()}`,
-             type: "assistant" as const,
-             content: "✅ Session compacted successfully.",
-             timestamp: new Date(),
-           };
-           setMessages((prev) => [...prev, successMsg]);
-         } catch (error) {
-           const errorMsg = {
-             id: `assistant-${Date.now()}`,
-             type: "assistant" as const,
-             content: `Compact failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-             timestamp: new Date(),
-           };
-           setMessages((prev) => [...prev, errorMsg]);
-         }
-         break;
+        case "compact":
+          if (!currentSession) {
+            const errorMsg = {
+              id: `assistant-${Date.now()}`,
+              type: "assistant" as const,
+              content: "No active session to compact.",
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, errorMsg]);
+            break;
+          }
+          
+          if (!selectedModel) {
+            const errorMsg = {
+              id: `assistant-${Date.now()}`,
+              type: "assistant" as const,
+              content: "No model selected. Please select a model first.",
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, errorMsg]);
+            break;
+          }
+          
+          try {
+            const infoMsg = {
+              id: `assistant-${Date.now()}`,
+              type: "assistant" as const,
+              content: "🔄 Compacting session... This may take a moment.",
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, infoMsg]);
+            
+            console.log('[Compact] Starting compaction for session:', currentSession.id);
+            console.log('[Compact] Messages before:', messages.length);
+            console.log('[Compact] Tokens before:', messages.reduce((sum, msg) => {
+              if (msg.metadata?.tokens) {
+                return sum + msg.metadata.tokens.input + msg.metadata.tokens.output + msg.metadata.tokens.reasoning;
+              }
+              return sum;
+            }, 0));
+            
+            await summarizeSession(currentSession.id, selectedModel.providerID, selectedModel.modelID);
+            console.log('[Compact] Summarization complete, waiting before reload...');
+            
+            // Small delay to ensure server has processed the summarization
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Reload messages to get updated token counts
+            console.log('[Compact] Reloading messages...');
+            const reloadedMessages = await loadMessages(currentSession.id);
+            console.log('[Compact] Messages reloaded:', reloadedMessages.length);
+            
+            // Calculate tokens from the freshly reloaded messages
+            const totalTokens = reloadedMessages.reduce((sum, msg) => {
+              if (msg.metadata?.tokens) {
+                return sum + msg.metadata.tokens.input + msg.metadata.tokens.output + msg.metadata.tokens.reasoning;
+              }
+              return sum;
+            }, 0);
+            console.log('[Compact] Total tokens after compaction:', totalTokens);
+            
+            // Add success message using the reloaded messages array
+            const successMsg = {
+              id: `assistant-${Date.now()}`,
+              type: "assistant" as const,
+              content: `✅ Session compacted successfully. Current tokens: ${totalTokens.toLocaleString()}`,
+              timestamp: new Date(),
+            };
+            setMessages([...reloadedMessages, successMsg]);
+          } catch (error) {
+            const errorMsg = {
+              id: `assistant-${Date.now()}`,
+              type: "assistant" as const,
+              content: `Compact failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, errorMsg]);
+          }
+          break;
        case "details":
          setShowDetails(prev => !prev);
          const detailsMsg = {
@@ -540,7 +579,7 @@ function OpenCodeChatTUI() {
                     markdown += `${part.text}\n\n`;
                   } else if (part.type === 'tool' && 'tool' in part) {
                     markdown += `**Tool:** ${part.tool}\n`;
-                    if ('state' in part && part.state) {
+                    if ('state' in part && part.state && typeof part.state === 'object' && 'status' in part.state) {
                       markdown += `**Status:** ${part.state.status}\n\n`;
                     }
                   }
@@ -930,6 +969,24 @@ function OpenCodeChatTUI() {
       model.modelID.toLowerCase().includes(query)
     );
   }, [models, modelSearchQuery]);
+
+  const sessionTokenStats = useMemo(() => {
+    const totalTokens = messages.reduce((sum, msg) => {
+      if (msg.metadata?.tokens) {
+        return sum + msg.metadata.tokens.input + msg.metadata.tokens.output + msg.metadata.tokens.reasoning;
+      }
+      return sum;
+    }, 0);
+
+    const contextWindow = 200000;
+    const contextPercentage = contextWindow > 0 ? Math.round((totalTokens / contextWindow) * 100) : 0;
+
+    return {
+      totalTokens,
+      contextPercentage,
+      contextWindow
+    };
+  }, [messages]);
 
     const handleTabChange = (tab: string) => {
       setActiveTab(tab);
@@ -1749,15 +1806,39 @@ function OpenCodeChatTUI() {
 
                  <Separator />
 
-                 {/* Input Area */}
+                  {/* Input Area */}
                  <View box="square" className="p-2 sm:p-4 space-y-3 bg-theme-background-alt">
-                      <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-center gap-2 text-xs text-theme-foreground">
+                       <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-2 text-xs text-theme-foreground flex-wrap">
                         <span className="font-medium">Model:</span>
-                        <span className="text-theme-primary">{selectedModel?.name || 'Loading...'}</span>
+                        <button
+                          onClick={() => setShowModelPicker(true)}
+                          className="text-theme-primary hover:underline cursor-pointer appearance-none"
+                          style={{ background: 'none', border: 'none', padding: 0, margin: 0, font: 'inherit', color: 'inherit' }}
+                        >
+                          {selectedModel?.name || 'Loading...'}
+                        </button>
                         <span className="text-theme-muted">•</span>
                         <span className="font-medium">Session:</span>
-                        <span className="text-theme-primary">{currentSession?.title || 'No session'}</span>
+                        <button
+                          onClick={() => setShowSessionPicker(true)}
+                          className="text-theme-primary hover:underline cursor-pointer appearance-none"
+                          style={{ background: 'none', border: 'none', padding: 0, margin: 0, font: 'inherit', color: 'inherit' }}
+                        >
+                          {currentSession?.title || 'No session'}
+                        </button>
+                       {sessionTokenStats.totalTokens > 0 && (
+                         <>
+                           <span className="text-theme-muted">•</span>
+                           <span className="font-medium">Tokens:</span>
+                           <span className="text-theme-foreground">
+                             {sessionTokenStats.totalTokens.toLocaleString()}
+                           </span>
+                           <span className="text-theme-muted">
+                             ({sessionTokenStats.contextPercentage}%)
+                           </span>
+                         </>
+                       )}
                        {input.startsWith('/') && (
                          <>
                            <span className="text-theme-muted">•</span>
@@ -1765,19 +1846,31 @@ function OpenCodeChatTUI() {
                          </>
                        )}
                      </div>
-                     <Badge key={currentAgent?.id || currentAgent?.name} variant="foreground1" cap="round" className="flex-shrink-0">
-                       Agent: {currentAgent?.name || 'None'}
-                     </Badge>
+                     <button
+                       onClick={() => setShowAgentPicker(true)}
+                       className="appearance-none cursor-pointer hover:opacity-80 transition-opacity"
+                       style={{ background: 'none', border: 'none', padding: 0, margin: 0 }}
+                     >
+                       <Badge 
+                         key={currentAgent?.id || currentAgent?.name} 
+                         variant="foreground1" 
+                         cap="round" 
+                         className="flex-shrink-0"
+                       >
+                         Agent: {currentAgent?.name || 'None'}
+                       </Badge>
+                     </button>
                    </div>
                    <div className="flex flex-col sm:flex-row gap-3 items-stretch">
                     <div className="flex-1 relative w-full">
-                       {showCommandPicker && (
-                         <CommandPicker
-                           commands={commandSuggestions}
-                           onSelect={handleCommandSelect}
-                           selectedIndex={selectedCommandIndex}
-                         />
-                       )}
+                        {showCommandPicker && (
+                          <CommandPicker
+                            commands={commandSuggestions}
+                            onSelect={handleCommandSelect}
+                            onClose={() => setShowCommandPicker(false)}
+                            selectedIndex={selectedCommandIndex}
+                          />
+                        )}
                        <Textarea
                          value={input}
                          onChange={(e) => handleInputChange(e.target.value)}
