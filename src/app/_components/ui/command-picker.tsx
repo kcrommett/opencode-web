@@ -1,24 +1,42 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Badge, Separator } from './index';
 import type { Command } from '@/lib/commands';
 
 interface CommandPickerProps {
   commands: Command[];
   onSelect: (command: Command) => void;
+  onClose?: () => void;
   selectedIndex?: number;
 }
 
 export const CommandPicker: React.FC<CommandPickerProps> = ({
   commands,
   onSelect,
+  onClose,
   selectedIndex = 0,
 }) => {
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+        onClose?.();
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [onClose]);
+
   if (commands.length === 0) return null;
 
   const categories = Array.from(new Set(commands.map(c => c.category)));
 
   return (
     <div 
+      ref={pickerRef}
       className="absolute bottom-full left-0 right-0 mb-2 rounded border overflow-hidden shadow-lg max-h-64 overflow-y-auto scrollbar"
       style={{ 
         backgroundColor: 'var(--theme-backgroundAlt)',

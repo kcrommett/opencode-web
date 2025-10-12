@@ -11,6 +11,8 @@ import {
   Separator,
   MobileSidebar,
   HamburgerMenu,
+  InstallPrompt,
+  PWAReloadPrompt,
 } from "@/app/_components/ui";
 import { CommandPicker } from "@/app/_components/ui/command-picker";
 import { AgentPicker } from "@/app/_components/ui/agent-picker";
@@ -74,6 +76,7 @@ function OpenCodeChatTUI() {
       createSession,
       sendMessage,
       loadSessions,
+      loadMessages,
       switchSession,
       deleteSession,
       clearAllSessions,
@@ -457,47 +460,108 @@ function OpenCodeChatTUI() {
            setMessages((prev) => [...prev, errorMsg]);
          }
          break;
-       case "compact":
-         if (!currentSession) {
-           const errorMsg = {
-             id: `assistant-${Date.now()}`,
-             type: "assistant" as const,
-             content: "No active session to compact.",
-             timestamp: new Date(),
-           };
-           setMessages((prev) => [...prev, errorMsg]);
-           break;
-         }
-         
-         try {
-           const infoMsg = {
-             id: `assistant-${Date.now()}`,
-             type: "assistant" as const,
-             content: "🔄 Compacting session... This may take a moment.",
-             timestamp: new Date(),
-           };
-           setMessages((prev) => [...prev, infoMsg]);
-           
-           await summarizeSession(currentSession.id);
-           await loadSessions();
-           
-           const successMsg = {
-             id: `assistant-${Date.now()}`,
-             type: "assistant" as const,
-             content: "✅ Session compacted successfully.",
-             timestamp: new Date(),
-           };
-           setMessages((prev) => [...prev, successMsg]);
-         } catch (error) {
-           const errorMsg = {
-             id: `assistant-${Date.now()}`,
-             type: "assistant" as const,
-             content: `Compact failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-             timestamp: new Date(),
-           };
-           setMessages((prev) => [...prev, errorMsg]);
-         }
-         break;
+        case "compact":
+          if (!currentSession) {
+            const errorMsg = {
+              id: `assistant-${Date.now()}`,
+              type: "assistant" as const,
+              content: "No active session to compact.",
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, errorMsg]);
+            break;
+          }
+          
+          if (!selectedModel) {
+            const errorMsg = {
+              id: `assistant-${Date.now()}`,
+              type: "assistant" as const,
+              content: "No model selected. Please select a model first.",
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, errorMsg]);
+            break;
+          }
+          
+          try {
+            const infoMsg = {
+              id: `assistant-${Date.now()}`,
+              type: "assistant" as const,
+              content: "🔄 Compacting session... This may take a moment.",
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, infoMsg]);
+            
+            console.log('[Compact] Starting compaction for session:', currentSession.id);
+            console.log('[Compact] Messages before:', messages.length);
+            console.log('[Compact] Tokens before:', messages.reduce((sum, msg) => {
+              if (msg.metadata?.tokens) {
+                return sum + msg.metadata.tokens.input + msg.metadata.tokens.output + msg.metadata.tokens.reasoning;
+              }
+              return sum;
+            }, 0));
+            
+            await summarizeSession(currentSession.id, selectedModel.providerID, selectedModel.modelID);
+            console.log('[Compact] Summarization request sent, polling for completion...');
+            
+            // Poll until we see token count decrease (or timeout after 30 seconds)
+            const startTime = Date.now();
+            const maxWaitTime = 30000; // 30 seconds
+            const tokensBefore = messages.reduce((sum, msg) => {
+              if (msg.metadata?.tokens) {
+                return sum + msg.metadata.tokens.input + msg.metadata.tokens.output + msg.metadata.tokens.reasoning;
+              }
+              return sum;
+            }, 0);
+            
+            let reloadedMessages = messages;
+            let totalTokens = tokensBefore;
+            let pollAttempt = 0;
+            
+            while (totalTokens >= tokensBefore && Date.now() - startTime < maxWaitTime) {
+              pollAttempt++;
+              await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second between polls
+              
+              console.log(`[Compact] Poll attempt ${pollAttempt}...`);
+              reloadedMessages = await loadMessages(currentSession.id);
+              
+              totalTokens = reloadedMessages.reduce((sum, msg) => {
+                if (msg.metadata?.tokens) {
+                  return sum + msg.metadata.tokens.input + msg.metadata.tokens.output + msg.metadata.tokens.reasoning;
+                }
+                return sum;
+              }, 0);
+              
+              console.log(`[Compact] Current tokens: ${totalTokens} (before: ${tokensBefore})`);
+            }
+            
+            if (totalTokens >= tokensBefore) {
+              console.warn('[Compact] Timeout waiting for token reduction');
+            } else {
+              console.log(`[Compact] Token reduction detected after ${pollAttempt} polls`);
+            }
+            
+            console.log('[Compact] Messages reloaded:', reloadedMessages.length);
+            console.log('[Compact] Total tokens after compaction:', totalTokens);
+            
+            // Add success message using the reloaded messages array
+            const successMsg = {
+              id: `assistant-${Date.now()}`,
+              type: "assistant" as const,
+              content: `✅ Session compacted successfully. Current tokens: ${totalTokens.toLocaleString()}`,
+              timestamp: new Date(),
+            };
+            setMessages([...reloadedMessages, successMsg]);
+          } catch (error) {
+            const errorMsg = {
+              id: `assistant-${Date.now()}`,
+              type: "assistant" as const,
+              content: `Compact failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, errorMsg]);
+          }
+          break;
        case "details":
          setShowDetails(prev => !prev);
          const detailsMsg = {
@@ -538,7 +602,7 @@ function OpenCodeChatTUI() {
                     markdown += `${part.text}\n\n`;
                   } else if (part.type === 'tool' && 'tool' in part) {
                     markdown += `**Tool:** ${part.tool}\n`;
-                    if ('state' in part && part.state) {
+                    if ('state' in part && part.state && typeof part.state === 'object' && 'status' in part.state) {
                       markdown += `**Status:** ${part.state.status}\n\n`;
                     }
                   }
@@ -929,6 +993,24 @@ function OpenCodeChatTUI() {
     );
   }, [models, modelSearchQuery]);
 
+  const sessionTokenStats = useMemo(() => {
+    const totalTokens = messages.reduce((sum, msg) => {
+      if (msg.metadata?.tokens) {
+        return sum + msg.metadata.tokens.input + msg.metadata.tokens.output + msg.metadata.tokens.reasoning;
+      }
+      return sum;
+    }, 0);
+
+    const contextWindow = 200000;
+    const contextPercentage = contextWindow > 0 ? Math.round((totalTokens / contextWindow) * 100) : 0;
+
+    return {
+      totalTokens,
+      contextPercentage,
+      contextWindow
+    };
+  }, [messages]);
+
     const handleTabChange = (tab: string) => {
       setActiveTab(tab);
       if (tab === "files") {
@@ -1031,19 +1113,21 @@ function OpenCodeChatTUI() {
 
    return (
         <View box="square" className="font-mono overflow-hidden flex flex-col bg-theme-background text-theme-foreground" style={{
-          height: 'calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom))',
-          marginTop: 'env(safe-area-inset-top)',
-          marginBottom: 'env(safe-area-inset-bottom)'
+          height: '100dvh',
+          width: '100vw',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0
         }}>
         {/* Top Bar */}
-         <div className="px-4 py-2 flex items-center justify-between bg-theme-background-alt">
-           {isConnected === false && (
-             <div className="px-2 py-1 rounded text-xs bg-theme-error text-theme-background">
-               Disconnected from OpenCode server
-             </div>
-           )}
-         </div>
-        <div className="px-4 py-2 flex items-center justify-between bg-theme-background-alt">
+        <div className="px-4 py-2 flex items-center justify-between bg-theme-background-alt flex-shrink-0">
+          {isConnected === false && (
+            <div className="absolute top-0 left-0 right-0 px-2 py-1 text-center text-xs bg-theme-error text-theme-background z-50">
+              Disconnected from OpenCode server
+            </div>
+          )}
          <div className="flex items-center gap-2 lg:gap-4">
             <HamburgerMenu
               isOpen={isMobileSidebarOpen}
@@ -1747,15 +1831,39 @@ function OpenCodeChatTUI() {
 
                  <Separator />
 
-                 {/* Input Area */}
+                  {/* Input Area */}
                  <View box="square" className="p-2 sm:p-4 space-y-3 bg-theme-background-alt">
-                      <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-center gap-2 text-xs text-theme-foreground">
+                       <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-2 text-xs text-theme-foreground flex-wrap">
                         <span className="font-medium">Model:</span>
-                        <span className="text-theme-primary">{selectedModel?.name || 'Loading...'}</span>
+                        <button
+                          onClick={() => setShowModelPicker(true)}
+                          className="text-theme-primary hover:underline cursor-pointer appearance-none"
+                          style={{ background: 'none', border: 'none', padding: 0, margin: 0, font: 'inherit', color: 'inherit' }}
+                        >
+                          {selectedModel?.name || 'Loading...'}
+                        </button>
                         <span className="text-theme-muted">•</span>
                         <span className="font-medium">Session:</span>
-                        <span className="text-theme-primary">{currentSession?.title || 'No session'}</span>
+                        <button
+                          onClick={() => setShowSessionPicker(true)}
+                          className="text-theme-primary hover:underline cursor-pointer appearance-none"
+                          style={{ background: 'none', border: 'none', padding: 0, margin: 0, font: 'inherit', color: 'inherit' }}
+                        >
+                          {currentSession?.title || 'No session'}
+                        </button>
+                       {sessionTokenStats.totalTokens > 0 && (
+                         <>
+                           <span className="text-theme-muted">•</span>
+                           <span className="font-medium">Tokens:</span>
+                           <span className="text-theme-foreground">
+                             {sessionTokenStats.totalTokens.toLocaleString()}
+                           </span>
+                           <span className="text-theme-muted">
+                             ({sessionTokenStats.contextPercentage}%)
+                           </span>
+                         </>
+                       )}
                        {input.startsWith('/') && (
                          <>
                            <span className="text-theme-muted">•</span>
@@ -1763,19 +1871,31 @@ function OpenCodeChatTUI() {
                          </>
                        )}
                      </div>
-                     <Badge key={currentAgent?.id || currentAgent?.name} variant="foreground1" cap="round" className="flex-shrink-0">
-                       Agent: {currentAgent?.name || 'None'}
-                     </Badge>
+                     <button
+                       onClick={() => setShowAgentPicker(true)}
+                       className="appearance-none cursor-pointer hover:opacity-80 transition-opacity"
+                       style={{ background: 'none', border: 'none', padding: 0, margin: 0 }}
+                     >
+                       <Badge 
+                         key={currentAgent?.id || currentAgent?.name} 
+                         variant="foreground1" 
+                         cap="round" 
+                         className="flex-shrink-0"
+                       >
+                         Agent: {currentAgent?.name || 'None'}
+                       </Badge>
+                     </button>
                    </div>
                    <div className="flex flex-col sm:flex-row gap-3 items-stretch">
                     <div className="flex-1 relative w-full">
-                       {showCommandPicker && (
-                         <CommandPicker
-                           commands={commandSuggestions}
-                           onSelect={handleCommandSelect}
-                           selectedIndex={selectedCommandIndex}
-                         />
-                       )}
+                        {showCommandPicker && (
+                          <CommandPicker
+                            commands={commandSuggestions}
+                            onSelect={handleCommandSelect}
+                            onClose={() => setShowCommandPicker(false)}
+                            selectedIndex={selectedCommandIndex}
+                          />
+                        )}
                        <Textarea
                          value={input}
                          onChange={(e) => handleInputChange(e.target.value)}
@@ -2263,23 +2383,27 @@ function OpenCodeChatTUI() {
           />
         )}
 
-        {/* Session Picker */}
-        {showSessionPicker && (
-          <SessionPicker
-            sessions={sessions.filter(s => 
-              s.projectID === currentProject?.id || 
-              s.directory === currentProject?.worktree
-            )}
-            currentSession={currentSession}
-            onSelect={switchSession}
-            onDelete={deleteSession}
-            onCreate={async (title) => {
-              await createSession({ title });
-              await loadSessions();
-            }}
-            onClose={() => setShowSessionPicker(false)}
-          />
-        )}
-      </View>
-    );
-  }
+         {/* Session Picker */}
+         {showSessionPicker && (
+           <SessionPicker
+             sessions={sessions.filter(s => 
+               s.projectID === currentProject?.id || 
+               s.directory === currentProject?.worktree
+             )}
+             currentSession={currentSession}
+             onSelect={switchSession}
+             onDelete={deleteSession}
+             onCreate={async (title) => {
+               await createSession({ title });
+               await loadSessions();
+             }}
+             onClose={() => setShowSessionPicker(false)}
+           />
+         )}
+
+         {/* PWA Components */}
+         <InstallPrompt />
+         <PWAReloadPrompt />
+       </View>
+     );
+   }

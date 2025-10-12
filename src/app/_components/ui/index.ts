@@ -21,3 +21,7 @@ export { MobileSidebar } from './mobile-sidebar';
 export { HamburgerMenu } from './hamburger-menu';
 export { BottomSheet } from './bottom-sheet';
 export { ResponsiveDialog } from './responsive-dialog';
+
+// PWA Components
+export { InstallPrompt } from './install-prompt';
+export { PWAReloadPrompt } from './pwa-reload-prompt';

@@ -1,8 +1,6 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
-/node_modules
-/.pnp
+node_modules/
+.pnp
 .pnp.*
 .yarn/*
 !.yarn/patches
@@ -10,29 +8,27 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
-
 # tanstack start
-/.output/
-/dist/
-/src/routeTree.gen.ts
+.output/
+dist/
+dev-dist/
+src/routeTree.gen.ts
 
-# production
-/build
+# wrangler
+.wrangler/
 
-# misc
-.DS_Store
-*.pem
+# environment
+.env*
 
-# debug
+# build
+*.tsbuildinfo
+
+# logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
-
-# typescript
-*.tsbuildinfo
+# misc
+.DS_Store
+*.pem

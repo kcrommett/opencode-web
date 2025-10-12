@@ -12,11 +12,12 @@ type Part =
   | { type: 'agent'; name: string; description?: string }
   | { type: 'snapshot'; url: string; description?: string };
 
-interface Message {
+   interface Message {
     id: string;
     type: 'user' | 'assistant';
     content: string;
     timestamp: Date;
+    reverted?: boolean;
     parts?: Part[];
     metadata?: {
       tokens?: { input: number; output: number; reasoning: number };
@@ -32,16 +33,17 @@ interface Message {
     };
   }
 
- interface OpenCodeMessage {
-   info?: {
-     id?: string;
-     role?: string;
-     time?: {
-       created?: number;
-     };
-   };
-   parts?: Part[];
- }
+  interface OpenCodeMessage {
+    info?: {
+      id?: string;
+      role?: string;
+      reverted?: boolean;
+      time?: {
+        created?: number;
+      };
+    };
+    parts?: Part[];
+  }
 
    interface Session {
      id: string;
@@ -142,6 +144,7 @@ export function useOpenCode() {
       const [selectedModel, setSelectedModel] = useState<Model | null>(null);
       const [config, setConfig] = useState<Config | null>(null);
       const [currentPath, setCurrentPath] = useState<string>('');
+      const [sessionModelMap, setSessionModelMap] = useState<Record<string, Model>>({});
 
      useEffect(() => {
        setFileDirectory('.');
@@ -266,6 +269,17 @@ export function useOpenCode() {
       }
     }
 
+    const savedSessionModelMapStr = localStorage.getItem('opencode-session-model-map');
+    if (savedSessionModelMapStr) {
+      try {
+        const savedMap = JSON.parse(savedSessionModelMapStr);
+        console.log('[Hydration] Restoring session-model map from localStorage:', savedMap);
+        setSessionModelMap(savedMap);
+      } catch (error) {
+        console.error('[Hydration] Error parsing saved session-model map:', error);
+      }
+    }
+
     const savedActiveTab = localStorage.getItem('opencode-active-tab');
     const savedSelectedFile = localStorage.getItem('opencode-selected-file');
     if (savedActiveTab || savedSelectedFile) {
@@ -318,6 +332,14 @@ export function useOpenCode() {
       localStorage.setItem('opencode-current-agent', JSON.stringify(currentAgent));
     }
   }, [currentAgent, isHydrated]);
+
+  // Save session-model map to localStorage when it changes
+  useEffect(() => {
+    if (!isHydrated) return;
+    if (Object.keys(sessionModelMap).length > 0) {
+      localStorage.setItem('opencode-session-model-map', JSON.stringify(sessionModelMap));
+    }
+  }, [sessionModelMap, isHydrated]);
 
   // Save current project to localStorage when it changes
   useEffect(() => {
@@ -439,6 +461,14 @@ export function useOpenCode() {
         };
         setMessages(prev => [...prev, assistantMessage]);
 
+        // Save the model used for this session
+        if (selectedModel && currentSession) {
+          setSessionModelMap(prev => ({
+            ...prev,
+            [currentSession.id]: selectedModel
+          }));
+        }
+
         return assistantMessage;
       } catch (error) {
         console.error('Failed to send message:', error);
@@ -446,36 +476,71 @@ export function useOpenCode() {
        } finally {
          setLoading(false);
        }
-       }, [currentSession, currentProject]); // eslint-disable-line react-hooks/exhaustive-deps
+       }, [currentSession, currentProject, selectedModel]); // eslint-disable-line react-hooks/exhaustive-deps
 
-   const loadMessages = useCallback(async (sessionId: string) => {
-     try {
-       const response = await openCodeService.getMessages(sessionId, currentProject?.worktree);
-       const messagesArray = (response.data as unknown as OpenCodeMessage[]) || [];
-       const loadedMessages: Message[] = messagesArray.map((msg: OpenCodeMessage, index: number) => {
-         const parts = msg.parts || [];
-         const textPart = parts.find((part: Part) => part.type === 'text');
-         const content = (textPart && 'text' in textPart ? textPart.text : '') || '';
+   const loadMessages = useCallback(async (sessionId: string): Promise<Message[]> => {
+      try {
+        const response = await openCodeService.getMessages(sessionId, currentProject?.worktree);
+        const messagesArray = (response.data as unknown as OpenCodeMessage[]) || [];
+        const loadedMessages: Message[] = messagesArray.map((msg: OpenCodeMessage, index: number) => {
+          const parts = msg.parts || [];
+          const textPart = parts.find((part: Part) => part.type === 'text');
+          const content = (textPart && 'text' in textPart ? textPart.text : '') || '';
+          
+          return {
+            id: msg.info?.id || `msg-${index}`,
+            type: msg.info?.role === 'user' ? 'user' : 'assistant',
+            content,
+            parts,
+            timestamp: new Date(msg.info?.time?.created || Date.now()),
+            reverted: msg.info?.reverted || false,
+            metadata: 'tokens' in (msg.info || {}) ? {
+              tokens: (msg.info as {tokens?: {input: number; output: number; reasoning: number}}).tokens,
+              cost: (msg.info as {cost?: number}).cost,
+              model: (msg.info as {modelID?: string}).modelID,
+              agent: (msg.info as {mode?: string}).mode
+            } : undefined
+          };
+        });
+        
+        const activeMessages = loadedMessages.filter(msg => !msg.reverted);
+        const totalTokens = activeMessages.reduce((sum, msg) => {
+          if (msg.metadata?.tokens) {
+            return sum + msg.metadata.tokens.input + msg.metadata.tokens.output + msg.metadata.tokens.reasoning;
+          }
+          return sum;
+        }, 0);
+        console.log('[LoadMessages] Loaded', loadedMessages.length, 'messages (', activeMessages.length, 'active,', (loadedMessages.length - activeMessages.length), 'reverted) with', totalTokens, 'total tokens');
+        
+        setMessages(loadedMessages);
+       
+       // Extract the last used model from messages and save it
+       const lastAssistantMessage = [...loadedMessages].reverse().find(msg => msg.type === 'assistant' && msg.metadata?.model);
+       if (lastAssistantMessage?.metadata?.model && models.length > 0) {
+         // Parse the model ID (format: "provider/model")
+         const modelId = lastAssistantMessage.metadata.model;
+         const [providerId, modelName] = modelId.includes('/') ? modelId.split('/') : [modelId, modelId];
          
-         return {
-           id: msg.info?.id || `msg-${index}`,
-           type: msg.info?.role === 'user' ? 'user' : 'assistant',
-           content,
-           parts,
-           timestamp: new Date(msg.info?.time?.created || Date.now()),
-           metadata: msg.info?.role === 'assistant' && 'tokens' in (msg.info || {}) ? {
-             tokens: (msg.info as {tokens?: {input: number; output: number; reasoning: number}}).tokens,
-             cost: (msg.info as {cost?: number}).cost,
-             model: (msg.info as {modelID?: string}).modelID,
-             agent: (msg.info as {mode?: string}).mode
-           } : undefined
-         };
-       });
-       setMessages(loadedMessages);
+         // Find the matching model in the models list
+         const matchingModel = models.find(m => 
+           m.modelID === modelName || m.modelID === modelId || 
+           (m.providerID === providerId && m.modelID === modelName)
+         );
+         
+         if (matchingModel) {
+           setSessionModelMap(prev => ({
+             ...prev,
+             [sessionId]: matchingModel
+           }));
+         }
+       }
+       
+       return loadedMessages;
      } catch {
        // Silently handle errors when server is unavailable
+       return [];
      }
-   }, [currentProject]);
+   }, [currentProject, models]);
 
    const loadProjects = useCallback(async () => {
      if (loadedProjectsRef.current) return;
@@ -551,11 +616,16 @@ export function useOpenCode() {
         if (session) {
           setCurrentSession(session);
           await loadMessages(sessionId);
+          
+          // Restore the last used model for this session
+          if (sessionModelMap[sessionId]) {
+            setSelectedModel(sessionModelMap[sessionId]);
+          }
         }
       } catch (error) {
         console.error('Failed to switch session:', error);
       }
-    }, [sessions, loadMessages]);
+    }, [sessions, loadMessages, sessionModelMap]);
 
    const deleteSession = useCallback(async (sessionId: string) => {
      try {
@@ -1008,9 +1078,9 @@ export function useOpenCode() {
        }
      }, [currentProject?.worktree]);
 
-     const summarizeSession = useCallback(async (sessionId: string) => {
+     const summarizeSession = useCallback(async (sessionId: string, providerID: string, modelID: string) => {
        try {
-         const response = await openCodeService.summarizeSession(sessionId, currentProject?.worktree);
+         const response = await openCodeService.summarizeSession(sessionId, providerID, modelID, currentProject?.worktree);
          return response.data;
        } catch (error) {
          console.error('Failed to summarize session:', error);
@@ -1027,6 +1097,7 @@ export function useOpenCode() {
        createSession,
        sendMessage,
        loadSessions,
+       loadMessages,
        switchSession,
        deleteSession,
        clearAllSessions,

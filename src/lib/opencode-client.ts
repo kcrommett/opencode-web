@@ -164,9 +164,9 @@ export const openCodeService = {
     }
   },
 
-  async summarizeSession(sessionId: string, directory?: string) {
+  async summarizeSession(sessionId: string, providerID: string, modelID: string, directory?: string) {
     try {
-      const response = await serverFns.summarizeSession({ data: { sessionId, directory } });
+      const response = await serverFns.summarizeSession({ data: { sessionId, providerID, modelID, directory } });
       return { data: response };
     } catch (error) {
       throw error;

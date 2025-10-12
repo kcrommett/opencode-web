@@ -33,6 +33,8 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "typescript-eslint": "^8.45.0",
-    "vite-tsconfig-paths": "^5.1.4"
+    "vite-plugin-pwa": "^1.0.3",
+    "vite-tsconfig-paths": "^5.1.4",
+    "workbox-window": "^7.3.0"
   }
 }

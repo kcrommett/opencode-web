@@ -13,6 +13,7 @@ interface OpenCodeContextType {
   createSession: ReturnType<typeof useOpenCode>['createSession'];
   sendMessage: ReturnType<typeof useOpenCode>['sendMessage'];
   loadSessions: ReturnType<typeof useOpenCode>['loadSessions'];
+  loadMessages: ReturnType<typeof useOpenCode>['loadMessages'];
   switchSession: ReturnType<typeof useOpenCode>['switchSession'];
   deleteSession: ReturnType<typeof useOpenCode>['deleteSession'];
   clearAllSessions: ReturnType<typeof useOpenCode>['clearAllSessions'];

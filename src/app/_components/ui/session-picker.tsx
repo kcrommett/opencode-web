@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Badge, Separator, Button, Input } from './index';
 
 interface Session {
@@ -29,6 +29,18 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
   onClose,
 }) => {
   const [newSessionTitle, setNewSessionTitle] = useState('');
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   return (
     <div 
