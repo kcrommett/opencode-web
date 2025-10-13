@@ -309,3 +309,13 @@ export const setAuth = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     return httpApi.setAuth(data.providerId, data.auth, data.directory)
   })
+
+export const getEventStreamUrl = createServerFn({ method: 'GET' })
+  .inputValidator((data?: { directory?: string }) => data ?? {})
+  .handler(async ({ data }) => {
+    let url = '/api/events'
+    if (data.directory) {
+      url += `?directory=${encodeURIComponent(data.directory)}`
+    }
+    return url
+  })

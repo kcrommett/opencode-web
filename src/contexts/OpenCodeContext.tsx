@@ -37,6 +37,7 @@ interface OpenCodeContextType {
   loadCurrentPath: ReturnType<typeof useOpenCode>['loadCurrentPath'];
   providersData: ReturnType<typeof useOpenCode>['providersData'];
   isConnected: ReturnType<typeof useOpenCode>['isConnected'];
+  sseConnectionState: ReturnType<typeof useOpenCode>['sseConnectionState'];
   isHydrated: ReturnType<typeof useOpenCode>['isHydrated'];
   openHelp: ReturnType<typeof useOpenCode>['openHelp'];
   openSessions: ReturnType<typeof useOpenCode>['openSessions'];
@@ -59,11 +60,17 @@ interface OpenCodeContextType {
    runShell: ReturnType<typeof useOpenCode>['runShell'];
    revertMessage: ReturnType<typeof useOpenCode>['revertMessage'];
    unrevertSession: ReturnType<typeof useOpenCode>['unrevertSession'];
-   shareSession: ReturnType<typeof useOpenCode>['shareSession'];
-   unshareSession: ReturnType<typeof useOpenCode>['unshareSession'];
-   initSession: ReturnType<typeof useOpenCode>['initSession'];
-   summarizeSession: ReturnType<typeof useOpenCode>['summarizeSession'];
- }
+    shareSession: ReturnType<typeof useOpenCode>['shareSession'];
+    unshareSession: ReturnType<typeof useOpenCode>['unshareSession'];
+    initSession: ReturnType<typeof useOpenCode>['initSession'];
+    summarizeSession: ReturnType<typeof useOpenCode>['summarizeSession'];
+    currentPermission: ReturnType<typeof useOpenCode>['currentPermission'];
+    setCurrentPermission: ReturnType<typeof useOpenCode>['setCurrentPermission'];
+    shouldBlurEditor: ReturnType<typeof useOpenCode>['shouldBlurEditor'];
+    setShouldBlurEditor: ReturnType<typeof useOpenCode>['setShouldBlurEditor'];
+    currentSessionTodos: ReturnType<typeof useOpenCode>['currentSessionTodos'];
+    setCurrentSessionTodos: ReturnType<typeof useOpenCode>['setCurrentSessionTodos'];
+  }
 
 const OpenCodeContext = createContext<OpenCodeContextType | undefined>(undefined);
 

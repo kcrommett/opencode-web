@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { openCodeService, handleOpencodeError } from '@/lib/opencode-client';
+import { OpencodeEvent, SSEConnectionState } from '@/lib/opencode-events';
 
 // Define Part type locally since the SDK import is broken
 type Part =
@@ -131,15 +132,20 @@ type Part =
    }
 
 export function useOpenCode() {
-    const [currentSession, setCurrentSession] = useState<Session | null>(null);
-    const [messages, setMessages] = useState<Message[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [sessions, setSessions] = useState<Session[]>([]);
-     const [projects, setProjects] = useState<Project[]>([]);
-     const [currentProject, setCurrentProject] = useState<Project | null>(null);
-      const [files, setFiles] = useState<FileInfo[]>([]);
-      const [fileDirectory, setFileDirectory] = useState<string>('.');
-     const [models, setModels] = useState<Model[]>([]);
+     const [currentSession, setCurrentSession] = useState<Session | null>(null);
+     const [messages, setMessages] = useState<Message[]>([]);
+     const [loading, setLoading] = useState(false);
+     const [sessions, setSessions] = useState<Session[]>([]);
+      const [projects, setProjects] = useState<Project[]>([]);
+      const [currentProject, setCurrentProject] = useState<Project | null>(null);
+       const [files, setFiles] = useState<FileInfo[]>([]);
+       const [fileDirectory, setFileDirectory] = useState<string>('.');
+      const [models, setModels] = useState<Model[]>([]);
+
+      // Permission and todo state
+      const [currentPermission, setCurrentPermission] = useState<any | null>(null);
+      const [shouldBlurEditor, setShouldBlurEditor] = useState(false);
+      const [currentSessionTodos, setCurrentSessionTodos] = useState<any[]>([]);
 
       const [selectedModel, setSelectedModel] = useState<Model | null>(null);
       const [config, setConfig] = useState<Config | null>(null);
@@ -156,8 +162,9 @@ export function useOpenCode() {
        const [showThemes, setShowThemes] = useState(false);
        const [showOnboarding, setShowOnboarding] = useState(false);
        const [showModelPicker, setShowModelPicker] = useState(false);
-        const [isConnected, setIsConnected] = useState<boolean | null>(null);
-        const [customCommands, setCustomCommands] = useState<Array<{ name: string; description: string; template: string }>>([]);
+         const [isConnected, setIsConnected] = useState<boolean | null>(null);
+         const [sseConnectionState, setSseConnectionState] = useState<SSEConnectionState | null>(null);
+         const [customCommands, setCustomCommands] = useState<Array<{ name: string; description: string; template: string }>>([]);
         const [agents, setAgents] = useState<Agent[]>([]);
         const [currentAgent, setCurrentAgent] = useState<Agent | null>(null);
         const [isHydrated, setIsHydrated] = useState(false);
@@ -168,6 +175,7 @@ export function useOpenCode() {
         const loadedAgentsRef = useRef(false);
         const loadedProjectsRef = useRef(false);
         const loadedSessionsRef = useRef(false);
+        const seenMessageIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -301,6 +309,364 @@ export function useOpenCode() {
      checkConnection();
    }, []);
 
+   // SSE Event handling for real-time message updates
+   useEffect(() => {
+     if (!isConnected || !currentSession || !isHydrated) return;
+
+      const handleSSEEvent = (event: OpencodeEvent) => {
+        // Log all non-diagnostic events
+        if (event.type !== 'lsp.client.diagnostics') {
+          console.log('[SSE] Event received:', {
+            type: event.type,
+            sessionID: (event.properties as any)?.sessionID,
+            currentSessionID: currentSession?.id,
+            willProcess: !(event.properties as any)?.sessionID || (event.properties as any)?.sessionID === currentSession?.id
+          });
+        }
+        
+        // Filter events by session ID (except server-wide events)
+        const props = event.properties as any;
+        
+        // IMPORTANT: Only filter if event HAS a sessionID property
+        // Some events might not have sessionID (server-wide events)
+        if (props?.sessionID && currentSession?.id && props.sessionID !== currentSession.id) {
+          console.log('[SSE] Ignoring event for different session');
+          return;
+        }
+        
+        switch (event.type) {
+          case 'server.connected': {
+            console.log('[SSE] Server connected');
+            break;
+          }
+
+          case 'installation.updated': {
+            const props = event.properties as any;
+            const version = props?.version;
+            if (version) {
+              showToast(`OpenCode updated to ${version}, restart to apply`, 'success');
+            }
+            break;
+          }
+
+          case 'ide.installed': {
+            const props = event.properties as any;
+            const ide = props?.ide;
+            if (ide) {
+              showToast(`${ide} extension installed successfully`, 'success');
+            }
+            break;
+          }
+
+          case 'session.updated': {
+            const props = event.properties as any;
+            const sessionInfo = props?.info;
+            if (sessionInfo && currentSession?.id === sessionInfo.id) {
+              // Update current session info if it matches
+              setCurrentSession(prev => prev?.id === sessionInfo.id ? { ...prev, ...sessionInfo } : prev);
+            }
+            break;
+          }
+
+          case 'session.deleted': {
+            const props = event.properties as any;
+            const sessionInfo = props?.info;
+            if (sessionInfo && currentSession?.id === sessionInfo.id) {
+              // Clear current session if it was deleted
+              setCurrentSession(null);
+              setMessages([]);
+              seenMessageIdsRef.current.clear();
+              showToast('Session was deleted', 'info');
+            }
+            break;
+          }
+
+          case 'session.compacted': {
+            const props = event.properties as any;
+            const sessionID = props?.sessionID;
+            if (sessionID === currentSession?.id) {
+              showToast('Session compacted successfully', 'success');
+            }
+            break;
+          }
+
+          case 'session.idle': {
+            // No specific UI updates needed for idle state
+            console.log('[SSE] Session became idle');
+            break;
+          }
+
+          case 'session.error': {
+            const props = event.properties as any;
+            const error = props?.error;
+            if (error) {
+              const errorTitle = error.type === 'ProviderAuthError' ? 'Provider Error' :
+                               error.type === 'UnknownError' ? error.name || 'Error' :
+                               'Session Error';
+              showToast(error.message, 'error');
+            }
+            break;
+          }
+
+          case 'message.updated': {
+            const props = event.properties as any;
+            const messageInfo = props?.info;
+
+            if (!messageInfo?.id) {
+              console.warn('[SSE] Skipping message event - no message id');
+              return;
+            }
+
+            setMessages(prevMessages => {
+              const existingIndex = prevMessages.findIndex(m => m.id === messageInfo.id);
+
+              if (existingIndex >= 0) {
+                // Update existing message metadata
+                const updated = [...prevMessages];
+                updated[existingIndex] = {
+                  ...updated[existingIndex],
+                  reverted: messageInfo.reverted || updated[existingIndex].reverted,
+                  metadata: messageInfo.tokens ? {
+                    tokens: messageInfo.tokens,
+                    cost: messageInfo.cost,
+                    model: messageInfo.modelID,
+                    agent: messageInfo.mode
+                  } : updated[existingIndex].metadata
+                };
+
+                console.log('[SSE] Updated message metadata:', messageInfo.id);
+                seenMessageIdsRef.current.add(messageInfo.id);
+                return updated;
+              }
+              
+              // Check if we've already queued this message for creation
+              if (seenMessageIdsRef.current.has(messageInfo.id)) {
+                console.log('[SSE] Skipping duplicate message creation:', messageInfo.id);
+                return prevMessages;
+              }
+              
+              // Mark this message ID as seen BEFORE creating to prevent race conditions
+              seenMessageIdsRef.current.add(messageInfo.id);
+              
+              // New message - create placeholder that will be populated by part events
+              const newMessage: Message = {
+                id: messageInfo.id,
+                type: messageInfo.role === 'user' ? 'user' : 'assistant',
+                content: '',
+                parts: [],
+                timestamp: new Date(messageInfo.time?.created || Date.now()),
+                reverted: messageInfo.reverted || false,
+                metadata: messageInfo.tokens ? {
+                  tokens: messageInfo.tokens,
+                  cost: messageInfo.cost,
+                  model: messageInfo.modelID,
+                  agent: messageInfo.mode
+                } : undefined
+              };
+
+              // Insert in chronological order by ID comparison
+              const insertIndex = prevMessages.findIndex(m => m.id > messageInfo.id);
+              const newMessages = [...prevMessages];
+              if (insertIndex >= 0) {
+                newMessages.splice(insertIndex, 0, newMessage);
+              } else {
+                newMessages.push(newMessage);
+              }
+
+              console.log('[SSE] Added new message placeholder:', messageInfo.id);
+              return newMessages;
+            });
+            break;
+          }
+
+          case 'message.removed': {
+            const props = event.properties as any;
+            const messageID = props?.messageID;
+            if (messageID) {
+              setMessages(prevMessages => prevMessages.filter(msg => msg.id !== messageID));
+              console.log('[SSE] Removed message:', messageID);
+            }
+            break;
+          }
+
+            case 'message.part.updated': {
+              const props = event.properties as any;
+              console.log('[SSE] message.part.updated props:', JSON.stringify(props, null, 2));
+              const messageID = props?.part?.messageID;
+              const part = props?.part;
+
+              console.log('[SSE] message.part.updated - messageID:', messageID, 'part keys:', Object.keys(part || {}));
+
+              if (!messageID || !part) {
+                console.warn('[SSE] Skipping part update - missing messageID or part');
+                return;
+              }
+
+            setMessages(prevMessages => {
+              return prevMessages.map(msg => {
+                if (msg.id === messageID) {
+                  const parts = msg.parts || [];
+                  const newPart = part as Part;
+
+                  // For text parts, append or replace
+                  if (newPart.type === 'text') {
+                    const textPartIndex = parts.findIndex((p: Part) => p.type === 'text');
+                    if (textPartIndex >= 0) {
+                      // Update existing text part
+                      const updatedParts = [...parts];
+                      updatedParts[textPartIndex] = newPart;
+
+                      // Update content field for display
+                      const textContent = 'text' in newPart ? newPart.text : '';
+
+                      console.log('[SSE] Updated text part for message:', msg.id, 'length:', textContent?.length || 0);
+                      return { ...msg, parts: updatedParts, content: textContent };
+                    } else {
+                      // Add new text part
+                      const textContent = 'text' in newPart ? newPart.text : '';
+                      console.log('[SSE] Added new text part for message:', msg.id, 'length:', textContent?.length || 0);
+                      return { ...msg, parts: [...parts, newPart], content: textContent };
+                    }
+                  }
+
+                  // For other part types, check if we need to update or append
+                  const existingPartIndex = parts.findIndex((p: Part) =>
+                    p.type === newPart.type &&
+                    ('tool' in p && 'tool' in newPart ? p.tool === newPart.tool : true)
+                  );
+
+                  if (existingPartIndex >= 0) {
+                    // Update existing part
+                    const updatedParts = [...parts];
+                    updatedParts[existingPartIndex] = newPart;
+                    console.log('[SSE] Updated part type:', newPart.type, 'for message:', msg.id);
+                    return { ...msg, parts: updatedParts };
+                  } else {
+                    // Add new part
+                    console.log('[SSE] Added new part type:', newPart.type, 'for message:', msg.id);
+                    return { ...msg, parts: [...parts, newPart] };
+                  }
+                }
+                return msg;
+              });
+            });
+            break;
+          }
+
+          case 'message.part.removed': {
+            const props = event.properties as any;
+            const messageID = props?.messageID;
+            const partID = props?.partID;
+
+            if (messageID && partID) {
+              setMessages(prevMessages =>
+                prevMessages.map(msg =>
+                  msg.id === messageID
+                    ? { ...msg, parts: msg.parts?.filter((_, index) => index.toString() !== partID) || [] }
+                    : msg
+                )
+              );
+              console.log('[SSE] Removed part:', partID, 'from message:', messageID);
+            }
+            break;
+          }
+
+          case 'permission.updated': {
+            const props = event.properties as any;
+            const permissionId = props?.id;
+            const sessionID = props?.sessionID;
+
+            if (permissionId && sessionID === currentSession?.id) {
+              // Add permission to list and set as current
+              setCurrentPermission({
+                id: permissionId,
+                sessionID,
+                ...props
+              });
+              // Blur editor to show permission modal
+              setShouldBlurEditor(true);
+              console.log('[SSE] Permission request received:', permissionId);
+            }
+            break;
+          }
+
+          case 'permission.replied': {
+            const props = event.properties as any;
+            const permissionID = props?.permissionID;
+            const sessionID = props?.sessionID;
+
+            if (permissionID && sessionID === currentSession?.id) {
+              // Remove permission from list
+              setCurrentPermission(null);
+              setShouldBlurEditor(false);
+              console.log('[SSE] Permission response received:', permissionID);
+            }
+            break;
+          }
+
+          case 'file.edited': {
+            const props = event.properties as any;
+            const file = props?.file;
+            if (file) {
+              console.log('[SSE] File edited:', file);
+              // Could trigger file reload or show notification
+            }
+            break;
+          }
+
+          case 'file.watcher.updated': {
+            const props = event.properties as any;
+            const file = props?.file;
+            const fileEvent = props?.event;
+            if (file && fileEvent) {
+              console.log('[SSE] File watcher update:', file, fileEvent);
+              // Could trigger file tree refresh or show notification
+            }
+            break;
+          }
+
+          case 'todo.updated': {
+            const props = event.properties as any;
+            const sessionID = props?.sessionID;
+            const todos = props?.todos;
+
+            if (sessionID === currentSession?.id && todos) {
+              setCurrentSessionTodos(todos);
+              console.log('[SSE] Todo items updated for session:', sessionID);
+            }
+            break;
+          }
+
+          case 'lsp.client.diagnostics': {
+            // LSP diagnostics are handled separately or can be ignored for now
+            break;
+          }
+        }
+      };
+
+      // Subscribe to SSE events
+      const setupSSE = async () => {
+        const directory = currentProject?.worktree;
+        const { data: connectionState } = await openCodeService.subscribeToEvents(currentSession.id, handleSSEEvent, directory);
+        setSseConnectionState(connectionState);
+      };
+     
+     setupSSE();
+
+     // Monitor connection state
+     const connectionMonitor = setInterval(() => {
+       const currentState = openCodeService.getConnectionState();
+       setSseConnectionState(currentState);
+     }, 1000);
+
+      return () => {
+        // Cleanup on unmount or when session changes
+        clearInterval(connectionMonitor);
+        openCodeService.unsubscribeFromEvents();
+        setSseConnectionState(null);
+      };
+   }, [isConnected, currentSession, isHydrated, currentProject?.worktree]);
+
 
 
 
@@ -376,6 +742,7 @@ export function useOpenCode() {
         setCurrentSession(newSession);
         setSessions(prev => [newSession, ...prev]);
         setMessages([]);
+        seenMessageIdsRef.current.clear();
         return newSession;
      } catch (error) {
        console.error('Failed to create session:', error);
@@ -385,8 +752,9 @@ export function useOpenCode() {
      }
    }, [currentProject]);
 
-     const sendMessage = useCallback(async (content: string, providerID?: string, modelID?: string) => {
-      if (!currentSession) {
+     const sendMessage = useCallback(async (content: string, providerID?: string, modelID?: string, sessionOverride?: Session) => {
+      const targetSession = sessionOverride || currentSession;
+      if (!targetSession) {
         throw new Error('No active session');
       }
 
@@ -410,66 +778,63 @@ export function useOpenCode() {
           }
         }
 
-        // Add user message to local state
-        const userMessage: Message = {
-          id: `user-${Date.now()}`,
-          type: 'user',
-          content: expandedContent,
-          timestamp: new Date(),
-        };
-        setMessages(prev => [...prev, userMessage]);
+         // For now, use non-streaming; implement streaming later
+         const response = await openCodeService.sendMessage(
+           targetSession.id, 
+           content, 
+           providerID, 
+           modelID,
+           currentProject?.worktree
+         );
+         
+         if (response.error) {
+           if (response.error.includes('ENOENT') || response.error.includes('no such file')) {
+             throw new Error('Session not found on server. Please create a new session.');
+           }
+           throw new Error(response.error);
+         }
 
-        // For now, use non-streaming; implement streaming later
-        const response = await openCodeService.sendMessage(
-          currentSession.id, 
-          content, 
-          providerID, 
-          modelID,
-          currentProject?.worktree
-        );
-        if (response.error) {
-          if (response.error.includes('ENOENT') || response.error.includes('no such file')) {
-            throw new Error('Session not found on server. Please create a new session.');
-          }
-          throw new Error(response.error);
-        }
-        if (response.error) {
-          throw new Error(response.error);
-        }
-        const data = response.data as unknown as { info?: {id?: string; tokens?: {input: number; output: number; reasoning: number}; cost?: number; modelID?: string; mode?: string}; parts?: Part[] } | undefined;
-        if (!data) {
-          throw new Error('No response data');
-        }
+         // The response contains the message object - extract ID from info
+         const responseData = response.data as { info?: { id?: string } };
+         const messageId = responseData?.info?.id;
+         
+         if (!messageId) {
+           console.warn('[SendMessage] No message ID in response, SSE will handle updates');
+           // Don't throw error - SSE events will populate the message
+           return;
+         }
 
-        // Add assistant response to local state
-        const parts = data.parts || [];
-        const textPart = parts.find((part: Part) => part.type === 'text');
-        const content_text = (textPart && 'text' in textPart ? textPart.text : '') || 'No response content';
-        
-        const assistantMessage: Message = {
-          id: data.info?.id || `assistant-${Date.now()}`,
-          type: 'assistant',
-          content: content_text,
-          parts,
-          timestamp: new Date(),
-          metadata: {
-            tokens: data.info?.tokens,
-            cost: data.info?.cost,
-            model: data.info?.modelID,
-            agent: data.info?.mode
-          }
-        };
-        setMessages(prev => [...prev, assistantMessage]);
+         // Add user message to local state with the correct ID
+         const userMessage: Message = {
+           id: messageId,
+           type: 'user',
+           content: expandedContent,
+           timestamp: new Date(),
+         };
+         setMessages(prev => [...prev, userMessage]);
 
-        // Save the model used for this session
-        if (selectedModel && currentSession) {
-          setSessionModelMap(prev => ({
-            ...prev,
-            [currentSession.id]: selectedModel
-          }));
-        }
+         // Save the model used for this session
+         if (selectedModel && targetSession) {
+           setSessionModelMap(prev => ({
+             ...prev,
+             [targetSession.id]: selectedModel
+           }));
+         }
 
-        return assistantMessage;
+         // If this is the first message in the session, initialize the session
+         const isFirstMessage = messages.length === 0;
+         if (isFirstMessage && providerID && modelID && messageId) {
+           try {
+             await initSession(targetSession.id, messageId, providerID, modelID);
+             console.log('[SendMessage] Initialized new session:', targetSession.id);
+           } catch (initError) {
+             console.error('[SendMessage] Failed to initialize session:', initError);
+             // Don't throw here, as the message was sent successfully
+           }
+         }
+
+         // Return the user message - SSE will handle the assistant response
+         return userMessage;
       } catch (error) {
         console.error('Failed to send message:', error);
         throw new Error(handleOpencodeError(error));
@@ -512,6 +877,8 @@ export function useOpenCode() {
         }, 0);
         console.log('[LoadMessages] Loaded', loadedMessages.length, 'messages (', activeMessages.length, 'active,', (loadedMessages.length - activeMessages.length), 'reverted) with', totalTokens, 'total tokens');
         
+        seenMessageIdsRef.current.clear();
+        loadedMessages.forEach(msg => seenMessageIdsRef.current.add(msg.id));
         setMessages(loadedMessages);
        
        // Extract the last used model from messages and save it
@@ -630,11 +997,12 @@ export function useOpenCode() {
    const deleteSession = useCallback(async (sessionId: string) => {
      try {
        await openCodeService.deleteSession(sessionId, currentProject?.worktree);
-       setSessions(prev => prev.filter(s => s.id !== sessionId));
-       if (currentSession?.id === sessionId) {
-         setCurrentSession(null);
-         setMessages([]);
-       }
+        setSessions(prev => prev.filter(s => s.id !== sessionId));
+        if (currentSession?.id === sessionId) {
+          setCurrentSession(null);
+          setMessages([]);
+          seenMessageIdsRef.current.clear();
+        }
      } catch (error) {
        console.error('Failed to delete session:', error);
      }
@@ -648,6 +1016,7 @@ export function useOpenCode() {
         setSessions([]);
         setCurrentSession(null);
         setMessages([]);
+        seenMessageIdsRef.current.clear();
       } catch (error) {
         console.error('Failed to clear sessions:', error);
       }
@@ -658,6 +1027,7 @@ export function useOpenCode() {
          setCurrentProject(project);
          setCurrentSession(null);
          setMessages([]);
+         seenMessageIdsRef.current.clear();
          setSessions([]);
          loadedSessionsRef.current = false; // Reset flag before fetching
          const response = await openCodeService.getSessions(project.worktree);
@@ -1088,66 +1458,74 @@ export function useOpenCode() {
        }
      }, [currentProject?.worktree]);
 
-     return {
-       currentSession,
-       messages,
-       setMessages,
-       sessions,
-       loading,
-       createSession,
-       sendMessage,
-       loadSessions,
-       loadMessages,
-       switchSession,
-       deleteSession,
-       clearAllSessions,
-       // New features
-        projects,
-        currentProject,
-        switchProject,
-        loadProjects,
-        files,
-        fileDirectory,
-        loadFiles,
-        searchFiles,
+      return {
+        currentSession,
+        messages,
+        setMessages,
+        sessions,
+        loading,
+        createSession,
+        sendMessage,
+        loadSessions,
+        loadMessages,
+        switchSession,
+        deleteSession,
+        clearAllSessions,
+        // New features
+         projects,
+         currentProject,
+         switchProject,
+         loadProjects,
+         files,
+         fileDirectory,
+         loadFiles,
+         searchFiles,
 
-       readFile,
-       searchText,
-       models,
-       selectedModel,
-       selectModel,
-       loadModels,
-       config,
-       currentPath,
-       loadCurrentPath,
-       providersData,
-        isConnected,
-        isHydrated,
-        customCommands,
-        openHelp,
-        openSessions,
-        openThemes,
-        openModels,
-        showToast,
-        showHelp,
-        setShowHelp,
-        showThemes,
-        setShowThemes,
-         showOnboarding,
-          setShowOnboarding,
-          showModelPicker,
-          setShowModelPicker,
-          agents,
-          currentAgent,
-          selectAgent,
-          loadAgents,
-          extractTextFromParts,
-          runShell,
-          revertMessage,
-          unrevertSession,
-          shareSession,
-          unshareSession,
-          initSession,
-          summarizeSession,
-       };
+        readFile,
+        searchText,
+        models,
+        selectedModel,
+        selectModel,
+        loadModels,
+        config,
+        currentPath,
+        loadCurrentPath,
+        providersData,
+         isConnected,
+         isHydrated,
+         customCommands,
+         openHelp,
+         openSessions,
+         openThemes,
+         openModels,
+         showToast,
+         showHelp,
+         setShowHelp,
+         showThemes,
+         setShowThemes,
+          showOnboarding,
+           setShowOnboarding,
+           showModelPicker,
+           setShowModelPicker,
+           agents,
+           currentAgent,
+           selectAgent,
+           loadAgents,
+           extractTextFromParts,
+           runShell,
+           revertMessage,
+           unrevertSession,
+           shareSession,
+           unshareSession,
+           initSession,
+           summarizeSession,
+            sseConnectionState,
+            // Permission and todo state
+            currentPermission,
+            setCurrentPermission,
+            shouldBlurEditor,
+            setShouldBlurEditor,
+            currentSessionTodos,
+            setCurrentSessionTodos,
+         };
  }

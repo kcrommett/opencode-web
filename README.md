@@ -243,6 +243,17 @@ All OpenCode API calls are wrapped in server functions with:
 
 See [CONTEXT.md](CONTEXT.md) for detailed TanStack Start patterns and examples.
 
+### Server-Sent Events (SSE)
+
+Real-time updates via SSE for:
+- Message streaming and updates
+- Session state changes
+- File system notifications
+- Permission requests
+- Error notifications
+
+See [SSE.md](SSE.md) for complete SSE event documentation and implementation examples.
+
 ### API Coverage
 
 All 41+ OpenCode HTTP endpoints are implemented:

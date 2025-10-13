@@ -7,6 +7,7 @@ import path from 'node:path'
 const SERVER_PORT = Number(process.env.PORT ?? 3000)
 const CLIENT_DIRECTORY = './dist/client'
 const SERVER_ENTRY_POINT = './dist/server/server.js'
+const OPENCODE_SERVER_URL = process.env.VITE_OPENCODE_SERVER_URL || 'http://localhost:4096'
 
 async function initializeServer() {
   console.log('[INFO] Starting TanStack Start server...')
@@ -27,7 +28,48 @@ async function initializeServer() {
     port: SERVER_PORT,
     fetch: async (req: Request) => {
       try {
-        const pathname = new URL(req.url).pathname
+        const url = new URL(req.url)
+        const pathname = url.pathname
+        
+        if (pathname === '/api/events') {
+          const directory = url.searchParams.get('directory')
+          const eventUrl = new URL(`${OPENCODE_SERVER_URL}/event`)
+          if (directory) {
+            eventUrl.searchParams.set('directory', directory)
+          }
+
+          try {
+            const response = await fetch(eventUrl.toString(), {
+              headers: {
+                'Accept': 'text/event-stream',
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
+              },
+            })
+
+            if (!response.ok) {
+              return new Response(JSON.stringify({ error: 'Failed to connect to event stream' }), {
+                status: response.status,
+                headers: { 'Content-Type': 'application/json' }
+              })
+            }
+
+            return new Response(response.body, {
+              headers: {
+                'Content-Type': 'text/event-stream',
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
+                'X-Accel-Buffering': 'no',
+              },
+            })
+          } catch (error) {
+            console.error('[SSE Proxy] Error:', error)
+            return new Response(JSON.stringify({ error: 'Failed to proxy event stream' }), {
+              status: 500,
+              headers: { 'Content-Type': 'application/json' }
+            })
+          }
+        }
         
         if (pathname.startsWith('/public/') || pathname.startsWith('/assets/')) {
           const filePath = path.join(CLIENT_DIRECTORY, pathname)
