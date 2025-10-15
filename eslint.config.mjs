@@ -6,6 +6,7 @@ const eslintConfig = [
     ignores: [
       "node_modules/**",
       "dist/**",
+      "dev-dist/**",
       ".output/**",
       "build/**",
       "src/routeTree.gen.ts",
@@ -41,6 +42,12 @@ const eslintConfig = [
       "@typescript-eslint/no-explicit-any": "warn",
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
+    },
+  },
+  {
+    files: ["index.ts"],
+    rules: {
+      "@typescript-eslint/no-namespace": "off",
     },
   },
 ];

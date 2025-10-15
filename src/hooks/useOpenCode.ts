@@ -176,7 +176,7 @@ export function useOpenCode() {
     if (savedProjectStr) {
       try {
         const savedProject = JSON.parse(savedProjectStr);
-        console.log('[Hydration] Restoring project from localStorage:', savedProject);
+        if (process.env.NODE_ENV !== 'production') console.log('[Hydration] Restoring project from localStorage:', savedProject);
         setCurrentProject(savedProject);
       } catch (error) {
         console.error('[Hydration] Error parsing saved project:', error);
@@ -185,7 +185,7 @@ export function useOpenCode() {
 
     const savedSessionId = localStorage.getItem('opencode-current-session');
     if (savedSessionId) {
-      console.log('[Hydration] Restoring session from localStorage:', savedSessionId);
+      if (process.env.NODE_ENV !== 'production') console.log('[Hydration] Restoring session from localStorage:', savedSessionId);
       
       const savedProjectStr = localStorage.getItem('opencode-current-project');
       let projectDirectory: string | undefined;
@@ -233,12 +233,12 @@ export function useOpenCode() {
               };
             });
             setMessages(loadedMessages);
-            console.log('[Hydration] Loaded messages for session:', loadedMessages.length);
+            if (process.env.NODE_ENV !== 'production') console.log('[Hydration] Loaded messages for session:', loadedMessages.length);
           } catch (error) {
             console.error('[Hydration] Error loading messages:', error);
           }
         } else {
-          console.log('[Hydration] Session not found on server, clearing localStorage');
+          if (process.env.NODE_ENV !== 'production') console.log('[Hydration] Session not found on server, clearing localStorage');
           localStorage.removeItem('opencode-current-session');
         }
       }).catch((error) => {
@@ -251,7 +251,7 @@ export function useOpenCode() {
     if (savedModelStr) {
       try {
         const savedModel = JSON.parse(savedModelStr);
-        console.log('[Hydration] Restoring model from localStorage:', savedModel);
+        if (process.env.NODE_ENV !== 'production') console.log('[Hydration] Restoring model from localStorage:', savedModel);
         setSelectedModel(savedModel);
       } catch (error) {
         console.error('[Hydration] Error parsing saved model:', error);
@@ -262,7 +262,7 @@ export function useOpenCode() {
     if (savedAgentStr) {
       try {
         const savedAgent = JSON.parse(savedAgentStr);
-        console.log('[Hydration] Restoring agent from localStorage:', savedAgent);
+        if (process.env.NODE_ENV !== 'production') console.log('[Hydration] Restoring agent from localStorage:', savedAgent);
         setCurrentAgent(savedAgent);
       } catch (error) {
         console.error('[Hydration] Error parsing saved agent:', error);
@@ -273,7 +273,7 @@ export function useOpenCode() {
     if (savedSessionModelMapStr) {
       try {
         const savedMap = JSON.parse(savedSessionModelMapStr);
-        console.log('[Hydration] Restoring session-model map from localStorage:', savedMap);
+        if (process.env.NODE_ENV !== 'production') console.log('[Hydration] Restoring session-model map from localStorage:', savedMap);
         setSessionModelMap(savedMap);
       } catch (error) {
         console.error('[Hydration] Error parsing saved session-model map:', error);
@@ -283,7 +283,7 @@ export function useOpenCode() {
     const savedActiveTab = localStorage.getItem('opencode-active-tab');
     const savedSelectedFile = localStorage.getItem('opencode-selected-file');
     if (savedActiveTab || savedSelectedFile) {
-      console.log('[Hydration] Restoring tab/file state from localStorage:', { savedActiveTab, savedSelectedFile });
+      if (process.env.NODE_ENV !== 'production') console.log('[Hydration] Restoring tab/file state from localStorage:', { savedActiveTab, savedSelectedFile });
     }
     
     setIsHydrated(true);
@@ -309,10 +309,10 @@ export function useOpenCode() {
   useEffect(() => {
     if (!isHydrated) return;
     if (currentSession) {
-      console.log('Saving session to localStorage:', currentSession.id);
+      if (process.env.NODE_ENV !== 'production') console.log('Saving session to localStorage:', currentSession.id);
       localStorage.setItem('opencode-current-session', currentSession.id);
     } else {
-      console.log('Clearing session from localStorage');
+      if (process.env.NODE_ENV !== 'production') console.log('Clearing session from localStorage');
       localStorage.removeItem('opencode-current-session');
     }
   }, [currentSession, isHydrated]);
@@ -345,10 +345,10 @@ export function useOpenCode() {
   useEffect(() => {
     if (!isHydrated) return;
     if (currentProject) {
-      console.log('Saving project to localStorage:', currentProject);
+      if (process.env.NODE_ENV !== 'production') console.log('Saving project to localStorage:', currentProject);
       localStorage.setItem('opencode-current-project', JSON.stringify(currentProject));
     } else {
-      console.log('Clearing project from localStorage');
+      if (process.env.NODE_ENV !== 'production') console.log('Clearing project from localStorage');
       localStorage.removeItem('opencode-current-project');
     }
   }, [currentProject, isHydrated]);
@@ -510,7 +510,7 @@ export function useOpenCode() {
           }
           return sum;
         }, 0);
-        console.log('[LoadMessages] Loaded', loadedMessages.length, 'messages (', activeMessages.length, 'active,', (loadedMessages.length - activeMessages.length), 'reverted) with', totalTokens, 'total tokens');
+        if (process.env.NODE_ENV !== 'production') console.log('[LoadMessages] Loaded', loadedMessages.length, 'messages (', activeMessages.length, 'active,', (loadedMessages.length - activeMessages.length), 'reverted) with', totalTokens, 'total tokens');
         
         setMessages(loadedMessages);
        
@@ -557,11 +557,11 @@ export function useOpenCode() {
         setProjects(projectsData);
         loadedProjectsRef.current = true;
         
-        console.log('[LoadProjects] Loaded projects from API:', projectsData.length);
+        if (process.env.NODE_ENV !== 'production') console.log('[LoadProjects] Loaded projects from API:', projectsData.length);
         if (currentProject) {
           const matchingProject = projectsData.find(p => p.id === currentProject.id);
           if (matchingProject) {
-            console.log('[LoadProjects] Current project still valid, updating with fresh data');
+            if (process.env.NODE_ENV !== 'production') console.log('[LoadProjects] Current project still valid, updating with fresh data');
             setCurrentProject(matchingProject);
           }
         }
@@ -587,21 +587,21 @@ export function useOpenCode() {
         setSessions(sessionsData);
         loadedSessionsRef.current = true;
         
-        console.log('[LoadSessions] Loaded sessions from API:', sessionsData.length);
-        console.log('[LoadSessions] Current session state:', currentSession);
-        console.log('[LoadSessions] Messages count:', messages.length);
+        if (process.env.NODE_ENV !== 'production') console.log('[LoadSessions] Loaded sessions from API:', sessionsData.length);
+        if (process.env.NODE_ENV !== 'production') console.log('[LoadSessions] Current session state:', currentSession);
+        if (process.env.NODE_ENV !== 'production') console.log('[LoadSessions] Messages count:', messages.length);
         
         if (currentSession) {
           const matchingSession = sessionsData.find(s => s.id === currentSession.id);
           if (matchingSession) {
-            console.log('[LoadSessions] Updating current session with full data:', matchingSession);
+            if (process.env.NODE_ENV !== 'production') console.log('[LoadSessions] Updating current session with full data:', matchingSession);
             setCurrentSession(matchingSession);
             if (messages.length === 0) {
-              console.log('[LoadSessions] Loading messages for session:', currentSession.id);
+              if (process.env.NODE_ENV !== 'production') console.log('[LoadSessions] Loading messages for session:', currentSession.id);
               await loadMessages(currentSession.id);
             }
           } else {
-            console.log('[LoadSessions] Current session not found in loaded sessions, clearing');
+            if (process.env.NODE_ENV !== 'production') console.log('[LoadSessions] Current session not found in loaded sessions, clearing');
             setCurrentSession(null);
           }
         }
@@ -783,16 +783,16 @@ export function useOpenCode() {
      const loadModels = useCallback(async () => {
        if (loadedModels) return;
        try {
-         console.log('Loading models...');
+         if (process.env.NODE_ENV !== 'production') console.log('Loading models...');
          const response = await openCodeService.getProviders();
-          console.log('Providers response:', response);
+          if (process.env.NODE_ENV !== 'production') console.log('Providers response:', response);
           const providersData = response.data as ProvidersData | undefined;
-          console.log('Providers data:', providersData);
+          if (process.env.NODE_ENV !== 'production') console.log('Providers data:', providersData);
           setProvidersData(providersData || null);
           if (providersData && providersData.providers && Array.isArray(providersData.providers)) {
             const availableModels: Model[] = [];
              providersData.providers.forEach((provider: { id: string; name?: string; models?: { id: string; name?: string }[] | Record<string, { name?: string; [key: string]: unknown }> }) => {
-              console.log('Processing provider:', provider);
+              if (process.env.NODE_ENV !== 'production') console.log('Processing provider:', provider);
               // Check if provider has models
               if (provider.models && typeof provider.models === 'object') {
                 // Handle models as object
@@ -815,7 +815,7 @@ export function useOpenCode() {
               }
               // Only add if has models, don't treat provider as model
             });
-            console.log('Available models:', availableModels);
+            if (process.env.NODE_ENV !== 'production') console.log('Available models:', availableModels);
             setModels(availableModels);
             setLoadedModels(true);
             
@@ -1000,7 +1000,7 @@ export function useOpenCode() {
          currentProjectIdRef.current = currentProject.id;
          
          if (projectIdChanged) {
-           console.log('Project changed, loading sessions for:', currentProject);
+           if (process.env.NODE_ENV !== 'production') console.log('Project changed, loading sessions for:', currentProject);
            loadedSessionsRef.current = false; // Reset flag when project changes
            loadSessions();
          }

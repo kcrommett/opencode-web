@@ -24,7 +24,6 @@ import { getCommandSuggestions, completeCommand, type Command } from "@/lib/comm
 import { useTheme } from "@/hooks/useTheme";
 import { themeList } from "@/lib/themes";
 import { detectLanguage, highlightCode, isImageFile, addLineNumbers } from "@/lib/highlight";
-import { useIsMobile } from "@/lib/breakpoints";
 import 'highlight.js/styles/github-dark.css';
 
 export const Route = createFileRoute('/')({
@@ -492,9 +491,9 @@ function OpenCodeChatTUI() {
             };
             setMessages((prev) => [...prev, infoMsg]);
             
-            console.log('[Compact] Starting compaction for session:', currentSession.id);
-            console.log('[Compact] Messages before:', messages.length);
-            console.log('[Compact] Tokens before:', messages.reduce((sum, msg) => {
+            if (process.env.NODE_ENV !== 'production') console.log('[Compact] Starting compaction for session:', currentSession.id);
+            if (process.env.NODE_ENV !== 'production') console.log('[Compact] Messages before:', messages.length);
+            if (process.env.NODE_ENV !== 'production') console.log('[Compact] Tokens before:', messages.reduce((sum, msg) => {
               if (msg.metadata?.tokens) {
                 return sum + msg.metadata.tokens.input + msg.metadata.tokens.output + msg.metadata.tokens.reasoning;
               }
@@ -502,7 +501,7 @@ function OpenCodeChatTUI() {
             }, 0));
             
             await summarizeSession(currentSession.id, selectedModel.providerID, selectedModel.modelID);
-            console.log('[Compact] Summarization request sent, polling for completion...');
+            if (process.env.NODE_ENV !== 'production') console.log('[Compact] Summarization request sent, polling for completion...');
             
             // Poll until we see token count decrease (or timeout after 30 seconds)
             const startTime = Date.now();
@@ -522,7 +521,7 @@ function OpenCodeChatTUI() {
               pollAttempt++;
               await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second between polls
               
-              console.log(`[Compact] Poll attempt ${pollAttempt}...`);
+              if (process.env.NODE_ENV !== 'production') console.log(`[Compact] Poll attempt ${pollAttempt}...`);
               reloadedMessages = await loadMessages(currentSession.id);
               
               totalTokens = reloadedMessages.reduce((sum, msg) => {
@@ -532,17 +531,17 @@ function OpenCodeChatTUI() {
                 return sum;
               }, 0);
               
-              console.log(`[Compact] Current tokens: ${totalTokens} (before: ${tokensBefore})`);
+              if (process.env.NODE_ENV !== 'production') console.log(`[Compact] Current tokens: ${totalTokens} (before: ${tokensBefore})`);
             }
             
             if (totalTokens >= tokensBefore) {
               console.warn('[Compact] Timeout waiting for token reduction');
             } else {
-              console.log(`[Compact] Token reduction detected after ${pollAttempt} polls`);
+              if (process.env.NODE_ENV !== 'production') console.log(`[Compact] Token reduction detected after ${pollAttempt} polls`);
             }
             
-            console.log('[Compact] Messages reloaded:', reloadedMessages.length);
-            console.log('[Compact] Total tokens after compaction:', totalTokens);
+            if (process.env.NODE_ENV !== 'production') console.log('[Compact] Messages reloaded:', reloadedMessages.length);
+            if (process.env.NODE_ENV !== 'production') console.log('[Compact] Total tokens after compaction:', totalTokens);
             
             // Add success message using the reloaded messages array
             const successMsg = {
@@ -1086,13 +1085,13 @@ function OpenCodeChatTUI() {
   useEffect(() => {
     const restoreFilesTab = async () => {
       if (isHydrated && activeTab === 'files') {
-        console.log('[Hydration] Restoring files tab state');
+        if (process.env.NODE_ENV !== 'production') console.log('[Hydration] Restoring files tab state');
         if (files.length === 0) {
-          console.log('[Hydration] Loading files for directory:', fileDirectory);
+          if (process.env.NODE_ENV !== 'production') console.log('[Hydration] Loading files for directory:', fileDirectory);
           await loadFiles(fileDirectory || '.');
         }
         if (selectedFile && !fileContent) {
-          console.log('[Hydration] Restoring selected file content:', selectedFile);
+          if (process.env.NODE_ENV !== 'production') console.log('[Hydration] Restoring selected file content:', selectedFile);
           await handleFileSelect(selectedFile);
         }
       }

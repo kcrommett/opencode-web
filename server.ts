@@ -9,7 +9,7 @@ const CLIENT_DIRECTORY = './dist/client'
 const SERVER_ENTRY_POINT = './dist/server/server.js'
 
 async function initializeServer() {
-  console.log('[INFO] Starting TanStack Start server...')
+  if (process.env.NODE_ENV !== 'production') console.log('[INFO] Starting TanStack Start server...')
 
   let handler: { fetch: (request: Request) => Response | Promise<Response> }
   try {
@@ -17,7 +17,7 @@ async function initializeServer() {
       default: { fetch: (request: Request) => Response | Promise<Response> }
     }
     handler = serverModule.default
-    console.log('[SUCCESS] Server handler initialized')
+    if (process.env.NODE_ENV !== 'production') console.log('[SUCCESS] Server handler initialized')
   } catch (error) {
     console.error(`[ERROR] Failed to load server handler: ${String(error)}`)
     process.exit(1)
@@ -45,7 +45,7 @@ async function initializeServer() {
     },
   })
 
-  console.log(`[SUCCESS] Server listening on http://localhost:${String(server.port)}`)
+  if (process.env.NODE_ENV !== 'production') console.log(`[SUCCESS] Server listening on http://localhost:${String(server.port)}`)
 }
 
 initializeServer().catch((error: unknown) => {

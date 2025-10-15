@@ -11,7 +11,7 @@ export const openCodeService = {
   },
 
   async log(message: string, level: 'info' | 'error' | 'debug' | 'warn' = 'info') {
-    console.log(`[${level.toUpperCase()}] ${message}`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[${level.toUpperCase()}] ${message}`);
     return { data: true, error: null };
   },
 

@@ -16,11 +16,11 @@ export function PWAReloadPrompt() {
           onOfflineReady() {
             setOfflineReady(true);
           },
-          onRegistered(_registration: any) {
-            console.log('SW Registered');
+          onRegistered(registration?: ServiceWorkerRegistration) {
+            if (process.env.NODE_ENV !== 'production') console.log('SW Registered', registration);
           },
           onRegisterError(error: Error) {
-            console.log('SW registration error', error);
+            if (process.env.NODE_ENV !== 'production') console.log('SW registration error', error);
           },
         });
         setUpdateSW(() => update);

@@ -1,0 +1,14 @@
+id: no-console-log
+language: TypeScript
+rule:
+  pattern: console.log
+message: Avoid console.log in production code
+severity: error
+note: Use conditional logging with process.env.NODE_ENV checks for development logs
+ignores:
+  - "server.ts"
+  - "src/lib/opencode-events.ts"
+  - "src/lib/opencode-client.ts"
+  - "src/hooks/useOpenCode.ts"
+  - "src/app/index.tsx"
+  - "src/app/_components/ui/pwa-reload-prompt.tsx"

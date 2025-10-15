@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Run ast-grep scan using sgconfig.yml
+npx ast-grep scan --error
+
+# Run lint
+npm run lint
