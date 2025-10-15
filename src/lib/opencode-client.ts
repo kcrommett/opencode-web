@@ -1,4 +1,17 @@
 import * as serverFns from './opencode-server-fns'
+import { OpencodeSSEClient, OpencodeEvent, SSEConnectionState } from './opencode-events'
+
+const isDevMode = process.env.NODE_ENV !== 'production'
+const devLog = (...args: unknown[]) => {
+  if (isDevMode) console.log(...args)
+}
+const devError = (...args: unknown[]) => {
+  if (isDevMode) console.error(...args)
+}
+
+// SSE client and event handlers
+let sseClient: OpencodeSSEClient | null = null;
+let eventHandlers: Array<(event: OpencodeEvent) => void> = [];
 
 export const openCodeService = {
   async getAgents() {
@@ -88,7 +101,7 @@ export const openCodeService = {
       const response = await serverFns.getSessions({ data: { directory } });
       return { data: response };
     } catch (error) {
-      console.error('Error in getSessions:', error);
+      devError('Error in getSessions:', error);
       return { data: [] };
     }
   },
@@ -358,11 +371,61 @@ export const openCodeService = {
     }
   },
 
-  async subscribeToEvents() {
+  async subscribeToEvents(sessionId: string, onMessage: (event: OpencodeEvent) => void, directory?: string) {
     try {
-      return { data: null, error: null };
+      if (sseClient) {
+        sseClient.disconnect();
+      }
+
+      // Add the event handler
+      eventHandlers = [onMessage];
+
+      const eventStreamUrl = await serverFns.getEventStreamUrl({ data: { directory } });
+
+      sseClient = new OpencodeSSEClient({
+        url: eventStreamUrl,
+        onEvent: (event: OpencodeEvent) => {
+          // Debug logging (skip noisy diagnostics)
+          if (event.type !== 'lsp.client.diagnostics') {
+            devLog('[SSE Event]', event.type, event.properties);
+          }
+          
+          // Pass all events to handlers - let the handlers decide what to do
+          eventHandlers.forEach(handler => handler(event));
+        },
+        onConnect: () => {
+          devLog('[SSE] Connected to event stream');
+        },
+        onDisconnect: () => {
+          devLog('[SSE] Disconnected from event stream');
+        },
+        onError: (error: Error) => {
+          devError('[SSE] Connection error:', error);
+        }
+      });
+
+      sseClient.connect();
+      return { data: sseClient.connectionState, error: null };
     } catch (error) {
       return { data: null, error: handleOpencodeError(error) };
+    }
+  },
+
+  unsubscribeFromEvents() {
+    if (sseClient) {
+      sseClient.disconnect();
+      sseClient = null;
+    }
+    eventHandlers = [];
+  },
+
+  getConnectionState(): SSEConnectionState | null {
+    return sseClient?.connectionState || null;
+  },
+
+  reconnectEvents() {
+    if (sseClient) {
+      sseClient.reconnect();
     }
   },
 
@@ -433,16 +496,4 @@ export function handleOpencodeError(error: unknown): string {
     return error.message
   }
   return `Unknown error occurred: ${JSON.stringify(error)}`
-}
-
-export function isSessionNotFoundError(error: unknown): boolean {
-  const errorStr = handleOpencodeError(error).toLowerCase();
-  return (
-    errorStr.includes('enoent') ||
-    errorStr.includes('no such file') ||
-    errorStr.includes('session not found') ||
-    errorStr.includes('bad request') ||
-    errorStr.includes('404') ||
-    errorStr.includes('cannot find session')
-  );
 }

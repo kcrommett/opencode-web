@@ -1,27 +1,17 @@
 // WebTUI React Components
-export { Badge } from './badge';
-export { StatusBadge } from './status-badge';
-export { Button } from './button';
-export { Input } from './input';
-export { Textarea } from './textarea';
-export { Checkbox } from './checkbox';
-export { Radio } from './radio';
-export { Switch } from './switch';
-export { Pre } from './pre';
-export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './table';
-export { Separator } from './separator';
-export { Dialog } from './dialog';
-export { Popover, PopoverTrigger, PopoverContent } from './popover';
-export { Tooltip, TooltipTrigger, TooltipContent } from './tooltip';
-export { Range } from './range';
-export { Progress } from './progress';
-export { Spinner } from './spinner';
-export { View } from './view';
-export { MobileSidebar } from './mobile-sidebar';
-export { HamburgerMenu } from './hamburger-menu';
-export { BottomSheet } from './bottom-sheet';
-export { ResponsiveDialog } from './responsive-dialog';
+import './component-examples'
+export { Badge } from './badge'
+export { Button } from './button'
+export { Input } from './input'
+export { Textarea } from './textarea'
+export { Pre } from './pre'
+export { Separator } from './separator'
+export { Dialog } from './dialog'
+export { Spinner } from './spinner'
+export { View } from './view'
+export { MobileSidebar } from './mobile-sidebar'
+export { HamburgerMenu } from './hamburger-menu'
 
 // PWA Components
-export { InstallPrompt } from './install-prompt';
-export { PWAReloadPrompt } from './pwa-reload-prompt';
+export { InstallPrompt } from './install-prompt'
+export { PWAReloadPrompt } from './pwa-reload-prompt'

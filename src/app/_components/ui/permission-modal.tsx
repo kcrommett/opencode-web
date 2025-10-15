@@ -1,35 +1,45 @@
-import { useState } from 'react';
-import { Dialog } from './dialog';
-import { Button } from './button';
+import { useState } from 'react'
+import { Dialog } from './dialog'
+import { Button } from './button'
 
 interface PermissionRequest {
-  message?: string;
-  details?: unknown;
+  message?: string
+  details?: unknown
 }
 
 interface PermissionModalProps {
-  permission?: PermissionRequest | null;
-  isOpen: boolean;
-  onClose: () => void;
-  onRespond: (response: boolean) => Promise<void> | void;
+  permission: PermissionRequest | null
+  isOpen: boolean
+  onClose: () => void
+  onRespond: (response: boolean) => Promise<void> | void
 }
 
-export function PermissionModal({ permission, isOpen, onClose, onRespond }: PermissionModalProps) {
-  const [isLoading, setIsLoading] = useState(false);
+export function PermissionModal({
+  permission,
+  isOpen,
+  onClose,
+  onRespond,
+}: PermissionModalProps) {
+  const [isLoading, setIsLoading] = useState(false)
 
   const handleResponse = async (response: boolean) => {
-    setIsLoading(true);
+    setIsLoading(true)
     try {
-      await onRespond(response);
-      onClose();
+      await onRespond(response)
+      onClose()
     } catch (error) {
-      console.error('Failed to respond to permission:', error);
+      console.error('Failed to respond to permission:', error)
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
-  if (!isOpen || !permission) return null;
+  if (!isOpen || !permission) return null
+
+  const detailsText =
+    permission.details !== undefined
+      ? JSON.stringify(permission.details, null, 2)
+      : null
 
   return (
     <Dialog onClose={onClose} className="max-w-md">
@@ -39,10 +49,10 @@ export function PermissionModal({ permission, isOpen, onClose, onRespond }: Perm
           {permission.message || 'An action requires your permission to proceed.'}
         </p>
 
-        {permission.details && (
+        {detailsText && (
           <div className="mb-4">
             <pre className="text-xs bg-muted p-3 rounded-md overflow-auto max-h-32">
-              {JSON.stringify(permission.details, null, 2)}
+              {detailsText}
             </pre>
           </div>
         )}
@@ -65,5 +75,5 @@ export function PermissionModal({ permission, isOpen, onClose, onRespond }: Perm
         </div>
       </div>
     </Dialog>
-  );
+  )
 }

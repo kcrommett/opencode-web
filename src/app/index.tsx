@@ -17,8 +17,10 @@ import {
 import { CommandPicker } from "@/app/_components/ui/command-picker";
 import { AgentPicker } from "@/app/_components/ui/agent-picker";
 import { SessionPicker } from "@/app/_components/ui/session-picker";
+import { PermissionModal } from "@/app/_components/ui/permission-modal";
 import { MessagePart } from "@/app/_components/message";
 import { useOpenCodeContext } from "@/contexts/OpenCodeContext";
+import { openCodeService } from "@/lib/opencode-client";
 import { parseCommand } from "@/lib/commandParser";
 import { getCommandSuggestions, completeCommand, type Command } from "@/lib/commands";
 import { useTheme } from "@/hooks/useTheme";
@@ -94,8 +96,9 @@ function OpenCodeChatTUI() {
        selectModel,
           openHelp,
           openThemes,
-         isConnected,
-         isHydrated,
+          isConnected,
+          sseConnectionState,
+          isHydrated,
         showHelp,
         setShowHelp,
         showThemes,
@@ -110,12 +113,18 @@ function OpenCodeChatTUI() {
           extractTextFromParts,
           runShell,
           revertMessage,
-          unrevertSession,
-          shareSession,
-          unshareSession,
-          initSession,
-          summarizeSession,
-        } = useOpenCodeContext();
+           unrevertSession,
+           shareSession,
+           unshareSession,
+           initSession,
+           summarizeSession,
+           currentPermission,
+           setCurrentPermission,
+           shouldBlurEditor,
+           setShouldBlurEditor,
+           currentSessionTodos,
+           setCurrentSessionTodos,
+         } = useOpenCodeContext();
 
    // Removed automatic session creation to prevent spam
 
@@ -126,24 +135,27 @@ function OpenCodeChatTUI() {
      setInput("");
 
      try {
-       if (!currentSession) {
-         await createSession({ title: "opencode-web session" });
+       // Ensure we have a session - create one if needed and get the session object
+       let session = currentSession;
+       if (!session) {
+         session = await createSession({ title: "opencode-web session" });
          await loadSessions();
-       } else {
-         const parsed = parseCommand(messageText);
-         if (parsed.type === 'slash') {
-           await handleCommand(messageText);
-         } else if (parsed.type === 'shell') {
-           await handleShellCommand(parsed.command || '');
-          } else {
-            await sendMessage(
-              messageText,
-              selectedModel?.providerID,
-              selectedModel?.modelID,
-            );
-            await loadSessions(); // Refresh session metadata after sending message
-          }
        }
+       
+       const parsed = parseCommand(messageText);
+       if (parsed.type === 'slash') {
+         await handleCommand(messageText);
+       } else if (parsed.type === 'shell') {
+         await handleShellCommand(parsed.command || '');
+        } else {
+          await sendMessage(
+            messageText,
+            selectedModel?.providerID,
+            selectedModel?.modelID,
+            session, // Pass the session we just created or the existing one
+          );
+          await loadSessions(); // Refresh session metadata after sending message
+        }
      } catch (err) {
        console.error("Failed to send message:", err);
      }
@@ -1141,6 +1153,15 @@ function OpenCodeChatTUI() {
                  <Badge variant={isConnected ? "background2" : "foreground0"} cap="round" className="hidden sm:inline">
                    {isConnected ? "Connected" : "Disconnected"}
                  </Badge>
+                 {sseConnectionState && (
+                   <div className="flex items-center gap-1" title={`SSE: ${sseConnectionState.connected ? 'Connected' : 'Disconnected'}${sseConnectionState.reconnecting ? ' (Reconnecting...)' : ''}${sseConnectionState.error ? ` - ${sseConnectionState.error}` : ''}`}>
+                     <div className={`w-2 h-2 rounded-full ${sseConnectionState.connected ? 'bg-green-500' : 'bg-red-500'} ${sseConnectionState.reconnecting ? 'animate-pulse' : ''}`} />
+                     <Badge variant={sseConnectionState.connected ? "background2" : "foreground0"} cap="round" className="hidden md:inline text-xs">
+                       SSE {sseConnectionState.connected ? "Live" : "Off"}
+                       {sseConnectionState.reconnecting && "..."}
+                     </Badge>
+                   </div>
+                 )}
                </div>
              )}
             <div className="flex gap-2">
@@ -2398,11 +2419,28 @@ function OpenCodeChatTUI() {
              }}
              onClose={() => setShowSessionPicker(false)}
            />
-         )}
+          )}
 
-         {/* PWA Components */}
-         <InstallPrompt />
-         <PWAReloadPrompt />
+          {/* Permission Modal */}
+          {currentPermission && (
+            <PermissionModal
+              permission={currentPermission}
+              isOpen={!!currentPermission}
+              onClose={() => {
+                setCurrentPermission(null);
+                setShouldBlurEditor(false);
+              }}
+              onRespond={async (response: boolean) => {
+                if (currentPermission?.id && currentSession?.id) {
+                  await openCodeService.respondToPermission(currentSession.id, currentPermission.id, response);
+                }
+              }}
+            />
+          )}
+
+          {/* PWA Components */}
+          <InstallPrompt />
+          <PWAReloadPrompt />
        </View>
      );
    }

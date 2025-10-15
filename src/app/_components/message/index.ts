@@ -1,9 +1,1 @@
 export { MessagePart } from './MessagePart';
-export { TextPart } from './TextPart';
-export { ReasoningPart } from './ReasoningPart';
-export { ToolPart } from './ToolPart';
-export { FilePart } from './FilePart';
-export { StepPart } from './StepPart';
-export { PatchPart } from './PatchPart';
-export { AgentPart } from './AgentPart';
-export { SnapshotPart } from './SnapshotPart';

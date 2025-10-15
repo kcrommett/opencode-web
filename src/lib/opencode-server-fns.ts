@@ -166,16 +166,6 @@ export const respondToPermission = createServerFn({ method: 'POST' })
     )
   })
 
-export const initApp = createServerFn({ method: 'POST' }).handler(async () => {
-  return httpApi.initApp()
-})
-
-export const getAppInfo = createServerFn({ method: 'GET' }).handler(
-  async () => {
-    return httpApi.getAppInfo()
-  },
-)
-
 export const getConfig = createServerFn({ method: 'GET' }).handler(async () => {
   return httpApi.getConfig()
 })
@@ -272,12 +262,6 @@ export const listFiles = createServerFn({ method: 'GET' })
     return httpApi.listFiles(data.path, data.directory)
   })
 
-export const readFileContent = createServerFn({ method: 'GET' })
-  .inputValidator((data: { filePath: string; directory?: string }) => data)
-  .handler(async ({ data }) => {
-    return httpApi.readFileContent(data.filePath, data.directory)
-  })
-
 export const getToolIds = createServerFn({ method: 'GET' })
   .inputValidator((data?: { directory?: string }) => data ?? {})
   .handler(async ({ data }) => {
@@ -308,4 +292,14 @@ export const setAuth = createServerFn({ method: 'POST' })
   .inputValidator((data: { providerId: string; auth: { type: string; key: string }; directory?: string }) => data)
   .handler(async ({ data }) => {
     return httpApi.setAuth(data.providerId, data.auth, data.directory)
+  })
+
+export const getEventStreamUrl = createServerFn({ method: 'GET' })
+  .inputValidator((data?: { directory?: string }) => data ?? {})
+  .handler(async ({ data }) => {
+    let url = '/api/events'
+    if (data.directory) {
+      url += `?directory=${encodeURIComponent(data.directory)}`
+    }
+    return url
   })

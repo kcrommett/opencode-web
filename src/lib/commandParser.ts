@@ -1,4 +1,4 @@
-export interface CommandDescriptor {
+interface CommandDescriptor {
   type: 'slash' | 'shell' | 'file' | 'plain';
   command?: string;
   args?: string[];

@@ -5,7 +5,7 @@ export interface Command {
   category: 'session' | 'model' | 'theme' | 'file' | 'agent' | 'other';
 }
 
-export const COMMANDS: Command[] = [
+const COMMANDS: Command[] = [
   { name: 'new', description: 'Start a new session', category: 'session' },
   { name: 'clear', description: 'Clear current session', category: 'session' },
   { name: 'sessions', description: 'View all sessions', category: 'session' },

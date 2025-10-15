@@ -102,8 +102,8 @@ A modern TanStack Start web application that provides a powerful, feature-rich i
 ## 📋 Prerequisites
 
 - **OpenCode Server**: Running on your development machine (or accessible server)
-- **Node.js**: Version 18 or higher
-- **Bun** (recommended) or npm/yarn/pnpm
+- **Bun**: Version 1.3.x (matches the main `opencode` repository)
+- **Node.js**: Version 18 or higher (tooling & editor support)
 - **Network Access**: For remote access, devices must be on the same network
 
 ## 🛠️ Quick Start
@@ -126,9 +126,10 @@ The OpenCode server exposes a comprehensive HTTP API with 41+ endpoints. See [CO
 
 ```bash
 bun install
-# or
-npm install
 ```
+
+> [!NOTE]
+> We pin installs via `bunfig.toml`; confirm `bun --version` reports `1.3.x` before running commands.
 
 **Dependencies include**:
 - TanStack Start (React framework with server functions)
@@ -163,6 +164,11 @@ Open [http://localhost:3000](http://localhost:3000) with your browser.
 2. **Create Session**: Click "New Session" or use `/new` command
 3. **Select Model**: Choose AI model/provider via the model picker
 4. **Start Coding**: Send messages, execute commands, and let OpenCode assist!
+
+## 🧭 Contributor Guide
+
+- Follow the shared standards documented in [`AGENTS.md`](AGENTS.md); they mirror the CLI repo’s expectations (Bun-first workflow, minimal `any`, careful logging).
+- Before opening a PR run `bun run lint`, `bun x tsc --noEmit`, and `bun run build` to stay aligned with the upstream OpenCode check suite.
 
 ## 📱 Mobile Access
 
@@ -242,6 +248,17 @@ All OpenCode API calls are wrapped in server functions with:
 - **Security**: Server-side execution prevents API exposure
 
 See [CONTEXT.md](CONTEXT.md) for detailed TanStack Start patterns and examples.
+
+### Server-Sent Events (SSE)
+
+Real-time updates via SSE for:
+- Message streaming and updates
+- Session state changes
+- File system notifications
+- Permission requests
+- Error notifications
+
+See [SSE.md](SSE.md) for complete SSE event documentation and implementation examples.
 
 ### API Coverage
 
@@ -508,12 +525,12 @@ services:
 ### Dockerfile
 
 ```dockerfile
-FROM node:18-alpine
+FROM ghcr.io/oven-sh/bun:1.3.0
 
 WORKDIR /app
 
-COPY package.json bun.lockb ./
-RUN npm install -g bun && bun install
+COPY bun.lock package.json ./
+RUN bun install
 
 COPY . .
 RUN bun run build
