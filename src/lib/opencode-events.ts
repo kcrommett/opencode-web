@@ -232,7 +232,7 @@ interface SSEClientOptions {
 export class OpencodeSSEClient {
   private eventSource: EventSource | null = null;
   private options: SSEClientOptions;
-  private reconnectTimer: NodeJS.Timeout | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
   private state: SSEConnectionState = {
     connected: false,
