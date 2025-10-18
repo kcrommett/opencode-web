@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Part } from "../../../../node_modules/@opencode-ai/sdk/dist/gen/types.gen";
+import type { Part } from '@/types/opencode';
 import { Badge, Spinner } from '../ui';
 
 interface ToolPartProps {
@@ -13,11 +13,16 @@ export function ToolPart({ part, showDetails }: ToolPartProps) {
   
   if (part.type !== 'tool') return null;
   
-  const toolName = 'tool' in part ? part.tool : 'unknown';
-  const state = 'state' in part ? part.state : { status: 'pending' };
-  const status = state && typeof state === 'object' && 'status' in state ? state.status : 'pending';
-  const input = 'input' in part ? part.input : undefined;
-  const output = 'output' in part ? part.output : undefined;
+  const toolName = typeof part.tool === 'string' ? part.tool : 'unknown';
+  const state = (part as { state?: { status?: unknown } }).state;
+  const status =
+    typeof part.status === 'string'
+      ? part.status
+      : state && typeof state === 'object' && typeof (state as { status?: unknown }).status === 'string'
+        ? ((state as { status: string }).status)
+        : 'pending';
+  const input = (part as { input?: unknown }).input;
+  const output = (part as { output?: unknown }).output;
   
   const getStatusIcon = () => {
     switch (status) {

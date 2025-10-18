@@ -10,6 +10,7 @@ const eslintConfig = [
       ".output/**",
       "build/**",
       "src/routeTree.gen.ts",
+      "index.ts",
     ],
   },
   ...tseslint.configs.recommended,

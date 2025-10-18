@@ -116,7 +116,7 @@ export default defineConfig(() => {
               },
             },
           ],
-          navigateFallback: null,
+          navigateFallback: '/',
           cleanupOutdatedCaches: true,
         },
         devOptions: {

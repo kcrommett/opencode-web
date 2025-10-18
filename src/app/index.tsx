@@ -119,11 +119,10 @@ function OpenCodeChatTUI() {
            initSession,
            summarizeSession,
            currentPermission,
-           setCurrentPermission,
-           shouldBlurEditor,
-           setShouldBlurEditor,
-           currentSessionTodos,
-           setCurrentSessionTodos,
+          setCurrentPermission,
+          shouldBlurEditor,
+          setShouldBlurEditor,
+          currentSessionTodos,
          } = useOpenCodeContext();
 
    // Removed automatic session creation to prevent spam
@@ -1719,13 +1718,25 @@ function OpenCodeChatTUI() {
         <Separator direction="vertical" />
 
         {/* Main Editor Area */}
-        <View box="square" className="flex-1 flex flex-col gap-0 bg-theme-background">
+        <View
+          box="square"
+          className="flex-1 flex flex-col gap-0 bg-theme-background"
+          style={{
+            filter: shouldBlurEditor ? 'blur(4px)' : undefined,
+            pointerEvents: shouldBlurEditor ? 'none' : undefined,
+          }}
+        >
            {/* Header */}
            <div className="px-4 py-2 flex justify-between items-center bg-theme-background-alt">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
                  <span className="text-base font-normal text-theme-foreground">
                   OpenCode Chat Sessions: {currentSession?.title || currentSession?.id.slice(0, 8)}... . Project: {currentProject?.worktree}
                 </span>
+                {currentSessionTodos.length > 0 && (
+                  <Badge variant="foreground0" cap="round" className="text-xs">
+                    {currentSessionTodos.length} todo{currentSessionTodos.length === 1 ? '' : 's'} pending
+                  </Badge>
+                )}
                </div>
             </div>
 

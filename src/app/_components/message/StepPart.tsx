@@ -1,4 +1,4 @@
-import type { Part } from "../../../../node_modules/@opencode-ai/sdk/dist/gen/types.gen";
+import type { Part } from '@/types/opencode';
 import { Badge } from '../ui';
 
 interface StepPartProps {

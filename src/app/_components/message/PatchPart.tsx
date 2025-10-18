@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Part } from "../../../../node_modules/@opencode-ai/sdk/dist/gen/types.gen";
+import type { Part } from '@/types/opencode';
 
 interface PatchPartProps {
   part: Part;

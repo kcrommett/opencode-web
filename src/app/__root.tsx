@@ -2,6 +2,7 @@ import {
   Outlet,
   createRootRoute,
   Scripts,
+  HeadContent,
 } from "@tanstack/react-router";
 import "./globals.css";
 import { OpenCodeProvider } from "@/contexts/OpenCodeContext";
@@ -15,7 +16,7 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       {
         name: "viewport",
-        content: "width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover",
+        content: "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content",
       },
       { name: "description", content: "A web-based IDE for opencode projects" },
       { name: "mobile-web-app-capable", content: "yes" },
@@ -23,10 +24,10 @@ export const Route = createRootRoute({
       { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
     ],
     links: [
-      { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
-      { rel: "icon", type: "image/x-icon", href: "/favicon.ico", sizes: "any" },
-      { rel: "apple-touch-icon", href: "/apple-touch-icon-180x180.png" },
-      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "icon", type: "image/svg+xml", href: `${pwaAssetsUrl}/favicon.svg` },
+      { rel: "icon", type: "image/x-icon", href: `${pwaAssetsUrl}/favicon.ico`, sizes: "any" },
+      { rel: "apple-touch-icon", href: `${pwaAssetsUrl}/apple-touch-icon-180x180.png` },
+      { rel: "manifest", href: `${pwaAssetsUrl}/manifest.webmanifest` },
     ],
     title: "opencode web",
   }),
@@ -50,6 +51,7 @@ function RootLayout() {
       suppressHydrationWarning
     >
       <head>
+        <HeadContent />
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
         <meta name="mobile-web-app-capable" content="yes" />

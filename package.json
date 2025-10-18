@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite dev --host",
     "build": "vite build",
-    "start": "node .output/server/index.mjs",
+    "start": "bun server.ts",
     "lint": "eslint",
     "knip": "knip"
   },

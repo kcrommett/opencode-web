@@ -1,17 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { openCodeService, handleOpencodeError } from '@/lib/opencode-client';
 import { OpencodeEvent, SSEConnectionState } from '@/lib/opencode-events';
-
-// Define Part type locally since the SDK import is broken
-type Part =
-  | { type: 'text'; text: string }
-  | { type: 'reasoning'; content: string; signature?: string }
-  | { type: 'tool'; tool: string; args: Record<string, unknown>; result?: unknown }
-  | { type: 'file'; path: string; content: string }
-  | { type: 'step'; title: string; content: string }
-  | { type: 'patch'; path: string; diff: string }
-  | { type: 'agent'; name: string; description?: string }
-  | { type: 'snapshot'; url: string; description?: string };
+import type { Part, PermissionState, SessionTodo } from '@/types/opencode';
 
    interface Message {
     id: string;
@@ -143,9 +133,9 @@ export function useOpenCode() {
       const [models, setModels] = useState<Model[]>([]);
 
       // Permission and todo state
-      const [currentPermission, setCurrentPermission] = useState<any | null>(null);
+      const [currentPermission, setCurrentPermission] = useState<PermissionState | null>(null);
       const [shouldBlurEditor, setShouldBlurEditor] = useState(false);
-      const [currentSessionTodos, setCurrentSessionTodos] = useState<any[]>([]);
+      const [currentSessionTodos, setCurrentSessionTodos] = useState<SessionTodo[]>([]);
 
       const [selectedModel, setSelectedModel] = useState<Model | null>(null);
       const [config, setConfig] = useState<Config | null>(null);
@@ -309,363 +299,332 @@ export function useOpenCode() {
      checkConnection();
    }, []);
 
-   // SSE Event handling for real-time message updates
-   useEffect(() => {
-     if (!isConnected || !currentSession || !isHydrated) return;
+  const showToast = useCallback(
+    async (message: string, variant: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+      try {
+        await openCodeService.showToast(message, variant)
+      } catch (error) {
+        console.error('Failed to show toast:', error)
+      }
+    },
+    [],
+  )
 
-      const handleSSEEvent = (event: OpencodeEvent) => {
-        // Log all non-diagnostic events
-        if (event.type !== 'lsp.client.diagnostics') {
-          console.log('[SSE] Event received:', {
-            type: event.type,
-            sessionID: (event.properties as any)?.sessionID,
-            currentSessionID: currentSession?.id,
-            willProcess: !(event.properties as any)?.sessionID || (event.properties as any)?.sessionID === currentSession?.id
-          });
+  // SSE Event handling for real-time message updates
+  useEffect(() => {
+    if (!isConnected || !currentSession || !isHydrated) return;
+
+    const debugLog = (...args: unknown[]) => {
+      if (process.env.NODE_ENV !== 'production') console.log(...args)
+    }
+
+    const getEventSessionId = (event: OpencodeEvent): string | undefined => {
+      const maybeSessionId = (event.properties as { sessionID?: unknown }).sessionID
+      return typeof maybeSessionId === 'string' ? maybeSessionId : undefined
+    }
+
+    const handleSSEEvent = (event: OpencodeEvent) => {
+      if (event.type !== 'lsp.client.diagnostics') {
+        debugLog('[SSE] Event received:', event.type)
+      }
+
+      const eventSessionId = getEventSessionId(event)
+      if (eventSessionId && currentSession?.id && eventSessionId !== currentSession.id) {
+        debugLog('[SSE] Ignoring event for different session', {
+          eventSessionId,
+          currentSessionId: currentSession.id,
+        })
+        return
+      }
+
+      switch (event.type) {
+        case 'server.connected': {
+          debugLog('[SSE] Server connected')
+          break
         }
-        
-        // Filter events by session ID (except server-wide events)
-        const props = event.properties as any;
-        
-        // IMPORTANT: Only filter if event HAS a sessionID property
-        // Some events might not have sessionID (server-wide events)
-        if (props?.sessionID && currentSession?.id && props.sessionID !== currentSession.id) {
-          console.log('[SSE] Ignoring event for different session');
-          return;
+
+        case 'installation.updated': {
+          const { version } = event.properties
+          if (version) {
+            showToast(`OpenCode updated to ${version}, restart to apply`, 'success')
+          }
+          break
         }
-        
-        switch (event.type) {
-          case 'server.connected': {
-            console.log('[SSE] Server connected');
-            break;
+
+        case 'ide.installed': {
+          const { ide } = event.properties
+          if (ide) {
+            showToast(`${ide} extension installed successfully`, 'success')
+          }
+          break
+        }
+
+        case 'session.updated': {
+          const sessionInfo = event.properties.info
+          if (sessionInfo && currentSession?.id === sessionInfo.id) {
+            setCurrentSession(prev => (prev?.id === sessionInfo.id ? { ...prev, ...sessionInfo } : prev))
+          }
+          break
+        }
+
+        case 'session.deleted': {
+          const sessionInfo = event.properties.info
+          if (sessionInfo && currentSession?.id === sessionInfo.id) {
+            setCurrentSession(null)
+            setMessages([])
+            seenMessageIdsRef.current.clear()
+            showToast('Session was deleted', 'info')
+          }
+          break
+        }
+
+        case 'session.compacted': {
+          if (event.properties.sessionID === currentSession?.id) {
+            showToast('Session compacted successfully', 'success')
+          }
+          break
+        }
+
+        case 'session.idle': {
+          debugLog('[SSE] Session became idle')
+          break
+        }
+
+        case 'session.error': {
+          const { error } = event.properties
+          if (error) {
+            showToast(error.message, 'error')
+          }
+          break
+        }
+
+        case 'message.updated': {
+          const messageInfo = event.properties.info
+
+          if (!messageInfo?.id) {
+            debugLog('[SSE] Skipping message event - no message id')
+            return
           }
 
-          case 'installation.updated': {
-            const props = event.properties as any;
-            const version = props?.version;
-            if (version) {
-              showToast(`OpenCode updated to ${version}, restart to apply`, 'success');
-            }
-            break;
-          }
+          setMessages(prevMessages => {
+            const existingIndex = prevMessages.findIndex(m => m.id === messageInfo.id)
 
-          case 'ide.installed': {
-            const props = event.properties as any;
-            const ide = props?.ide;
-            if (ide) {
-              showToast(`${ide} extension installed successfully`, 'success');
-            }
-            break;
-          }
+            if (existingIndex >= 0) {
+              const updated = [...prevMessages]
+              updated[existingIndex] = {
+                ...updated[existingIndex],
+                reverted: messageInfo.reverted ?? updated[existingIndex].reverted,
+                metadata: messageInfo.tokens
+                  ? {
+                      tokens: messageInfo.tokens,
+                      cost: messageInfo.cost,
+                      model: messageInfo.modelID,
+                      agent: messageInfo.mode,
+                    }
+                  : updated[existingIndex].metadata,
+              }
 
-          case 'session.updated': {
-            const props = event.properties as any;
-            const sessionInfo = props?.info;
-            if (sessionInfo && currentSession?.id === sessionInfo.id) {
-              // Update current session info if it matches
-              setCurrentSession(prev => prev?.id === sessionInfo.id ? { ...prev, ...sessionInfo } : prev);
-            }
-            break;
-          }
-
-          case 'session.deleted': {
-            const props = event.properties as any;
-            const sessionInfo = props?.info;
-            if (sessionInfo && currentSession?.id === sessionInfo.id) {
-              // Clear current session if it was deleted
-              setCurrentSession(null);
-              setMessages([]);
-              seenMessageIdsRef.current.clear();
-              showToast('Session was deleted', 'info');
-            }
-            break;
-          }
-
-          case 'session.compacted': {
-            const props = event.properties as any;
-            const sessionID = props?.sessionID;
-            if (sessionID === currentSession?.id) {
-              showToast('Session compacted successfully', 'success');
-            }
-            break;
-          }
-
-          case 'session.idle': {
-            // No specific UI updates needed for idle state
-            console.log('[SSE] Session became idle');
-            break;
-          }
-
-          case 'session.error': {
-            const props = event.properties as any;
-            const error = props?.error;
-            if (error) {
-              const errorTitle = error.type === 'ProviderAuthError' ? 'Provider Error' :
-                               error.type === 'UnknownError' ? error.name || 'Error' :
-                               'Session Error';
-              showToast(error.message, 'error');
-            }
-            break;
-          }
-
-          case 'message.updated': {
-            const props = event.properties as any;
-            const messageInfo = props?.info;
-
-            if (!messageInfo?.id) {
-              console.warn('[SSE] Skipping message event - no message id');
-              return;
+              debugLog('[SSE] Updated message metadata:', messageInfo.id)
+              seenMessageIdsRef.current.add(messageInfo.id)
+              return updated
             }
 
-            setMessages(prevMessages => {
-              const existingIndex = prevMessages.findIndex(m => m.id === messageInfo.id);
+            if (seenMessageIdsRef.current.has(messageInfo.id)) {
+              debugLog('[SSE] Skipping duplicate message creation:', messageInfo.id)
+              return prevMessages
+            }
 
-              if (existingIndex >= 0) {
-                // Update existing message metadata
-                const updated = [...prevMessages];
-                updated[existingIndex] = {
-                  ...updated[existingIndex],
-                  reverted: messageInfo.reverted || updated[existingIndex].reverted,
-                  metadata: messageInfo.tokens ? {
+            seenMessageIdsRef.current.add(messageInfo.id)
+
+            const newMessage: Message = {
+              id: messageInfo.id,
+              type: messageInfo.role === 'user' ? 'user' : 'assistant',
+              content: '',
+              parts: [],
+              timestamp: new Date(messageInfo.time?.created || Date.now()),
+              reverted: messageInfo.reverted || false,
+              metadata: messageInfo.tokens
+                ? {
                     tokens: messageInfo.tokens,
                     cost: messageInfo.cost,
                     model: messageInfo.modelID,
-                    agent: messageInfo.mode
-                  } : updated[existingIndex].metadata
-                };
-
-                console.log('[SSE] Updated message metadata:', messageInfo.id);
-                seenMessageIdsRef.current.add(messageInfo.id);
-                return updated;
-              }
-              
-              // Check if we've already queued this message for creation
-              if (seenMessageIdsRef.current.has(messageInfo.id)) {
-                console.log('[SSE] Skipping duplicate message creation:', messageInfo.id);
-                return prevMessages;
-              }
-              
-              // Mark this message ID as seen BEFORE creating to prevent race conditions
-              seenMessageIdsRef.current.add(messageInfo.id);
-              
-              // New message - create placeholder that will be populated by part events
-              const newMessage: Message = {
-                id: messageInfo.id,
-                type: messageInfo.role === 'user' ? 'user' : 'assistant',
-                content: '',
-                parts: [],
-                timestamp: new Date(messageInfo.time?.created || Date.now()),
-                reverted: messageInfo.reverted || false,
-                metadata: messageInfo.tokens ? {
-                  tokens: messageInfo.tokens,
-                  cost: messageInfo.cost,
-                  model: messageInfo.modelID,
-                  agent: messageInfo.mode
-                } : undefined
-              };
-
-              // Insert in chronological order by ID comparison
-              const insertIndex = prevMessages.findIndex(m => m.id > messageInfo.id);
-              const newMessages = [...prevMessages];
-              if (insertIndex >= 0) {
-                newMessages.splice(insertIndex, 0, newMessage);
-              } else {
-                newMessages.push(newMessage);
-              }
-
-              console.log('[SSE] Added new message placeholder:', messageInfo.id);
-              return newMessages;
-            });
-            break;
-          }
-
-          case 'message.removed': {
-            const props = event.properties as any;
-            const messageID = props?.messageID;
-            if (messageID) {
-              setMessages(prevMessages => prevMessages.filter(msg => msg.id !== messageID));
-              console.log('[SSE] Removed message:', messageID);
-            }
-            break;
-          }
-
-            case 'message.part.updated': {
-              const props = event.properties as any;
-              console.log('[SSE] message.part.updated props:', JSON.stringify(props, null, 2));
-              const messageID = props?.part?.messageID;
-              const part = props?.part;
-
-              console.log('[SSE] message.part.updated - messageID:', messageID, 'part keys:', Object.keys(part || {}));
-
-              if (!messageID || !part) {
-                console.warn('[SSE] Skipping part update - missing messageID or part');
-                return;
-              }
-
-            setMessages(prevMessages => {
-              return prevMessages.map(msg => {
-                if (msg.id === messageID) {
-                  const parts = msg.parts || [];
-                  const newPart = part as Part;
-
-                  // For text parts, append or replace
-                  if (newPart.type === 'text') {
-                    const textPartIndex = parts.findIndex((p: Part) => p.type === 'text');
-                    if (textPartIndex >= 0) {
-                      // Update existing text part
-                      const updatedParts = [...parts];
-                      updatedParts[textPartIndex] = newPart;
-
-                      // Update content field for display
-                      const textContent = 'text' in newPart ? newPart.text : '';
-
-                      console.log('[SSE] Updated text part for message:', msg.id, 'length:', textContent?.length || 0);
-                      return { ...msg, parts: updatedParts, content: textContent };
-                    } else {
-                      // Add new text part
-                      const textContent = 'text' in newPart ? newPart.text : '';
-                      console.log('[SSE] Added new text part for message:', msg.id, 'length:', textContent?.length || 0);
-                      return { ...msg, parts: [...parts, newPart], content: textContent };
-                    }
+                    agent: messageInfo.mode,
                   }
-
-                  // For other part types, check if we need to update or append
-                  const existingPartIndex = parts.findIndex((p: Part) =>
-                    p.type === newPart.type &&
-                    ('tool' in p && 'tool' in newPart ? p.tool === newPart.tool : true)
-                  );
-
-                  if (existingPartIndex >= 0) {
-                    // Update existing part
-                    const updatedParts = [...parts];
-                    updatedParts[existingPartIndex] = newPart;
-                    console.log('[SSE] Updated part type:', newPart.type, 'for message:', msg.id);
-                    return { ...msg, parts: updatedParts };
-                  } else {
-                    // Add new part
-                    console.log('[SSE] Added new part type:', newPart.type, 'for message:', msg.id);
-                    return { ...msg, parts: [...parts, newPart] };
-                  }
-                }
-                return msg;
-              });
-            });
-            break;
-          }
-
-          case 'message.part.removed': {
-            const props = event.properties as any;
-            const messageID = props?.messageID;
-            const partID = props?.partID;
-
-            if (messageID && partID) {
-              setMessages(prevMessages =>
-                prevMessages.map(msg =>
-                  msg.id === messageID
-                    ? { ...msg, parts: msg.parts?.filter((_, index) => index.toString() !== partID) || [] }
-                    : msg
-                )
-              );
-              console.log('[SSE] Removed part:', partID, 'from message:', messageID);
+                : undefined,
             }
-            break;
-          }
 
-          case 'permission.updated': {
-            const props = event.properties as any;
-            const permissionId = props?.id;
-            const sessionID = props?.sessionID;
-
-            if (permissionId && sessionID === currentSession?.id) {
-              // Add permission to list and set as current
-              setCurrentPermission({
-                id: permissionId,
-                sessionID,
-                ...props
-              });
-              // Blur editor to show permission modal
-              setShouldBlurEditor(true);
-              console.log('[SSE] Permission request received:', permissionId);
+            const insertIndex = prevMessages.findIndex(m => m.id > messageInfo.id)
+            const newMessages = [...prevMessages]
+            if (insertIndex >= 0) {
+              newMessages.splice(insertIndex, 0, newMessage)
+            } else {
+              newMessages.push(newMessage)
             }
-            break;
-          }
 
-          case 'permission.replied': {
-            const props = event.properties as any;
-            const permissionID = props?.permissionID;
-            const sessionID = props?.sessionID;
-
-            if (permissionID && sessionID === currentSession?.id) {
-              // Remove permission from list
-              setCurrentPermission(null);
-              setShouldBlurEditor(false);
-              console.log('[SSE] Permission response received:', permissionID);
-            }
-            break;
-          }
-
-          case 'file.edited': {
-            const props = event.properties as any;
-            const file = props?.file;
-            if (file) {
-              console.log('[SSE] File edited:', file);
-              // Could trigger file reload or show notification
-            }
-            break;
-          }
-
-          case 'file.watcher.updated': {
-            const props = event.properties as any;
-            const file = props?.file;
-            const fileEvent = props?.event;
-            if (file && fileEvent) {
-              console.log('[SSE] File watcher update:', file, fileEvent);
-              // Could trigger file tree refresh or show notification
-            }
-            break;
-          }
-
-          case 'todo.updated': {
-            const props = event.properties as any;
-            const sessionID = props?.sessionID;
-            const todos = props?.todos;
-
-            if (sessionID === currentSession?.id && todos) {
-              setCurrentSessionTodos(todos);
-              console.log('[SSE] Todo items updated for session:', sessionID);
-            }
-            break;
-          }
-
-          case 'lsp.client.diagnostics': {
-            // LSP diagnostics are handled separately or can be ignored for now
-            break;
-          }
+            debugLog('[SSE] Added new message placeholder:', messageInfo.id)
+            return newMessages
+          })
+          break
         }
-      };
 
-      // Subscribe to SSE events
-      const setupSSE = async () => {
-        const directory = currentProject?.worktree;
-        const { data: connectionState } = await openCodeService.subscribeToEvents(currentSession.id, handleSSEEvent, directory);
-        setSseConnectionState(connectionState);
-      };
-     
-     setupSSE();
+        case 'message.removed': {
+          const { messageID } = event.properties
+          if (messageID) {
+            setMessages(prevMessages => prevMessages.filter(msg => msg.id !== messageID))
+            debugLog('[SSE] Removed message:', messageID)
+          }
+          break
+        }
 
-     // Monitor connection state
-     const connectionMonitor = setInterval(() => {
-       const currentState = openCodeService.getConnectionState();
-       setSseConnectionState(currentState);
-     }, 1000);
+        case 'message.part.updated': {
+          const { part, messageID } = event.properties
+          const targetMessageId = typeof part?.messageID === 'string' ? part.messageID : messageID
 
-      return () => {
-        // Cleanup on unmount or when session changes
-        clearInterval(connectionMonitor);
-        openCodeService.unsubscribeFromEvents();
-        setSseConnectionState(null);
-      };
-   }, [isConnected, currentSession, isHydrated, currentProject?.worktree]);
+          if (!part || !targetMessageId) {
+            debugLog('[SSE] Skipping part update - missing message ID or part')
+            return
+          }
+
+          setMessages(prevMessages =>
+            prevMessages.map(msg => {
+              if (msg.id !== targetMessageId) return msg
+
+              const parts = msg.parts || []
+              const textContent = typeof part.text === 'string' ? part.text : ''
+
+              if (part.type === 'text') {
+                const textPartIndex = parts.findIndex(p => p.type === 'text')
+                if (textPartIndex >= 0) {
+                  const updatedParts = [...parts]
+                  updatedParts[textPartIndex] = part
+                  debugLog('[SSE] Updated text part for message:', msg.id, 'length:', textContent.length)
+                  return { ...msg, parts: updatedParts, content: textContent }
+                }
+
+                debugLog('[SSE] Added new text part for message:', msg.id, 'length:', textContent.length)
+                return { ...msg, parts: [...parts, part], content: textContent }
+              }
+
+              const existingPartIndex = parts.findIndex(p => {
+                if (p.type !== part.type) return false
+                const currentTool = typeof p.tool === 'string' ? p.tool : null
+                const incomingTool = typeof part.tool === 'string' ? part.tool : null
+                if (currentTool && incomingTool) {
+                  return currentTool === incomingTool
+                }
+                return true
+              })
+
+              if (existingPartIndex >= 0) {
+                const updatedParts = [...parts]
+                updatedParts[existingPartIndex] = part
+                debugLog('[SSE] Updated part type:', part.type, 'for message:', msg.id)
+                return { ...msg, parts: updatedParts }
+              }
+
+              debugLog('[SSE] Added new part type:', part.type, 'for message:', msg.id)
+              return { ...msg, parts: [...parts, part] }
+            }),
+          )
+          break
+        }
+
+        case 'message.part.removed': {
+          const { messageID, partID } = event.properties
+          if (messageID && partID) {
+            setMessages(prevMessages =>
+              prevMessages.map(msg =>
+                msg.id === messageID
+                  ? { ...msg, parts: msg.parts?.filter((_, index) => index.toString() !== partID) || [] }
+                  : msg,
+              ),
+            )
+            debugLog('[SSE] Removed part:', partID, 'from message:', messageID)
+          }
+          break
+        }
+
+        case 'permission.updated': {
+          const { id, sessionID, message, details, ...rest } = event.properties
+          if (sessionID === currentSession?.id) {
+            const permissionPayload: PermissionState = {
+              id,
+              sessionID,
+              message,
+              details,
+              ...rest,
+            }
+            setCurrentPermission(permissionPayload)
+            setShouldBlurEditor(true)
+            debugLog('[SSE] Permission request received:', id)
+          }
+          break
+        }
+
+        case 'permission.replied': {
+          const { permissionID, sessionID } = event.properties
+          if (sessionID === currentSession?.id) {
+            setCurrentPermission(null)
+            setShouldBlurEditor(false)
+            debugLog('[SSE] Permission response received:', permissionID)
+          }
+          break
+        }
+
+        case 'file.edited': {
+          const { file } = event.properties
+          if (file) {
+            debugLog('[SSE] File edited:', file)
+          }
+          break
+        }
+
+        case 'file.watcher.updated': {
+          const { file, event: fileEvent } = event.properties
+          if (file && fileEvent) {
+            debugLog('[SSE] File watcher update:', file, fileEvent)
+          }
+          break
+        }
+
+        case 'todo.updated': {
+          const { sessionID, todos } = event.properties
+          if (sessionID === currentSession?.id && Array.isArray(todos)) {
+            setCurrentSessionTodos(todos)
+            debugLog('[SSE] Todo items updated for session:', sessionID)
+          }
+          break
+        }
+
+        case 'lsp.client.diagnostics': {
+          break
+        }
+      }
+    }
+
+    const setupSSE = async () => {
+      const directory = currentProject?.worktree
+      const { data: connectionState } = await openCodeService.subscribeToEvents(
+        currentSession.id,
+        handleSSEEvent,
+        directory,
+      )
+      setSseConnectionState(connectionState)
+    }
+
+    setupSSE()
+
+    const connectionMonitor = setInterval(() => {
+      const currentState = openCodeService.getConnectionState()
+      setSseConnectionState(currentState)
+    }, 1000)
+
+    return () => {
+      clearInterval(connectionMonitor)
+      openCodeService.unsubscribeFromEvents()
+      setSseConnectionState(null)
+    }
+  }, [isConnected, currentSession, isHydrated, currentProject?.worktree, showToast])
 
 
 
@@ -1297,14 +1256,6 @@ export function useOpenCode() {
        console.error('Failed to open models:', error);
      }
    }, []);
-
-    const showToast = useCallback(async (message: string, variant: 'success' | 'error' | 'warning' | 'info' = 'info') => {
-      try {
-        await openCodeService.showToast(message, variant);
-      } catch (error) {
-        console.error('Failed to show toast:', error);
-      }
-    }, []);
 
     // Agent management
     const loadAgents = useCallback(async () => {

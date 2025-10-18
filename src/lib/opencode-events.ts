@@ -1,3 +1,5 @@
+import type { Part } from '@/types/opencode'
+
 /**
  * OpenCode Server-Sent Events types and client
  */
@@ -18,7 +20,7 @@ const devWarn = (...args: unknown[]) => {
 
 interface ServerConnectedEvent {
   type: 'server.connected';
-  properties: Record<string, any>;
+  properties: Record<string, unknown>;
 }
 
 interface InstallationUpdatedEvent {
@@ -38,10 +40,10 @@ interface IdeInstalledEvent {
 interface SessionUpdatedEvent {
   type: 'session.updated';
   properties: {
-    info: {
+    info?: {
       id: string;
       title?: string;
-      [key: string]: any;
+      [key: string]: unknown;
     };
   };
 }
@@ -49,9 +51,9 @@ interface SessionUpdatedEvent {
 interface SessionDeletedEvent {
   type: 'session.deleted';
   properties: {
-    info: {
+    info?: {
       id: string;
-      [key: string]: any;
+      [key: string]: unknown;
     };
   };
 }
@@ -73,10 +75,10 @@ interface SessionIdleEvent {
 interface SessionErrorEvent {
   type: 'session.error';
   properties: {
-    error: {
+    error?: {
       type: string;
       message: string;
-      [key: string]: any;
+      [key: string]: unknown;
     };
     sessionID?: string;
   };
@@ -85,7 +87,7 @@ interface SessionErrorEvent {
 interface MessageUpdatedEvent {
   type: 'message.updated';
   properties: {
-    info: {
+    info?: {
       id: string;
       role: 'user' | 'assistant';
       time: {
@@ -101,7 +103,7 @@ interface MessageUpdatedEvent {
       cost?: number;
       modelID?: string;
       mode?: string;
-      [key: string]: any;
+      [key: string]: unknown;
     };
   };
 }
@@ -119,10 +121,7 @@ interface MessagePartUpdatedEvent {
   properties: {
     sessionID?: string;
     messageID?: string;
-    part: {
-      type: string;
-      [key: string]: any;
-    };
+    part?: Part & { messageID?: string };
   };
 }
 
@@ -140,7 +139,9 @@ interface PermissionUpdatedEvent {
   properties: {
     id: string;
     sessionID: string;
-    [key: string]: any;
+    message?: string;
+    details?: unknown;
+    [key: string]: unknown;
   };
 }
 
@@ -172,7 +173,7 @@ interface TodoUpdatedEvent {
   type: 'todo.updated';
   properties: {
     sessionID: string;
-    todos: Array<{
+    todos?: Array<{
       content: string;
       status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
       priority: 'high' | 'medium' | 'low';

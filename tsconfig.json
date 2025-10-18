@@ -17,6 +17,12 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx"],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "server.ts",
+    "vite.config.ts",
+    "knip.ts"
+  ],
   "exclude": ["node_modules", "dist", ".output"]
 }
