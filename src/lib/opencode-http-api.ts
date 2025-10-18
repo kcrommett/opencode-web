@@ -1,6 +1,9 @@
-const OPENCODE_SERVER_URL = typeof process !== 'undefined' && process.env?.VITE_OPENCODE_SERVER_URL
-  ? process.env.VITE_OPENCODE_SERVER_URL
-  : 'http://localhost:4096'
+const OPENCODE_SERVER_URL =
+  typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_OPENCODE_SERVER_URL
+    ? import.meta.env.VITE_OPENCODE_SERVER_URL
+    : (typeof process !== 'undefined' && process.env?.VITE_OPENCODE_SERVER_URL
+        ? process.env.VITE_OPENCODE_SERVER_URL
+        : 'http://localhost:4096');
 
 function buildUrl(path: string, params?: Record<string, string>): string {
   const url = new URL(path, OPENCODE_SERVER_URL)
