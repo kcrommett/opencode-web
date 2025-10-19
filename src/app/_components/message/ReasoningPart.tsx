@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Part } from '@/types/opencode';
 import { Badge } from '../ui';
 
@@ -7,20 +7,97 @@ interface ReasoningPartProps {
   showDetails: boolean;
 }
 
+const reasoningMetadataPriority = ['summary', 'thinking', 'text', 'content', 'details', 'explanation'];
+type ReasoningSource = 'part' | 'metadata' | null;
+
+function extractReadableString(value: unknown): string {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) return '';
+    const containsLetter = /[a-zA-Z]/.test(trimmed);
+    const looksLikeSentence = trimmed.includes(' ');
+    if (!containsLetter) return '';
+    if (looksLikeSentence || trimmed.length > 40) {
+      return value;
+    }
+    return '';
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const match = extractReadableString(item);
+      if (match) return match;
+    }
+    return '';
+  }
+
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    for (const key of reasoningMetadataPriority) {
+      if (key in record) {
+        const match = extractReadableString(record[key]);
+        if (match) return match;
+      }
+    }
+    for (const entry of Object.values(record)) {
+      const match = extractReadableString(entry);
+      if (match) return match;
+    }
+  }
+
+  return '';
+}
+
+function extractReasoningText(part: Part): { text: string; source: ReasoningSource } {
+  const rawText =
+    typeof part.text === 'string'
+      ? part.text
+      : typeof part.content === 'string'
+        ? part.content
+        : typeof part.value === 'string'
+          ? part.value
+          : '';
+  if (rawText.trim().length > 0) {
+    return { text: rawText, source: 'part' };
+  }
+
+  const metadata = (part as { metadata?: unknown }).metadata;
+  const metadataText = extractReadableString(metadata);
+  if (metadataText) {
+    return { text: metadataText, source: 'metadata' };
+  }
+
+  return { text: '', source: null };
+}
+
 export function ReasoningPart({ part, showDetails }: ReasoningPartProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const isReasoningPart = part.type === 'reasoning';
+  const [isExpanded, setIsExpanded] = useState(showDetails);
   
-  if (part.type !== 'reasoning') return null;
-  
-  const text = 'text' in part ? part.text : '';
-  
-  if (!showDetails) return null;
+  useEffect(() => {
+    if (!isReasoningPart) return;
+    setIsExpanded(showDetails);
+  }, [isReasoningPart, showDetails]);
+
+  const { text, source } = useMemo(() => extractReasoningText(part), [part]);
+  const derivedFromMetadata = source === 'metadata';
+
+  if (!isReasoningPart || !showDetails) return null;
+
+  const toggle = () => {
+    setIsExpanded((value) => !value);
+  };
+
+  const contentId = part.id ? `reasoning-${part.id}` : undefined;
   
   return (
     <div className="border border-theme-border rounded-md overflow-hidden bg-theme-background-alt mb-2">
-      <div 
-        className="flex items-center justify-between p-3 cursor-pointer hover:bg-theme-background"
-        onClick={() => setIsExpanded(!isExpanded)}
+      <button
+        type="button"
+        className="flex w-full items-center justify-between p-3 text-left hover:bg-theme-background transition-colors"
+        onClick={toggle}
+        aria-expanded={isExpanded}
+        aria-controls={contentId}
       >
         <div className="flex items-center gap-2">
           <span>🧠</span>
@@ -32,12 +109,28 @@ export function ReasoningPart({ part, showDetails }: ReasoningPartProps) {
             {text.length} chars
           </Badge>
         )}
-      </div>
-      {isExpanded && text && (
-        <div className="border-t border-theme-border p-3 bg-theme-background">
-          <pre className="text-sm font-mono whitespace-pre-wrap break-words opacity-80">
-            {text}
-          </pre>
+      </button>
+      {isExpanded && (
+        <div
+          id={contentId}
+          className="border-t border-theme-border p-3 bg-theme-background"
+        >
+          {text ? (
+            <>
+              <pre className="text-sm font-mono whitespace-pre-wrap break-words opacity-80">
+                {text}
+              </pre>
+              {derivedFromMetadata && (
+                <p className="mt-2 text-[11px] uppercase tracking-wide opacity-50">
+                  Derived from provider metadata
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-xs opacity-70">
+              This provider did not return any thinking for this message.
+            </p>
+          )}
         </div>
       )}
     </div>
