@@ -9,7 +9,8 @@
     "build": "vite build",
     "start": "bun server.ts",
     "lint": "eslint",
-    "knip": "knip"
+    "knip": "knip",
+    "test": "bun test"
   },
   "dependencies": {
     "@tanstack/react-router": "^1.132.25",

@@ -22,7 +22,8 @@
     "src/**/*.tsx",
     "server.ts",
     "vite.config.ts",
-    "knip.ts"
+    "knip.ts",
+    "tests/**/*.ts"
   ],
   "exclude": ["node_modules", "dist", ".output"]
 }

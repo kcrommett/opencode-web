@@ -1,7 +1,90 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { openCodeService, handleOpencodeError } from '@/lib/opencode-client';
 import { OpencodeEvent, SSEConnectionState } from '@/lib/opencode-events';
-import type { Part, PermissionState, SessionTodo } from '@/types/opencode';
+import type { FileContentData, Part, PermissionState, SessionTodo } from '@/types/opencode';
+
+const isDevEnvironment = process.env.NODE_ENV !== 'production';
+
+const BASE64_ENCODING = 'base64';
+const TEXT_LIKE_MIME_SNIPPETS = [
+  'json',
+  'xml',
+  'yaml',
+  'yml',
+  'toml',
+  'csv',
+  'javascript',
+  'typescript',
+  'html',
+  'css',
+  'plain',
+  'markdown',
+  'shell',
+];
+const TEXT_LIKE_EXTENSIONS = new Set([
+  'txt',
+  'text',
+  'md',
+  'markdown',
+  'json',
+  'jsonc',
+  'yaml',
+  'yml',
+  'toml',
+  'xml',
+  'html',
+  'htm',
+  'css',
+  'scss',
+  'sass',
+  'js',
+  'jsx',
+  'ts',
+  'tsx',
+  'cjs',
+  'mjs',
+  'py',
+  'rb',
+  'rs',
+  'go',
+  'java',
+  'c',
+  'cpp',
+  'h',
+  'hpp',
+  'sql',
+  'sh',
+  'bash',
+  'zsh',
+  'env',
+  'lock',
+  'gitignore',
+  'gitattributes',
+]);
+
+const TEXT_LIKE_FILENAMES = new Set([
+  'license',
+  'license.md',
+  'license.txt',
+  'readme',
+  'readme.md',
+  'changelog',
+  'changelog.md',
+  'contributing',
+  'contributing.md',
+  'conduct',
+  'conduct.md',
+  'makefile',
+  'dockerfile',
+  '.gitignore',
+  '.gitattributes',
+  '.editorconfig',
+  'cargo.toml',
+  'package.json',
+  'package-lock.json',
+  'pnpm-lock.yaml',
+  'bun.lock',
+]);
 
    interface Message {
     id: string;
@@ -175,15 +258,61 @@ export function useOpenCode() {
           currentSessionRef.current = currentSession;
         }, [currentSession]);
 
+  const normalizeProject = useCallback((project: unknown): Project | null => {
+    if (!project || typeof project !== 'object') return null;
+    const value = project as {
+      id?: string;
+      worktree?: string;
+      vcs?: string;
+      createdAt?: unknown;
+      updatedAt?: unknown;
+      time?: { created?: number; updated?: number };
+    };
+    if (!value.id || !value.worktree) return null;
+    const toDate = (input?: unknown) => {
+      if (!input) return undefined;
+      if (input instanceof Date) return input;
+      if (typeof input === 'number') {
+        const dateFromNumber = new Date(input);
+        return Number.isNaN(dateFromNumber.getTime()) ? undefined : dateFromNumber;
+      }
+      if (typeof input === 'string') {
+        const dateFromString = new Date(input);
+        return Number.isNaN(dateFromString.getTime()) ? undefined : dateFromString;
+      }
+      return undefined;
+    };
+    const created =
+      toDate(value.createdAt) ??
+      (typeof value.time?.created === 'number'
+        ? toDate(value.time.created * 1000)
+        : undefined);
+    const updated =
+      toDate(value.updatedAt) ??
+      (typeof value.time?.updated === 'number'
+        ? toDate(value.time.updated * 1000)
+        : undefined);
+    return {
+      id: value.id,
+      worktree: value.worktree,
+      vcs: value.vcs,
+      createdAt: created,
+      updatedAt: updated,
+    };
+  }, []);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
     const savedProjectStr = localStorage.getItem('opencode-current-project');
     if (savedProjectStr) {
       try {
-        const savedProject = JSON.parse(savedProjectStr);
+        const parsedProject = JSON.parse(savedProjectStr);
+        const savedProject = normalizeProject(parsedProject);
         if (process.env.NODE_ENV !== 'production') console.log('[Hydration] Restoring project from localStorage:', savedProject);
-        setCurrentProject(savedProject);
+        if (savedProject) {
+          setCurrentProject(savedProject);
+        }
       } catch (error) {
         console.error('[Hydration] Error parsing saved project:', error);
       }
@@ -293,7 +422,7 @@ export function useOpenCode() {
     }
     
     setIsHydrated(true);
-  }, []);
+  }, [normalizeProject]);
 
     useEffect(() => {
      const checkConnection = async () => {
@@ -833,38 +962,104 @@ export function useOpenCode() {
     }
   }, [currentProject, isHydrated]);
 
-   const createSession = useCallback(async ({ title, directory }: { title?: string; directory?: string } = {}) => {
-     try {
-       setLoading(true);
-       const sessionDirectory = directory || currentProject?.worktree;
+  const createSession = useCallback(
+    async ({ title, directory }: { title?: string; directory?: string } = {}) => {
+      try {
+        setLoading(true);
+        const sessionDirectory = directory?.trim() || currentProject?.worktree;
         const response = await openCodeService.createSession({ title, directory: sessionDirectory });
         if (response.error) {
           throw new Error(response.error);
         }
-        const session = response.data as unknown as { id: string; title?: string; directory?: string; projectID?: string; createdAt?: string | number; updatedAt?: string | number } | undefined;
+        const session = response.data as unknown as {
+          id: string;
+          title?: string;
+          directory?: string;
+          projectID?: string;
+          createdAt?: string | number;
+          updatedAt?: string | number;
+        } | undefined;
         if (!session) {
           throw new Error('Failed to create session');
         }
+
+        const derivedDirectory = sessionDirectory || session.directory;
+        const projectId = session.projectID;
+
         const newSession: Session = {
           id: session.id,
           title: title || session.title,
-          directory: sessionDirectory || session.directory,
-           projectID: session.projectID || currentProject?.id,
+          directory: derivedDirectory || session.directory,
+          projectID: projectId || currentProject?.id,
           createdAt: session.createdAt ? new Date(session.createdAt) : new Date(),
           updatedAt: session.updatedAt ? new Date(session.updatedAt) : undefined,
         };
+
+        let updatedProjects = projects;
+
+        if (projectId || derivedDirectory) {
+          try {
+            const projectsResponse = await openCodeService.listProjects();
+            if (projectsResponse.error) {
+              throw new Error(projectsResponse.error);
+            }
+            const data = projectsResponse.data || [];
+            const fetchedProjects: Project[] = (Array.isArray(data) ? data : []).map((project: ProjectResponse) => ({
+              id: project.id,
+              worktree: project.worktree,
+              vcs: project.vcs,
+              createdAt: project.time?.created ? new Date(project.time.created * 1000) : undefined,
+              updatedAt: project.time?.updated ? new Date(project.time.updated * 1000) : undefined,
+            }));
+            const mergedProjects = new Map<string, Project>();
+            projects.forEach((project) => mergedProjects.set(project.id, project));
+            fetchedProjects.forEach((project) => mergedProjects.set(project.id, project));
+            const mergedProjectList = Array.from(mergedProjects.values());
+            setProjects(mergedProjectList);
+            loadedProjectsRef.current = true;
+            updatedProjects = mergedProjectList;
+          } catch (projectError) {
+            console.error('Failed to refresh projects after session creation:', projectError);
+          }
+        }
+
+        const targetProject =
+          (projectId && updatedProjects.find((project) => project.id === projectId)) ||
+          (derivedDirectory && updatedProjects.find((project) => project.worktree === derivedDirectory)) ||
+          (projectId && projects.find((project) => project.id === projectId)) ||
+          (derivedDirectory && projects.find((project) => project.worktree === derivedDirectory)) ||
+          currentProject ||
+          null;
+
+        if (targetProject?.id && targetProject.id !== newSession.projectID) {
+          newSession.projectID = targetProject.id;
+        }
+
+        const isSwitchingProjects =
+          Boolean(targetProject?.id) && targetProject?.id !== currentProject?.id;
+
+        if (isSwitchingProjects && targetProject) {
+          const normalizedTarget = normalizeProject(targetProject) ?? targetProject;
+          setCurrentProject(normalizedTarget);
+          setSessions([newSession]);
+          loadedSessionsRef.current = false;
+        } else {
+          setSessions((prev) => [newSession, ...prev]);
+        }
+
         setCurrentSession(newSession);
-        setSessions(prev => [newSession, ...prev]);
         setMessages([]);
         seenMessageIdsRef.current.clear();
         return newSession;
-     } catch (error) {
-       console.error('Failed to create session:', error);
-       throw new Error(handleOpencodeError(error));
-     } finally {
-       setLoading(false);
-     }
-   }, [currentProject]);
+      } catch (error) {
+        console.error('Failed to create session:', error);
+        throw new Error(handleOpencodeError(error));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [currentProject, normalizeProject, projects],
+  );
 
      const sendMessage = useCallback(async (content: string, providerID?: string, modelID?: string, sessionOverride?: Session) => {
       const targetSession = sessionOverride || currentSession;
@@ -883,8 +1078,8 @@ export function useOpenCode() {
             const filePath = match.slice(1);
             try {
               const fileContent = await readFile(filePath);
-              if (fileContent) {
-                expandedContent += `\n\nFile: ${filePath}\n${fileContent}`;
+              if (fileContent?.text) {
+                expandedContent += `\n\nFile: ${filePath}\n${fileContent.text}`;
               }
             } catch (error) {
               console.error('Failed to read file for expansion:', error);
@@ -1067,7 +1262,12 @@ export function useOpenCode() {
     const clearAllSessions = useCallback(async () => {
       try {
         for (const session of sessions) {
-          await openCodeService.deleteSession(session.id);
+          const directory = session.directory || currentProject?.worktree;
+          try {
+            await openCodeService.deleteSession(session.id, directory);
+          } catch (deleteError) {
+            console.error('Failed to delete session during clear:', deleteError);
+          }
         }
         setSessions([]);
         setCurrentSession(null);
@@ -1076,7 +1276,7 @@ export function useOpenCode() {
       } catch (error) {
         console.error('Failed to clear sessions:', error);
       }
-    }, [sessions]);
+    }, [currentProject?.worktree, sessions]);
 
      const switchProject = useCallback(async (project: Project) => {
        try {
@@ -1126,7 +1326,90 @@ export function useOpenCode() {
        }
      }, [fileDirectory, currentProject, currentPath]);
 
-   const readFile = useCallback(async (filePath: string) => {
+  const decodeBase64ToUtf8 = useCallback((raw: string): string | null => {
+    try {
+      if (typeof globalThis.atob === 'function') {
+        const binary = globalThis.atob(raw);
+        if (typeof TextDecoder !== 'undefined') {
+          const decoder = new TextDecoder();
+          const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+          return decoder.decode(bytes);
+        }
+        return binary;
+      }
+    } catch (error) {
+      if (isDevEnvironment) {
+        console.error('Failed to decode base64 via atob:', error);
+      }
+    }
+
+    if (typeof Buffer !== 'undefined') {
+      try {
+        return Buffer.from(raw, 'base64').toString('utf-8');
+      } catch (error) {
+        if (isDevEnvironment) {
+          console.error('Failed to decode base64 via Buffer:', error);
+        }
+      }
+    }
+
+    return null;
+  }, []);
+
+  const shouldDecodeAsText = useCallback((mimeType: string | null, filePath: string) => {
+    const baseName = filePath.split(/[\\/]/).pop() ?? '';
+    const normalizedBaseName = baseName.toLowerCase();
+    const extension = normalizedBaseName.includes('.')
+      ? normalizedBaseName.split('.').pop() ?? ''
+      : '';
+    const isTextByExtension = extension ? TEXT_LIKE_EXTENSIONS.has(extension) : false;
+    const isTextByName = TEXT_LIKE_FILENAMES.has(normalizedBaseName);
+
+    if (!mimeType) {
+      return isTextByExtension || isTextByName;
+    }
+
+    const normalized = mimeType.toLowerCase();
+    if (normalized.startsWith('text/')) return true;
+    if (normalized.includes('charset=')) return true;
+    if (TEXT_LIKE_MIME_SNIPPETS.some((snippet) => normalized.includes(snippet))) return true;
+    if (normalized === 'application/octet-stream' && (isTextByExtension || isTextByName)) {
+      return true;
+    }
+    return isTextByExtension || isTextByName;
+  }, []);
+
+  const buildDataUrl = (content: string, encoding: string | null, mimeType: string | null) => {
+    if (encoding !== BASE64_ENCODING) return null;
+    const safeMime = mimeType && mimeType.trim() ? mimeType : 'application/octet-stream';
+    return `data:${safeMime};base64,${content}`;
+  };
+
+  const buildFileContent = useCallback((
+    filePath: string,
+    content: string,
+    encoding: string | null,
+    mimeType: string | null,
+  ): FileContentData => {
+    const normalizedEncoding =
+      typeof encoding === 'string' ? encoding.trim().toLowerCase() : null;
+    let text: string | null = null;
+    if (!normalizedEncoding) {
+      text = content;
+    } else if (normalizedEncoding === BASE64_ENCODING && shouldDecodeAsText(mimeType, filePath)) {
+      text = decodeBase64ToUtf8(content) ?? content;
+    }
+
+    return {
+      content,
+      encoding: normalizedEncoding,
+      mimeType: mimeType ?? null,
+      text,
+      dataUrl: buildDataUrl(content, normalizedEncoding, mimeType ?? null),
+    };
+  }, [decodeBase64ToUtf8, shouldDecodeAsText]);
+
+  const readFile = useCallback(async (filePath: string): Promise<FileContentData | null> => {
       try {
         const baseDirectory = currentProject?.worktree ?? currentPath ?? undefined;
         const response = await openCodeService.readFile(filePath, baseDirectory);
@@ -1134,24 +1417,32 @@ export function useOpenCode() {
         if (!data) {
           return null;
         }
+
         if (typeof data === 'string') {
-          return data;
+          return buildFileContent(filePath, data, null, null);
         }
+
         if (typeof data === 'object') {
           if ('content' in data && typeof data.content === 'string') {
-            return data.content;
+            const encoding =
+              'encoding' in data && typeof data.encoding === 'string' ? data.encoding : null;
+            const mimeType =
+              'mimeType' in data && typeof data.mimeType === 'string' ? data.mimeType : null;
+            return buildFileContent(filePath, data.content, encoding, mimeType);
           }
           if ('diff' in data && typeof data.diff === 'string') {
-            return data.diff;
+            return buildFileContent(filePath, data.diff, null, 'text/plain');
           }
-          return JSON.stringify(data);
+          const fallback = JSON.stringify(data);
+          return buildFileContent(filePath, fallback, null, 'application/json');
         }
+
         return null;
       } catch (error) {
         console.error('Failed to read file:', error);
         return null;
       }
-    }, [currentProject, currentPath]);
+    }, [buildFileContent, currentProject, currentPath]);
 
 
     const searchText = useCallback(async (query: string) => {
@@ -1182,8 +1473,9 @@ export function useOpenCode() {
          const files = await searchFiles('command/*.md');
          const commands = await Promise.all(
            files.map(async (file) => {
-             const content = await readFile(file);
-             if (content) {
+            const fileData = await readFile(file);
+            const content = fileData?.text;
+            if (content) {
                const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
                if (frontmatterMatch) {
                  const frontmatter = frontmatterMatch[1];

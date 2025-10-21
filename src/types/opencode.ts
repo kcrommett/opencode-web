@@ -30,3 +30,11 @@ export interface SessionTodo {
   priority: 'high' | 'medium' | 'low'
   id: string
 }
+
+export interface FileContentData {
+  content: string
+  encoding: string | null
+  mimeType: string | null
+  text: string | null
+  dataUrl: string | null
+}

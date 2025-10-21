@@ -19,6 +19,8 @@ import { AgentPicker } from "@/app/_components/ui/agent-picker";
 import { SessionPicker } from "@/app/_components/ui/session-picker";
 import { PermissionModal } from "@/app/_components/ui/permission-modal";
 import { MessagePart } from "@/app/_components/message";
+import type { FileContentData } from "@/types/opencode";
+import { FileIcon } from "@/app/_components/files/file-icon";
 import { useOpenCodeContext } from "@/contexts/OpenCodeContext";
 import { openCodeService } from "@/lib/opencode-client";
 import { parseCommand } from "@/lib/commandParser";
@@ -36,6 +38,167 @@ import {
   addLineNumbers,
 } from "@/lib/highlight";
 import "highlight.js/styles/github-dark.css";
+
+type ProjectItem = {
+  id: string;
+  worktree: string;
+  vcs?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+};
+
+interface ProjectSelectorProps {
+  projects: ProjectItem[];
+  currentProject: ProjectItem | null;
+  onSelect: (project: ProjectItem) => void;
+  placeholder?: string;
+  buttonClassName?: string;
+}
+
+function ProjectSelector({
+  projects,
+  currentProject,
+  onSelect,
+  placeholder = "Select a project",
+  buttonClassName = "",
+}: ProjectSelectorProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
+  const selectedLabel = currentProject?.worktree || placeholder;
+  const buttonStyles: React.CSSProperties = {
+    backgroundColor: currentProject
+      ? "var(--theme-primary)"
+      : "var(--theme-background)",
+    color: currentProject
+      ? "var(--theme-background)"
+      : "var(--theme-foreground)",
+    border: "1px solid var(--theme-primary)",
+  };
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <Button
+        box="square"
+        className={`w-full flex items-center justify-between gap-2 text-sm ${buttonClassName}`}
+        onClick={() => setIsOpen((prev) => !prev)}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        style={buttonStyles}
+      >
+        <span className="truncate">{selectedLabel}</span>
+        <span className="text-xs opacity-70">{isOpen ? "▲" : "▼"}</span>
+      </Button>
+      {isOpen && (
+        <div
+          className="absolute left-0 right-0 mt-2 rounded border shadow-lg overflow-hidden z-50"
+          style={{
+            backgroundColor: "var(--theme-background)",
+            borderColor: "var(--theme-primary)",
+          }}
+          role="listbox"
+        >
+          {projects.length > 0 ? (
+            <div className="max-h-64 overflow-y-auto scrollbar">
+              {projects.map((project) => {
+                const isSelected = currentProject?.id === project.id;
+                return (
+                  <div
+                    key={project.id}
+                    className="w-full px-3 py-2 text-sm transition-colors cursor-pointer"
+                    style={{
+                      backgroundColor: isSelected
+                        ? "var(--theme-primary)"
+                        : "var(--theme-background)",
+                      color: isSelected
+                        ? "var(--theme-background)"
+                        : "var(--theme-foreground)",
+                    }}
+                    onClick={() => {
+                      onSelect(project);
+                      setIsOpen(false);
+                    }}
+                    onMouseEnter={(event) => {
+                      if (!isSelected) {
+                        event.currentTarget.style.backgroundColor =
+                          "var(--theme-backgroundAlt)";
+                      }
+                    }}
+                    onMouseLeave={(event) => {
+                      if (!isSelected) {
+                        event.currentTarget.style.backgroundColor =
+                          "var(--theme-background)";
+                      }
+                    }}
+                    role="option"
+                    aria-selected={isSelected}
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onSelect(project);
+                        setIsOpen(false);
+                      }
+                    }}
+                  >
+                    <div className="font-medium truncate">
+                      {project.worktree}
+                    </div>
+                    <div className="text-xs opacity-70 truncate">
+                      VCS: {project.vcs || "Unknown"}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="p-3 text-sm text-theme-muted">
+              No projects found
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function coerceToDate(value?: Date | string | number | null) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  if (typeof value === "number" || typeof value === "string") {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  return null;
+}
 
 export const Route = createFileRoute("/")({
   component: OpenCodeChatTUI,
@@ -60,7 +223,8 @@ function OpenCodeChatTUI() {
     }
     return null;
   });
-  const [fileContent, setFileContent] = useState<string | null>(null);
+  const [fileContent, setFileContent] = useState<FileContentData | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
   const [fileSuggestions, setFileSuggestions] = useState<string[]>([]);
   const [showFileSuggestions, setShowFileSuggestions] = useState(false);
   const [commandSuggestions, setCommandSuggestions] = useState<Command[]>([]);
@@ -76,6 +240,35 @@ function OpenCodeChatTUI() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const modelSearchInputRef = useRef<HTMLInputElement>(null);
   const fileSearchInputRef = useRef<HTMLInputElement>(null);
+
+  const selectedFileName = selectedFile?.split("/").pop() ?? null;
+  const fileTextContent = fileContent?.text ?? null;
+  const hasTextContent = fileTextContent !== null && fileTextContent !== undefined;
+  const isBase64Encoded = fileContent?.encoding === "base64";
+  const mimeType = fileContent?.mimeType?.toLowerCase() ?? "";
+  const selectedFileIsImage =
+    !!selectedFile && Boolean(isBase64Encoded) && isImageFile(selectedFile);
+  const selectedFileIsPdf = Boolean(isBase64Encoded) && mimeType.startsWith("application/pdf");
+  const hasBinaryDownload =
+    !!fileContent &&
+    Boolean(isBase64Encoded) &&
+    !selectedFileIsImage &&
+    !selectedFileIsPdf &&
+    !hasTextContent;
+  const showLanguageBadge = hasTextContent && !selectedFileIsImage && !selectedFileIsPdf;
+  const showMimeTypeBadge = Boolean(fileContent?.mimeType) && (selectedFileIsImage || selectedFileIsPdf || hasBinaryDownload);
+  const copyButtonDisabled = !hasTextContent || Boolean(fileError);
+
+  const triggerBinaryDownload = () => {
+    if (!fileContent?.dataUrl) return;
+    const link = document.createElement("a");
+    link.href = fileContent.dataUrl;
+    const downloadName = selectedFileName || "download";
+    link.download = downloadName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const { currentTheme, changeTheme } = useTheme();
   const {
@@ -134,6 +327,18 @@ function OpenCodeChatTUI() {
     setShouldBlurEditor,
     currentSessionTodos,
   } = useOpenCodeContext();
+
+  useEffect(() => {
+    if (currentProject?.worktree) {
+      setNewSessionDirectory((prev) =>
+        prev && prev !== currentProject.worktree
+          ? prev
+          : currentProject.worktree,
+      );
+    } else {
+      setNewSessionDirectory("");
+    }
+  }, [currentProject?.worktree]);
 
   // Removed automatic session creation to prevent spam
 
@@ -1039,16 +1244,17 @@ function OpenCodeChatTUI() {
     try {
       const result = await readFile(filePath);
       setSelectedFile(filePath);
-      if (result && typeof result === "object" && "content" in result) {
-        setFileContent(result.content);
-      } else if (typeof result === "string") {
+      if (result) {
         setFileContent(result);
+        setFileError(null);
       } else {
-        setFileContent("Unable to read file");
+        setFileContent(null);
+        setFileError("Unable to read file");
       }
     } catch (err) {
       console.error("Failed to read file:", err);
-      setFileContent("Error reading file");
+      setFileContent(null);
+      setFileError("Error reading file");
     }
   };
 
@@ -1057,6 +1263,7 @@ function OpenCodeChatTUI() {
       await loadFiles(path);
       setSelectedFile(null);
       setFileContent(null);
+      setFileError(null);
     } catch (err) {
       console.error("Failed to load directory:", err);
     }
@@ -1103,6 +1310,15 @@ function OpenCodeChatTUI() {
       return bDate.getTime() - aDate.getTime();
     });
   }, [projects]);
+  const currentProjectLastTouched = useMemo(() => {
+    const updated = coerceToDate(
+      currentProject?.updatedAt as Date | string | number | null,
+    );
+    if (updated) return updated;
+    return coerceToDate(
+      currentProject?.createdAt as Date | string | number | null,
+    );
+  }, [currentProject]);
 
   const filteredModels = useMemo(() => {
     if (!modelSearchQuery.trim()) return models;
@@ -1222,7 +1438,7 @@ function OpenCodeChatTUI() {
             );
           await loadFiles(fileDirectory || ".");
         }
-        if (selectedFile && !fileContent) {
+        if (selectedFile && !fileContent && !fileError) {
           if (process.env.NODE_ENV !== "production")
             console.log(
               "[Hydration] Restoring selected file content:",
@@ -1363,8 +1579,8 @@ function OpenCodeChatTUI() {
           <div className="flex-1 overflow-hidden">
             {activeTab === "workspace" && (
               <div className="h-full flex flex-col overflow-hidden">
-                {/* Projects Section - 50% height */}
-                <div className="flex flex-col h-1/2 min-h-0">
+                {/* Projects Section */}
+                <div className="flex flex-col flex-shrink-0">
                   <View
                     box="square"
                     className="p-2 mb-2 bg-theme-background-alt"
@@ -1372,57 +1588,41 @@ function OpenCodeChatTUI() {
                     <h3 className="text-sm font-medium">Projects</h3>
                   </View>
                   <Separator className="mb-2" />
-                  <div className="flex-1 overflow-y-auto scrollbar space-y-1">
-                    {sortedProjects.length > 0 ? (
-                      sortedProjects.map((project) => {
-                        const isSelected = currentProject?.id === project.id;
-                        return (
-                          <div
-                            key={project.id}
-                            className="p-2 cursor-pointer transition-colors rounded"
-                            style={{
-                              backgroundColor: isSelected
-                                ? "var(--theme-primary)"
-                                : "var(--theme-background)",
-                              color: isSelected
-                                ? "var(--theme-background)"
-                                : "var(--theme-foreground)",
-                            }}
-                            onClick={() => handleProjectSwitch(project)}
-                            onMouseEnter={(e) => {
-                              if (!isSelected) {
-                                e.currentTarget.style.backgroundColor =
-                                  "var(--theme-backgroundAlt)";
-                              }
-                            }}
-                            onMouseLeave={(e) => {
-                              if (!isSelected) {
-                                e.currentTarget.style.backgroundColor =
-                                  "var(--theme-background)";
-                              }
-                            }}
-                          >
-                            <div className="font-medium text-sm truncate">
-                              {project.worktree}
-                            </div>
-                            <div className="text-xs opacity-70 truncate">
-                              VCS: {project.vcs || "Unknown"}
-                            </div>
+                  <div className="flex-1 flex flex-col gap-3">
+                    <ProjectSelector
+                      projects={sortedProjects}
+                      currentProject={currentProject}
+                      onSelect={handleProjectSwitch}
+                      buttonClassName="!py-2 !px-3"
+                    />
+                    {currentProject ? (
+                      <div className="text-xs leading-relaxed space-y-1 text-theme-foreground">
+                        <div className="truncate">
+                          Dir: {currentProject.worktree}
+                        </div>
+                        <div className="truncate">
+                          VCS: {currentProject.vcs || "Unknown"}
+                        </div>
+                        {currentProjectLastTouched && (
+                          <div>
+                            Updated: {currentProjectLastTouched.toLocaleDateString()}
                           </div>
-                        );
-                      })
+                        )}
+                      </div>
                     ) : (
-                      <div className="text-center text-sm py-4 text-theme-muted">
-                        No projects found
+                      <div className="text-xs text-theme-muted">
+                        {sortedProjects.length > 0
+                          ? "Choose a project from the menu above."
+                          : "No projects yet. Create one by starting a session with a new directory."}
                       </div>
                     )}
                   </div>
                 </div>
 
-                <Separator className="my-4" />
+                <Separator className="my-3" />
 
-                {/* Sessions Section - 50% height */}
-                <div className="flex flex-col h-1/2 min-h-0">
+                {/* Sessions Section */}
+                <div className="flex flex-col flex-1 min-h-0">
                   <View
                     box="square"
                     className="p-2 mb-2 bg-theme-background-alt"
@@ -1456,16 +1656,37 @@ function OpenCodeChatTUI() {
                     </div>
                   ) : (
                     <>
-                      <div className="mb-2 flex-shrink-0">
-                        <Input
-                          value={newSessionTitle}
-                          onChange={(e) => setNewSessionTitle(e.target.value)}
-                          placeholder="Session title..."
-                          size="small"
-                          className="bg-theme-background text-theme-foreground border-theme-primary"
-                        />
+                      <div className="mb-2 flex-shrink-0 space-y-2">
+                        <div>
+                          <Input
+                            value={newSessionTitle}
+                            onChange={(e) => setNewSessionTitle(e.target.value)}
+                            placeholder="Session title..."
+                            size="small"
+                            className="bg-theme-background text-theme-foreground border-theme-primary"
+                          />
+                        </div>
+                        <div>
+                          <Input
+                            value={newSessionDirectory}
+                            onChange={(e) =>
+                              setNewSessionDirectory(e.target.value)
+                            }
+                            placeholder={
+                              currentProject?.worktree
+                                ? `Project directory (default ${currentProject.worktree})`
+                                : "Project directory..."
+                            }
+                            size="small"
+                            className="bg-theme-background text-theme-foreground border-theme-primary"
+                          />
+                        </div>
                         <div className="text-xs opacity-70 mt-1 truncate">
-                          Project: {currentProject.worktree}
+                          {newSessionDirectory
+                            ? `Using directory: ${newSessionDirectory}`
+                            : currentProject
+                              ? `Defaulting to ${currentProject.worktree}`
+                              : "Specify a project directory to create a project session."}
                         </div>
                       </div>
                       <div className="flex-1 overflow-y-auto scrollbar space-y-2 min-h-0">
@@ -1687,9 +1908,12 @@ function OpenCodeChatTUI() {
                           }}
                         >
                           <div className="flex items-center gap-2 text-sm">
-                            <span className="text-base font-mono">
-                              {isDirectory ? "[DIR]" : "[FILE]"}
-                            </span>
+                            <FileIcon
+                              node={{
+                                path: file.path,
+                                type: isDirectory ? "directory" : "file",
+                              }}
+                            />
                             <span className="truncate">{file.name}</span>
                           </div>
                         </div>
@@ -1746,60 +1970,44 @@ function OpenCodeChatTUI() {
           {activeTab === "workspace" && (
             <div className="h-full flex flex-col gap-4 overflow-hidden">
               {/* Projects Section */}
-              <div className="flex flex-col flex-1 min-h-0">
+              <div className="flex flex-col flex-shrink-0">
                 <h3 className="text-sm font-medium mb-2">Projects</h3>
                 <Separator className="mb-2" />
-                <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
-                  {sortedProjects.length > 0 ? (
-                    sortedProjects.map((project) => {
-                      const isSelected = currentProject?.id === project.id;
-                      return (
-                        <div
-                          key={project.id}
-                          className="p-2 cursor-pointer transition-colors rounded"
-                          style={{
-                            backgroundColor: isSelected
-                              ? "var(--theme-primary)"
-                              : "var(--theme-background)",
-                            color: isSelected
-                              ? "var(--theme-background)"
-                              : "var(--theme-foreground)",
-                          }}
-                          onClick={() => {
-                            handleProjectSwitch(project);
-                            setIsMobileSidebarOpen(false);
-                          }}
-                          onMouseEnter={(e) => {
-                            if (!isSelected) {
-                              e.currentTarget.style.backgroundColor =
-                                "var(--theme-backgroundAlt)";
-                            }
-                          }}
-                          onMouseLeave={(e) => {
-                            if (!isSelected) {
-                              e.currentTarget.style.backgroundColor =
-                                "var(--theme-background)";
-                            }
-                          }}
-                        >
-                          <div className="font-medium text-sm truncate">
-                            {project.worktree}
-                          </div>
-                          <div className="text-xs opacity-70 truncate">
-                            VCS: {project.vcs || "Unknown"}
-                          </div>
+                <div className="flex flex-col gap-3">
+                  <ProjectSelector
+                    projects={sortedProjects}
+                    currentProject={currentProject}
+                    onSelect={(project) => {
+                      handleProjectSwitch(project);
+                      setIsMobileSidebarOpen(false);
+                    }}
+                    buttonClassName="!py-2 !px-3"
+                  />
+                  {currentProject ? (
+                    <div className="text-xs leading-relaxed space-y-1 text-theme-foreground">
+                      <div className="truncate">
+                        Dir: {currentProject.worktree}
+                      </div>
+                      <div className="truncate">
+                        VCS: {currentProject.vcs || "Unknown"}
+                      </div>
+                      {currentProjectLastTouched && (
+                        <div>
+                          Updated: {currentProjectLastTouched.toLocaleDateString()}
                         </div>
-                      );
-                    })
+                      )}
+                    </div>
                   ) : (
-                    <div className="text-center text-sm py-4 text-theme-muted">
-                      No projects found
+                    <div className="text-xs text-theme-muted">
+                      {sortedProjects.length > 0
+                        ? "Choose a project from the menu above."
+                        : "No projects yet. Start a session with a new directory to create one."}
                     </div>
                   )}
                 </div>
               </div>
 
-              <Separator />
+              <Separator className="my-3" />
 
               {/* Sessions Section */}
               <div className="flex flex-col flex-1 min-h-0">
@@ -1815,9 +2023,36 @@ function OpenCodeChatTUI() {
                   </Button>
                 </div>
                 <Separator className="mb-2" />
+                <div className="space-y-2 mb-2">
+                  <Input
+                    value={newSessionTitle}
+                    onChange={(e) => setNewSessionTitle(e.target.value)}
+                    placeholder="Session title..."
+                    size="small"
+                    className="bg-theme-background text-theme-foreground border-theme-primary"
+                  />
+                  <Input
+                    value={newSessionDirectory}
+                    onChange={(e) => setNewSessionDirectory(e.target.value)}
+                    placeholder={
+                      currentProject?.worktree
+                        ? `Project directory (default ${currentProject.worktree})`
+                        : "Project directory..."
+                    }
+                    size="small"
+                    className="bg-theme-background text-theme-foreground border-theme-primary"
+                  />
+                  <div className="text-xs opacity-70">
+                    {newSessionDirectory
+                      ? `Using directory: ${newSessionDirectory}`
+                      : currentProject
+                        ? `Defaulting to ${currentProject.worktree}`
+                        : "Specify a project directory to create a project session."}
+                  </div>
+                </div>
                 {!currentProject ? (
-                  <div className="flex-1 flex items-center justify-center text-sm text-theme-muted">
-                    Select a project first
+                  <div className="flex-1 flex items-center justify-center text-sm text-theme-muted text-center px-4">
+                    Select a project or enter a directory above to create one
                   </div>
                 ) : (
                   <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
@@ -1917,12 +2152,15 @@ function OpenCodeChatTUI() {
                           }
                         }}
                       >
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="text-base font-mono">
-                            {isDirectory ? "[DIR]" : "[FILE]"}
-                          </span>
-                          <span className="truncate">{file.name}</span>
-                        </div>
+                          <div className="flex items-center gap-2 text-sm">
+                            <FileIcon
+                              node={{
+                                path: file.path,
+                                type: isDirectory ? "directory" : "file",
+                              }}
+                            />
+                            <span className="truncate">{file.name}</span>
+                          </div>
                       </div>
                     );
                   })
@@ -2298,8 +2536,8 @@ function OpenCodeChatTUI() {
                 <>
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-medium flex items-center gap-2">
-                      {selectedFile.split("/").pop()}
-                      {!isImageFile(selectedFile) && (
+                      {selectedFileName}
+                      {showLanguageBadge && selectedFile && (
                         <Badge
                           variant="foreground0"
                           cap="round"
@@ -2308,16 +2546,39 @@ function OpenCodeChatTUI() {
                           {detectLanguage(selectedFile)}
                         </Badge>
                       )}
+                      {showMimeTypeBadge && fileContent?.mimeType && (
+                        <Badge
+                          variant="foreground0"
+                          cap="round"
+                          className="text-xs uppercase"
+                        >
+                          {fileContent.mimeType}
+                        </Badge>
+                      )}
                     </h3>
                     <div className="flex gap-2">
-                      {!isImageFile(selectedFile) && (
+                      {hasBinaryDownload && fileContent?.dataUrl && (
+                        <Button
+                          variant="foreground0"
+                          box="round"
+                          onClick={triggerBinaryDownload}
+                          size="small"
+                        >
+                          Download
+                        </Button>
+                      )}
+                      {showLanguageBadge && (
                         <Button
                           variant="foreground0"
                           box="round"
                           onClick={() => {
-                            navigator.clipboard.writeText(fileContent || "");
+                            if (fileContent?.text) {
+                              navigator.clipboard.writeText(fileContent.text);
+                            }
                           }}
                           size="small"
+                          disabled={copyButtonDisabled}
+                          className={copyButtonDisabled ? "opacity-50 cursor-not-allowed" : undefined}
                         >
                           Copy
                         </Button>
@@ -2325,7 +2586,11 @@ function OpenCodeChatTUI() {
                       <Button
                         variant="foreground0"
                         box="round"
-                        onClick={() => setSelectedFile(null)}
+                        onClick={() => {
+                          setSelectedFile(null);
+                          setFileContent(null);
+                          setFileError(null);
+                        }}
                         size="small"
                       >
                         Close
@@ -2333,26 +2598,21 @@ function OpenCodeChatTUI() {
                     </div>
                   </div>
                   <div className="flex-1 overflow-hidden">
-                    {isImageFile(selectedFile) ? (
+                    {fileError ? (
+                      <div className="text-center text-sm text-red-400 p-4">
+                        {fileError}
+                      </div>
+                    ) : selectedFileIsImage ? (
                       <div className="flex items-center justify-center h-full bg-theme-backgroundAccent rounded p-4 overflow-auto scrollbar">
-                        {fileContent ? (
+                        {fileContent?.dataUrl ? (
                           <img
-                            src={`data:image/${selectedFile.split(".").pop()};base64,${fileContent}`}
-                            alt={selectedFile}
+                            src={fileContent.dataUrl}
+                            alt={selectedFileName ?? selectedFile ?? "Selected file"}
                             className="max-w-full max-h-full object-contain"
-                            onError={(e) => {
-                              console.error(
-                                "Image load error for:",
-                                selectedFile,
-                              );
-                              e.currentTarget.style.display = "none";
-                              const errorMsg = document.createElement("div");
-                              errorMsg.textContent =
-                                "Failed to load image. The file may be binary data that cannot be displayed.";
-                              errorMsg.className =
-                                "text-red-400 text-center p-4";
-                              e.currentTarget.parentElement?.appendChild(
-                                errorMsg,
+                            onError={() => {
+                              console.error("Image load error for:", selectedFile);
+                              setFileError(
+                                "Failed to load image. The file may be binary data that cannot be displayed.",
                               );
                             }}
                           />
@@ -2362,19 +2622,49 @@ function OpenCodeChatTUI() {
                           </div>
                         )}
                       </div>
-                    ) : (
+                    ) : selectedFileIsPdf ? (
+                      <div className="h-full bg-theme-backgroundAccent rounded overflow-hidden">
+                        {fileContent?.dataUrl ? (
+                          <iframe
+                            src={fileContent.dataUrl}
+                            title={selectedFileName ?? selectedFile ?? "PDF preview"}
+                            className="w-full h-full"
+                          />
+                        ) : (
+                          <div className="text-center text-sm text-theme-muted p-4">
+                            PDF preview unavailable
+                          </div>
+                        )}
+                      </div>
+                    ) : hasTextContent && selectedFile ? (
                       <pre className="hljs bg-theme-background p-4 rounded overflow-y-auto scrollbar h-full text-sm font-mono m-0">
                         <code
                           dangerouslySetInnerHTML={{
                             __html: addLineNumbers(
                               highlightCode(
-                                fileContent ?? "",
+                                fileTextContent ?? "",
                                 detectLanguage(selectedFile),
                               ),
                             ),
                           }}
                         />
                       </pre>
+                    ) : hasBinaryDownload && fileContent?.dataUrl ? (
+                      <div className="flex flex-col items-center justify-center h-full text-sm text-theme-muted gap-3">
+                        <p>Preview not available for this file type.</p>
+                        <Button
+                          variant="foreground0"
+                          box="round"
+                          onClick={triggerBinaryDownload}
+                          size="small"
+                        >
+                          Download file
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="text-center text-sm text-theme-muted p-4">
+                        No preview available
+                      </div>
                     )}
                   </div>
                 </>
