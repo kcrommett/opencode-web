@@ -29,11 +29,11 @@ export function ToolPart({ part, showDetails }: ToolPartProps) {
       case 'running':
         return <Spinner size="small" />;
       case 'completed':
-        return <span className="text-theme-success">✅</span>;
+        return <span className="text-theme-success font-bold">OK</span>;
       case 'error':
-        return <span className="text-theme-error">❌</span>;
+        return <span className="text-theme-error font-bold">ERR</span>;
       default:
-        return <span className="opacity-50">⏳</span>;
+        return <span className="opacity-50">...</span>;
     }
   };
   

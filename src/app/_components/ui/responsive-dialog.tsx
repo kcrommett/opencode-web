@@ -48,7 +48,7 @@ export const ResponsiveDialog: React.FC<ResponsiveDialogProps> = ({
              }}
              aria-label="Close"
            >
-             ✕
+             X
            </button>
         </div>
         {children}

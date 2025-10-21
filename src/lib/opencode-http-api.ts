@@ -445,15 +445,28 @@ export async function showToast(
   title?: string,
   variant?: 'success' | 'error' | 'warning' | 'info',
 ) {
-  const response = await fetch(buildUrl('/tui/show-toast'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, message, variant }),
-  })
-  if (!response.ok) {
-    throw new Error(`Failed to show toast: ${response.statusText}`)
+  try {
+    const response = await fetch(buildUrl('/tui/show-toast'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, message, variant }),
+    })
+
+    if (!response.ok) {
+      return { ok: false, status: response.status, statusText: response.statusText }
+    }
+
+    const data = await response
+      .json()
+      .catch(() => ({}))
+
+    return { ok: true, data }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Unknown toast error',
+    }
   }
-  return response.json()
 }
 
 export async function listProjects(directory?: string) {

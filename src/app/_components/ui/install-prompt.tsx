@@ -61,7 +61,7 @@ export function InstallPrompt() {
                 Install
               </Button>
               <Button onClick={handleDismiss} variant="background2" size="small">
-                ✕
+                Close
               </Button>
             </div>
           </div>

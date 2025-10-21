@@ -356,9 +356,25 @@ export const openCodeService = {
   async showToast(message: string, title?: string, variant: 'success' | 'error' | 'warning' | 'info' = 'info') {
     try {
       const response = await serverFns.showToast({ data: { message, title, variant } });
-      return { data: response };
+      if (
+        response &&
+        typeof response === 'object' &&
+        'ok' in response &&
+        response.ok === false
+      ) {
+        const statusText = 'statusText' in response ? response.statusText : undefined;
+        const status = 'status' in response ? response.status : undefined;
+        return {
+          data: null,
+          error: statusText
+            ? `Toast not shown (${status ?? ''} ${statusText})`.trim()
+            : 'Toast not shown',
+        };
+      }
+      return { data: response, error: null };
     } catch (error) {
-      throw error;
+      devError('[Toast] Failed to show toast via server:', error);
+      return { data: null, error: handleOpencodeError(error) };
     }
   },
 

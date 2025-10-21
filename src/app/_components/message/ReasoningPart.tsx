@@ -81,8 +81,9 @@ export function ReasoningPart({ part, showDetails }: ReasoningPartProps) {
 
   const { text, source } = useMemo(() => extractReasoningText(part), [part]);
   const derivedFromMetadata = source === 'metadata';
+  const hasReasoning = text.trim().length > 0;
 
-  if (!isReasoningPart || !showDetails) return null;
+  if (!isReasoningPart || !showDetails || !hasReasoning) return null;
 
   const toggle = () => {
     setIsExpanded((value) => !value);
@@ -100,35 +101,25 @@ export function ReasoningPart({ part, showDetails }: ReasoningPartProps) {
         aria-controls={contentId}
       >
         <div className="flex items-center gap-2">
-          <span>🧠</span>
+          <span className="font-mono text-xs">THINK</span>
           <span className="text-sm font-medium">Thinking...</span>
           <span className="text-xs opacity-60">{isExpanded ? '[-]' : '[+]'}</span>
         </div>
-        {text && (
-          <Badge variant="foreground0" cap="round" className="text-xs">
-            {text.length} chars
-          </Badge>
-        )}
+        <Badge variant="foreground0" cap="round" className="text-xs">
+          {text.length} chars
+        </Badge>
       </button>
       {isExpanded && (
         <div
           id={contentId}
           className="border-t border-theme-border p-3 bg-theme-background"
         >
-          {text ? (
-            <>
-              <pre className="text-sm font-mono whitespace-pre-wrap break-words opacity-80">
-                {text}
-              </pre>
-              {derivedFromMetadata && (
-                <p className="mt-2 text-[11px] uppercase tracking-wide opacity-50">
-                  Derived from provider metadata
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="text-xs opacity-70">
-              This provider did not return any thinking for this message.
+          <pre className="text-sm font-mono whitespace-pre-wrap break-words opacity-80">
+            {text}
+          </pre>
+          {derivedFromMetadata && (
+            <p className="mt-2 text-[11px] uppercase tracking-wide opacity-50">
+              Derived from provider metadata
             </p>
           )}
         </div>

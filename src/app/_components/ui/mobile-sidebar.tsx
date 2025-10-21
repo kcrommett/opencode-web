@@ -52,7 +52,7 @@ export const MobileSidebar: React.FC<MobileSidebarProps> = ({
                 }}
                aria-label="Close menu"
              >
-               ✕
+               X
              </button>
           </div>
           <div className="flex-1 overflow-y-auto p-4">

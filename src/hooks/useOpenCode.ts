@@ -22,6 +22,9 @@ import type { Part, PermissionState, SessionTodo } from '@/types/opencode';
       fileDiffs?: Array<{ path: string; diff: string }>;
       shellLogs?: string[];
     };
+    optimistic?: boolean;
+    error?: boolean;
+    errorMessage?: string;
   }
 
   interface OpenCodeMessage {
@@ -166,6 +169,11 @@ export function useOpenCode() {
         const loadedProjectsRef = useRef(false);
         const loadedSessionsRef = useRef(false);
         const seenMessageIdsRef = useRef<Set<string>>(new Set());
+        const currentSessionRef = useRef<Session | null>(null);
+
+        useEffect(() => {
+          currentSessionRef.current = currentSession;
+        }, [currentSession]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -301,18 +309,112 @@ export function useOpenCode() {
 
   const showToast = useCallback(
     async (message: string, variant: 'success' | 'error' | 'warning' | 'info' = 'info') => {
-      try {
-        await openCodeService.showToast(message, variant)
-      } catch (error) {
-        console.error('Failed to show toast:', error)
+      const result = await openCodeService.showToast(message, undefined, variant)
+      if (result?.error) {
+        console.error('[Toast] Falling back to console:', result.error)
       }
     },
     [],
   )
 
+  const loadMessages = useCallback(
+    async (sessionId: string): Promise<Message[]> => {
+      try {
+        const response = await openCodeService.getMessages(sessionId, currentProject?.worktree);
+        const messagesArray = (response.data as unknown as OpenCodeMessage[]) || [];
+        const loadedMessages: Message[] = messagesArray.map((msg: OpenCodeMessage, index: number) => {
+          const parts = msg.parts || [];
+          const textPart = parts.find((part: Part) => part.type === 'text');
+          const content = (textPart && 'text' in textPart ? textPart.text : '') || '';
+
+          const errorInfo = (msg.info as { error?: unknown })?.error;
+          const errorMessage =
+            typeof (errorInfo as { message?: string })?.message === 'string'
+              ? (errorInfo as { message: string }).message
+              : undefined;
+
+          return {
+            id: msg.info?.id || `msg-${index}`,
+            type: msg.info?.role === 'user' ? 'user' : 'assistant',
+            content,
+            parts,
+            timestamp: new Date(msg.info?.time?.created || Date.now()),
+            reverted: msg.info?.reverted || false,
+            metadata:
+              'tokens' in (msg.info || {})
+                ? {
+                    tokens: (msg.info as { tokens?: { input: number; output: number; reasoning: number } }).tokens,
+                    cost: (msg.info as { cost?: number }).cost,
+                    model: (msg.info as { modelID?: string }).modelID,
+                    agent: (msg.info as { mode?: string }).mode,
+                  }
+                : undefined,
+            optimistic: false,
+            error: Boolean(errorInfo),
+            errorMessage,
+          };
+        });
+
+        const activeMessages = loadedMessages.filter(msg => !msg.reverted);
+        const totalTokens = activeMessages.reduce((sum, msg) => {
+          if (msg.metadata?.tokens) {
+            return sum + msg.metadata.tokens.input + msg.metadata.tokens.output + msg.metadata.tokens.reasoning;
+          }
+          return sum;
+        }, 0);
+        if (process.env.NODE_ENV !== 'production')
+          console.log(
+            '[LoadMessages] Loaded',
+            loadedMessages.length,
+            'messages (',
+            activeMessages.length,
+            'active,',
+            loadedMessages.length - activeMessages.length,
+            'reverted) with',
+            totalTokens,
+            'total tokens',
+          );
+
+        seenMessageIdsRef.current.clear();
+        loadedMessages.forEach(msg => seenMessageIdsRef.current.add(msg.id));
+        setMessages(loadedMessages);
+
+        const lastAssistantMessage = [...loadedMessages]
+          .reverse()
+          .find(msg => msg.type === 'assistant' && msg.metadata?.model);
+        if (lastAssistantMessage?.metadata?.model && models.length > 0) {
+          const modelId = lastAssistantMessage.metadata.model;
+          const [providerId, modelName] = modelId.includes('/') ? modelId.split('/') : [modelId, modelId];
+
+          const matchingModel = models.find(
+            m =>
+              m.modelID === modelName ||
+              m.modelID === modelId ||
+              (m.providerID === providerId && m.modelID === modelName),
+          );
+
+          if (matchingModel) {
+            setSessionModelMap(prev => ({
+              ...prev,
+              [sessionId]: matchingModel,
+            }));
+          }
+        }
+
+        return loadedMessages;
+      } catch {
+        return [];
+      }
+    },
+    [currentProject, models],
+  );
+
+  const currentSessionId = currentSession?.id;
+  const currentWorktree = currentProject?.worktree;
+
   // SSE Event handling for real-time message updates
   useEffect(() => {
-    if (!isConnected || !currentSession || !isHydrated) return;
+    if (!isConnected || !currentSessionId || !isHydrated) return;
 
     const debugLog = (...args: unknown[]) => {
       if (process.env.NODE_ENV !== 'production') console.log(...args)
@@ -324,15 +426,16 @@ export function useOpenCode() {
     }
 
     const handleSSEEvent = (event: OpencodeEvent) => {
+      const activeSession = currentSessionRef.current;
       if (event.type !== 'lsp.client.diagnostics') {
         debugLog('[SSE] Event received:', event.type)
       }
 
       const eventSessionId = getEventSessionId(event)
-      if (eventSessionId && currentSession?.id && eventSessionId !== currentSession.id) {
+      if (eventSessionId && activeSession?.id && eventSessionId !== activeSession.id) {
         debugLog('[SSE] Ignoring event for different session', {
           eventSessionId,
-          currentSessionId: currentSession.id,
+          currentSessionId: activeSession?.id,
         })
         return
       }
@@ -361,7 +464,7 @@ export function useOpenCode() {
 
         case 'session.updated': {
           const sessionInfo = event.properties.info
-          if (sessionInfo && currentSession?.id === sessionInfo.id) {
+          if (sessionInfo && activeSession?.id === sessionInfo.id) {
             setCurrentSession(prev => (prev?.id === sessionInfo.id ? { ...prev, ...sessionInfo } : prev))
           }
           break
@@ -369,7 +472,7 @@ export function useOpenCode() {
 
         case 'session.deleted': {
           const sessionInfo = event.properties.info
-          if (sessionInfo && currentSession?.id === sessionInfo.id) {
+          if (sessionInfo && activeSession?.id === sessionInfo.id) {
             setCurrentSession(null)
             setMessages([])
             seenMessageIdsRef.current.clear()
@@ -379,7 +482,7 @@ export function useOpenCode() {
         }
 
         case 'session.compacted': {
-          if (event.properties.sessionID === currentSession?.id) {
+          if (event.properties.sessionID === activeSession?.id) {
             showToast('Session compacted successfully', 'success')
           }
           break
@@ -387,6 +490,12 @@ export function useOpenCode() {
 
         case 'session.idle': {
           debugLog('[SSE] Session became idle')
+          const sessionId = event.properties.sessionID
+          if (sessionId && sessionId === activeSession?.id) {
+            loadMessages(sessionId).catch(error => {
+              console.error('[SSE] Failed to refresh messages after idle:', error)
+            })
+          }
           break
         }
 
@@ -394,6 +503,12 @@ export function useOpenCode() {
           const { error } = event.properties
           if (error) {
             showToast(error.message, 'error')
+          }
+          const sessionId = event.properties.sessionID
+          if (sessionId && sessionId === activeSession?.id) {
+            loadMessages(sessionId).catch(loadError => {
+              console.error('[SSE] Failed to refresh messages after session error:', loadError)
+            })
           }
           break
         }
@@ -408,6 +523,15 @@ export function useOpenCode() {
 
           setMessages(prevMessages => {
             const existingIndex = prevMessages.findIndex(m => m.id === messageInfo.id)
+            const errorInfo = (messageInfo as {
+              error?: { data?: { message?: string }; message?: string }
+            }).error
+            const errorMessage =
+              typeof errorInfo?.data?.message === 'string'
+                ? errorInfo.data.message
+                : typeof errorInfo?.message === 'string'
+                  ? errorInfo.message
+                  : undefined
 
             if (existingIndex >= 0) {
               const updated = [...prevMessages]
@@ -420,12 +544,44 @@ export function useOpenCode() {
                       cost: messageInfo.cost,
                       model: messageInfo.modelID,
                       agent: messageInfo.mode,
-                    }
+                  }
                   : updated[existingIndex].metadata,
+                optimistic: false,
+                error: Boolean(errorInfo),
+                errorMessage,
               }
 
               debugLog('[SSE] Updated message metadata:', messageInfo.id)
               seenMessageIdsRef.current.add(messageInfo.id)
+              return updated
+            }
+
+            const optimisticIndex = prevMessages.findIndex(
+              m => m.optimistic && m.type === (messageInfo.role === 'user' ? 'user' : 'assistant'),
+            )
+
+            if (optimisticIndex >= 0) {
+              const updated = [...prevMessages]
+              updated[optimisticIndex] = {
+                ...updated[optimisticIndex],
+                id: messageInfo.id,
+                timestamp: new Date(messageInfo.time?.created || Date.now()),
+                reverted: messageInfo.reverted || false,
+                metadata: messageInfo.tokens
+                  ? {
+                      tokens: messageInfo.tokens,
+                      cost: messageInfo.cost,
+                      model: messageInfo.modelID,
+                      agent: messageInfo.mode,
+                    }
+                  : updated[optimisticIndex].metadata,
+                optimistic: false,
+                error: Boolean(errorInfo),
+                errorMessage,
+              }
+
+              seenMessageIdsRef.current.add(messageInfo.id)
+              debugLog('[SSE] Matched optimistic message with server ID:', messageInfo.id)
               return updated
             }
 
@@ -451,15 +607,13 @@ export function useOpenCode() {
                     agent: messageInfo.mode,
                   }
                 : undefined,
+              optimistic: false,
+              error: Boolean(errorInfo),
+              errorMessage,
             }
 
-            const insertIndex = prevMessages.findIndex(m => m.id > messageInfo.id)
-            const newMessages = [...prevMessages]
-            if (insertIndex >= 0) {
-              newMessages.splice(insertIndex, 0, newMessage)
-            } else {
-              newMessages.push(newMessage)
-            }
+            const newMessages = [...prevMessages, newMessage]
+            newMessages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
 
             debugLog('[SSE] Added new message placeholder:', messageInfo.id)
             return newMessages
@@ -498,11 +652,11 @@ export function useOpenCode() {
                   const updatedParts = [...parts]
                   updatedParts[textPartIndex] = part
                   debugLog('[SSE] Updated text part for message:', msg.id, 'length:', textContent.length)
-                  return { ...msg, parts: updatedParts, content: textContent }
+                  return { ...msg, parts: updatedParts, content: textContent, optimistic: false, error: false, errorMessage: undefined }
                 }
 
                 debugLog('[SSE] Added new text part for message:', msg.id, 'length:', textContent.length)
-                return { ...msg, parts: [...parts, part], content: textContent }
+                return { ...msg, parts: [...parts, part], content: textContent, optimistic: false, error: false, errorMessage: undefined }
               }
 
               const existingPartIndex = parts.findIndex(p => {
@@ -519,11 +673,11 @@ export function useOpenCode() {
                 const updatedParts = [...parts]
                 updatedParts[existingPartIndex] = part
                 debugLog('[SSE] Updated part type:', part.type, 'for message:', msg.id)
-                return { ...msg, parts: updatedParts }
+                return { ...msg, parts: updatedParts, optimistic: false, error: false, errorMessage: undefined }
               }
 
               debugLog('[SSE] Added new part type:', part.type, 'for message:', msg.id)
-              return { ...msg, parts: [...parts, part] }
+              return { ...msg, parts: [...parts, part], optimistic: false, error: false, errorMessage: undefined }
             }),
           )
           break
@@ -546,7 +700,7 @@ export function useOpenCode() {
 
         case 'permission.updated': {
           const { id, sessionID, message, details, ...rest } = event.properties
-          if (sessionID === currentSession?.id) {
+          if (sessionID === activeSession?.id) {
             const permissionPayload: PermissionState = {
               id,
               sessionID,
@@ -563,7 +717,7 @@ export function useOpenCode() {
 
         case 'permission.replied': {
           const { permissionID, sessionID } = event.properties
-          if (sessionID === currentSession?.id) {
+          if (sessionID === activeSession?.id) {
             setCurrentPermission(null)
             setShouldBlurEditor(false)
             debugLog('[SSE] Permission response received:', permissionID)
@@ -589,7 +743,7 @@ export function useOpenCode() {
 
         case 'todo.updated': {
           const { sessionID, todos } = event.properties
-          if (sessionID === currentSession?.id && Array.isArray(todos)) {
+          if (sessionID === activeSession?.id && Array.isArray(todos)) {
             setCurrentSessionTodos(todos)
             debugLog('[SSE] Todo items updated for session:', sessionID)
           }
@@ -603,9 +757,9 @@ export function useOpenCode() {
     }
 
     const setupSSE = async () => {
-      const directory = currentProject?.worktree
+      const directory = currentWorktree
       const { data: connectionState } = await openCodeService.subscribeToEvents(
-        currentSession.id,
+        currentSessionId,
         handleSSEEvent,
         directory,
       )
@@ -621,10 +775,11 @@ export function useOpenCode() {
 
     return () => {
       clearInterval(connectionMonitor)
+      debugLog('[SSE] Cleaning up event subscription')
       openCodeService.unsubscribeFromEvents()
       setSseConnectionState(null)
     }
-  }, [isConnected, currentSession, isHydrated, currentProject?.worktree, showToast])
+  }, [isConnected, currentSessionId, isHydrated, currentWorktree, showToast, loadMessages])
 
 
 
@@ -763,14 +918,31 @@ export function useOpenCode() {
            return;
          }
 
-         // Add user message to local state with the correct ID
-         const userMessage: Message = {
-           id: messageId,
-           type: 'user',
-           content: expandedContent,
-           timestamp: new Date(),
-         };
-         setMessages(prev => [...prev, userMessage]);
+         // Update optimistic entry with authoritative message ID and any expanded content
+         setMessages(prev => {
+           const updated = [...prev];
+           const optimisticIndex = updated.length - 1;
+           if (
+             optimisticIndex >= 0 &&
+             updated[optimisticIndex]?.type === 'user' &&
+             'optimistic' in updated[optimisticIndex]
+           ) {
+             updated[optimisticIndex] = {
+               ...updated[optimisticIndex],
+               id: messageId,
+               content: expandedContent,
+               optimistic: false,
+             };
+           } else {
+             updated.push({
+               id: messageId,
+               type: 'user',
+               content: expandedContent,
+               timestamp: new Date(),
+             });
+           }
+           return updated;
+         });
 
          // Save the model used for this session
          if (selectedModel && targetSession) {
@@ -780,20 +952,11 @@ export function useOpenCode() {
            }));
          }
 
-         // If this is the first message in the session, initialize the session
-         const isFirstMessage = messages.length === 0;
-         if (isFirstMessage && providerID && modelID && messageId) {
-           try {
-             await initSession(targetSession.id, messageId, providerID, modelID);
-             console.log('[SendMessage] Initialized new session:', targetSession.id);
-           } catch (initError) {
-             console.error('[SendMessage] Failed to initialize session:', initError);
-             // Don't throw here, as the message was sent successfully
-           }
-         }
-
          // Return the user message - SSE will handle the assistant response
-         return userMessage;
+         return {
+           id: messageId,
+           content: expandedContent,
+         };
       } catch (error) {
         console.error('Failed to send message:', error);
         throw new Error(handleOpencodeError(error));
@@ -801,72 +964,6 @@ export function useOpenCode() {
          setLoading(false);
        }
        }, [currentSession, currentProject, selectedModel]); // eslint-disable-line react-hooks/exhaustive-deps
-
-   const loadMessages = useCallback(async (sessionId: string): Promise<Message[]> => {
-      try {
-        const response = await openCodeService.getMessages(sessionId, currentProject?.worktree);
-        const messagesArray = (response.data as unknown as OpenCodeMessage[]) || [];
-        const loadedMessages: Message[] = messagesArray.map((msg: OpenCodeMessage, index: number) => {
-          const parts = msg.parts || [];
-          const textPart = parts.find((part: Part) => part.type === 'text');
-          const content = (textPart && 'text' in textPart ? textPart.text : '') || '';
-          
-          return {
-            id: msg.info?.id || `msg-${index}`,
-            type: msg.info?.role === 'user' ? 'user' : 'assistant',
-            content,
-            parts,
-            timestamp: new Date(msg.info?.time?.created || Date.now()),
-            reverted: msg.info?.reverted || false,
-            metadata: 'tokens' in (msg.info || {}) ? {
-              tokens: (msg.info as {tokens?: {input: number; output: number; reasoning: number}}).tokens,
-              cost: (msg.info as {cost?: number}).cost,
-              model: (msg.info as {modelID?: string}).modelID,
-              agent: (msg.info as {mode?: string}).mode
-            } : undefined
-          };
-        });
-        
-        const activeMessages = loadedMessages.filter(msg => !msg.reverted);
-        const totalTokens = activeMessages.reduce((sum, msg) => {
-          if (msg.metadata?.tokens) {
-            return sum + msg.metadata.tokens.input + msg.metadata.tokens.output + msg.metadata.tokens.reasoning;
-          }
-          return sum;
-        }, 0);
-        if (process.env.NODE_ENV !== 'production') console.log('[LoadMessages] Loaded', loadedMessages.length, 'messages (', activeMessages.length, 'active,', (loadedMessages.length - activeMessages.length), 'reverted) with', totalTokens, 'total tokens');
-        
-        seenMessageIdsRef.current.clear();
-        loadedMessages.forEach(msg => seenMessageIdsRef.current.add(msg.id));
-        setMessages(loadedMessages);
-       
-       // Extract the last used model from messages and save it
-       const lastAssistantMessage = [...loadedMessages].reverse().find(msg => msg.type === 'assistant' && msg.metadata?.model);
-       if (lastAssistantMessage?.metadata?.model && models.length > 0) {
-         // Parse the model ID (format: "provider/model")
-         const modelId = lastAssistantMessage.metadata.model;
-         const [providerId, modelName] = modelId.includes('/') ? modelId.split('/') : [modelId, modelId];
-         
-         // Find the matching model in the models list
-         const matchingModel = models.find(m => 
-           m.modelID === modelName || m.modelID === modelId || 
-           (m.providerID === providerId && m.modelID === modelName)
-         );
-         
-         if (matchingModel) {
-           setSessionModelMap(prev => ({
-             ...prev,
-             [sessionId]: matchingModel
-           }));
-         }
-       }
-       
-       return loadedMessages;
-     } catch {
-       // Silently handle errors when server is unavailable
-       return [];
-     }
-   }, [currentProject, models]);
 
    const loadProjects = useCallback(async () => {
      if (loadedProjectsRef.current) return;

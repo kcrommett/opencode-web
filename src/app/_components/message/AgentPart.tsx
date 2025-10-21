@@ -13,7 +13,7 @@ export function AgentPart({ part }: AgentPartProps) {
   return (
     <div className="flex items-center gap-2 my-2">
       <Badge variant="foreground0" cap="round" className="text-xs">
-        🤖 Agent: {String(agentName || 'Unknown')}
+        Agent: {String(agentName || 'Unknown')}
       </Badge>
     </div>
   );

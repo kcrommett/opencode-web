@@ -11,7 +11,7 @@ export function SnapshotPart({ part }: SnapshotPartProps) {
   return (
     <div className="flex items-center gap-2 my-2 opacity-50">
       <Badge variant="foreground0" cap="round" className="text-xs">
-        📸 Snapshot Created
+        Snapshot Created
       </Badge>
     </div>
   );

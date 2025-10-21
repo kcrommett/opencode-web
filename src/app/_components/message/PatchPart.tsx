@@ -42,7 +42,7 @@ export function PatchPart({ part }: PatchPartProps) {
         aria-controls={contentId}
       >
         <div className="flex items-center gap-2">
-          <span>📝</span>
+          <span className="font-mono text-xs">PATCH</span>
           <span className="text-sm font-medium">File Changes</span>
           <span className="text-xs opacity-60">{isExpanded ? '[-]' : '[+]'}</span>
         </div>

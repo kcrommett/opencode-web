@@ -62,7 +62,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
               onClick={onClose}
               className="min-touch-target"
             >
-              ✕
+              Close
             </Button>
           </div>
           
