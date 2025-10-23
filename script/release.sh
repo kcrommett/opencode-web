@@ -23,7 +23,7 @@ EOF
 
 require_clean_tree() {
   if ! git diff --quiet --ignore-submodules HEAD --; then
-    echo "⚠️  Working tree has uncommitted changes. Please commit or stash them before releasing." >&2
+    echo "WARNING: Working tree has uncommitted changes. Please commit or stash them before releasing." >&2
     exit 1
   fi
 }
@@ -155,54 +155,54 @@ ORIGINAL_HEAD=$(git rev-parse HEAD)
 CURRENT_VERSION=$(jq -r '.version' package.json)
 PUBLISHED_VERSION=$(npm view opencode-web version 2>/dev/null || echo "0.0.0")
 
-echo "📦 Current repo version: $CURRENT_VERSION"
-echo "📦 Latest npm version:  ${PUBLISHED_VERSION:-<none>}"
+echo "Current repo version: $CURRENT_VERSION"
+echo "Latest npm version:  ${PUBLISHED_VERSION:-<none>}"
 
 cmp=$(compare_versions "$CURRENT_VERSION" "$PUBLISHED_VERSION")
 if [[ $cmp -lt 0 ]]; then
-  echo "ℹ️  Repo version is behind npm. Using npm version $PUBLISHED_VERSION as base."
+  echo "INFO: Repo version is behind npm. Using npm version $PUBLISHED_VERSION as base."
   set_package_version "package.json" "$PUBLISHED_VERSION"
   set_package_version "packages/opencode-web/package.json" "$PUBLISHED_VERSION"
   CURRENT_VERSION=$PUBLISHED_VERSION
 fi
 
 NEXT_VERSION=$(increment_version "$CURRENT_VERSION" "$BUMP")
-echo "✅ Target release version: $NEXT_VERSION"
+echo "Target release version: $NEXT_VERSION"
 
 if npm view "opencode-web@$NEXT_VERSION" version >/dev/null 2>&1; then
-  echo "❌ Version $NEXT_VERSION already exists on npm. Choose a larger bump or verify the registry state." >&2
+  echo "ERROR: Version $NEXT_VERSION already exists on npm. Choose a larger bump or verify the registry state." >&2
   exit 1
 fi
 
 export OPENCODE_BUMP=$BUMP
-echo "🏗️  Building npm package via Bun..."
+echo "Building npm package via Bun..."
 bun ./script/build-npm.ts >/dev/null
 
 NEW_VERSION=$(jq -r '.version' package.json)
 if [[ "$NEW_VERSION" != "$NEXT_VERSION" ]]; then
-  echo "❌ build-npm.ts produced version $NEW_VERSION, expected $NEXT_VERSION." >&2
+  echo "ERROR: build-npm.ts produced version $NEW_VERSION, expected $NEXT_VERSION." >&2
   exit 1
 fi
 
-echo "📦 Updated version: $NEW_VERSION"
+echo "Updated version: $NEW_VERSION"
 
 # Verify version synchronization between package.json files
 ROOT_VERSION=$(jq -r '.version' package.json)
 PACKAGE_VERSION=$(jq -r '.version' packages/opencode-web/package.json)
 
 if [[ "$ROOT_VERSION" != "$PACKAGE_VERSION" ]]; then
-  echo "❌ Version mismatch detected: root=$ROOT_VERSION, package=$PACKAGE_VERSION" >&2
+  echo "ERROR: Version mismatch detected: root=$ROOT_VERSION, package=$PACKAGE_VERSION" >&2
   exit 1
 fi
 
 if [[ "$ROOT_VERSION" != "$NEW_VERSION" ]]; then
-  echo "❌ Version mismatch detected: expected=$NEW_VERSION, root=$ROOT_VERSION" >&2
+  echo "ERROR: Version mismatch detected: expected=$NEW_VERSION, root=$ROOT_VERSION" >&2
   exit 1
 fi
 
-echo "✅ Version synchronization verified: $ROOT_VERSION"
+echo "Version synchronization verified: $ROOT_VERSION"
 
-echo "🧩 Updating lockfiles..."
+echo "Updating lockfiles..."
 if ! npm install --package-lock-only >/dev/null 2>&1; then
   echo "   npm install --package-lock-only failed, retrying with --legacy-peer-deps..."
   npm install --package-lock-only --legacy-peer-deps >/dev/null
@@ -234,19 +234,19 @@ cleanup_on_error() {
   fi
 }
 
-trap 'echo "❌ Release failed. Cleaning up..."; cleanup_on_error' ERR
+trap 'echo "ERROR: Release failed. Cleaning up..."; cleanup_on_error' ERR
 
-echo "📝 Creating release commit..."
+echo "Creating release commit..."
 git add -A
 git commit -m "chore: release v$NEW_VERSION"
 
 if [[ $CREATE_TAG -eq 1 ]]; then
-  echo "🏷️  Tagging commit with $TAG_NAME"
+  echo "Tagging commit with $TAG_NAME"
   git tag -a "$TAG_NAME" -m "Release $TAG_NAME"
 fi
 
 if [[ $PUBLISH -eq 1 ]]; then
-  echo "🚀 Publishing opencode-web@$NEW_VERSION to npm..."
+  echo "Publishing opencode-web@$NEW_VERSION to npm..."
   pushd packages/opencode-web >/dev/null
   if [[ -n "${NPM_TOKEN:-${NODE_AUTH_TOKEN:-}}" ]]; then
     TOKEN="${NPM_TOKEN:-${NODE_AUTH_TOKEN}}"
@@ -266,14 +266,14 @@ if [[ $PUBLISH -eq 1 ]]; then
   npm publish "${PUBLISH_ARGS[@]}"
   popd >/dev/null
 else
-  echo "ℹ️  Skipping npm publish (per --no-publish)."
+  echo "INFO: Skipping npm publish (per --no-publish)."
 fi
 
-echo "⬆️  Pushing commit to origin..."
+echo "Pushing commit to origin..."
 git push origin HEAD:master
 
 if [[ $CREATE_TAG -eq 1 ]]; then
-  echo "⬆️  Pushing tag $TAG_NAME..."
+  echo "Pushing tag $TAG_NAME..."
   git push origin "$TAG_NAME"
 fi
 
@@ -292,7 +292,7 @@ else
   export NODE_AUTH_TOKEN="$ORIGINAL_NODE_AUTH_TOKEN"
 fi
 
-echo "✅ Release v$NEW_VERSION complete."
+echo "Release v$NEW_VERSION complete."
 echo "   - Commit pushed to master"
 if [[ $CREATE_TAG -eq 1 ]]; then
   echo "   - Tag pushed: $TAG_NAME"

@@ -209,7 +209,7 @@ if (shouldStartBundledServer) {
       server.close()
       stopOpencodeServer = undefined
     }
-    console.log(`✅ OpenCode Server listening at ${server.url}`)
+    console.log(`OpenCode Server listening at ${server.url}`)
   } catch (error) {
     console.error('[ERROR] Failed to start bundled OpenCode Server.')
     console.error(error instanceof Error ? error.stack ?? error.message : error)
@@ -240,7 +240,7 @@ process.on('SIGTERM', () => {
 process.on('exit', cleanup)
 
 const displayHost = host === '0.0.0.0' ? '0.0.0.0' : host
-console.log(`🚀 Starting OpenCode Web server on http://${displayHost}:${port}`)
+console.log(`Starting OpenCode Web server on http://${displayHost}:${port}`)
 if (host === '0.0.0.0') {
   console.log('🔓 Listening on all network interfaces')
 }

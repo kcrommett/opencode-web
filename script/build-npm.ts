@@ -35,17 +35,17 @@ const Script = {
   },
 };
 
-console.log(`📦 Building opencode-web NPM package v${Script.version}`);
+console.log(`Building opencode-web NPM package v${Script.version}`);
 
 // Clean previous builds
 await $`rm -rf packages/opencode-web/dist`;
 
 // Build the web app
-console.log("🏗️  Building web application...");
+console.log("Building web application...");
 await $`bun run build`;
 
 // Copy built files to package directory
-console.log("📋 Copying built files...");
+console.log("Copying built files...");
 await $`mkdir -p packages/opencode-web/dist`;
 await $`cp -r dist/client packages/opencode-web/dist/`;
 await $`cp -r dist/server packages/opencode-web/dist/`;
@@ -75,7 +75,7 @@ const verifySync = async () => {
     throw new Error(`Version mismatch: expected=${Script.version}, root=${rootVersion}`);
   }
   
-  console.log(`✅ Version synchronization verified: ${rootVersion}`);
+  console.log(`Version synchronization verified: ${rootVersion}`);
 };
 
 await verifySync();
@@ -123,6 +123,6 @@ MIT
 
 await Bun.write("packages/opencode-web/README.md", readme);
 
-console.log(`✅ NPM package built successfully in packages/opencode-web/`);
-console.log(`📦 Version: ${Script.version}`);
-console.log(`🚀 To test locally: cd packages/opencode-web && npm link`);
+console.log(`NPM package built successfully in packages/opencode-web/`);
+console.log(`Version: ${Script.version}`);
+console.log(`To test locally: cd packages/opencode-web && npm link`);

@@ -38,7 +38,7 @@ const Script = {
 const log = (prefix: string, message: string) => console.log(`${prefix} ${message}`);
 
 async function buildNpmPackage() {
-  log("📦", "Building NPM package...");
+  log("INFO", "Building NPM package...");
   await import("./build-npm");
 }
 
@@ -53,7 +53,7 @@ async function publishToNpm() {
     throw new Error(`Version mismatch: root=${rootVersion}, package=${packageVersion}`);
   }
   
-  log("✅", `Version synchronization verified: ${rootVersion}`);
+  log("INFO", `Version synchronization verified: ${rootVersion}`);
   
   // Configure NPM authentication
   const npmToken = process.env.NPM_TOKEN;
@@ -70,7 +70,7 @@ async function publishToNpm() {
   try {
     const response = await fetch(`https://registry.npmjs.org/${packageName}/${version}`);
     if (response.ok) {
-      log("⚠️", `Version ${version} already published to NPM`);
+      log("WARNING", `Version ${version} already published to NPM`);
       return false;
     }
   } catch {
@@ -80,7 +80,7 @@ async function publishToNpm() {
   // Determine publish tag
   const tag = Script.preview ? "preview" : "latest";
 
-  log("🚀", `Publishing to NPM with tag: ${tag}`);
+  log("INFO", `Publishing to NPM with tag: ${tag}`);
   
   const publishCmd = tag === "preview" 
     ? $`npm publish --tag preview`
@@ -88,29 +88,29 @@ async function publishToNpm() {
 
   try {
     await publishCmd;
-    log("✅", `Successfully published ${packageName}@${version} to NPM`);
+    log("INFO", `Successfully published ${packageName}@${version} to NPM`);
     return true;
   } catch (error) {
-    log("❌", `Failed to publish to NPM: ${error}`);
+    log("ERROR", `Failed to publish to NPM: ${error}`);
     throw error;
   }
 }
 
 async function run() {
-  log("🚀", `Publishing opencode-web NPM package v${Script.version}`);
+  log("INFO", `Publishing opencode-web NPM package v${Script.version}`);
 
   try {
     await buildNpmPackage();
     
     if (Script.preview) {
-      log("🔍", "Preview build - skipping NPM publish");
+      log("INFO", "Preview build - skipping NPM publish");
       return;
     }
 
     await publishToNpm();
-    log("🎉", "NPM publishing complete!");
+    log("INFO", "NPM publishing complete!");
   } catch (error) {
-    log("❌", error instanceof Error ? error.message : String(error));
+    log("ERROR", error instanceof Error ? error.message : String(error));
     process.exit(1);
   }
 }
