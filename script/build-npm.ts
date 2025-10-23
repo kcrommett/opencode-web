@@ -17,12 +17,15 @@ const bumpVersion = (current: string, bump: "major" | "minor" | "patch") => {
   }
 };
 
+// Calculate version once at the start
+const bump = process.env.OPENCODE_BUMP as "major" | "minor" | "patch" | undefined;
+if (!bump) throw new Error("OPENCODE_BUMP not set");
+const currentPkg = JSON.parse(readFileSync("package.json", "utf8")) as { version: string };
+const TARGET_VERSION = bumpVersion(currentPkg.version, bump);
+
 const Script = {
   get version() {
-    const bump = process.env.OPENCODE_BUMP as "major" | "minor" | "patch" | undefined;
-    if (!bump) throw new Error("OPENCODE_BUMP not set");
-    const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { version: string };
-    return bumpVersion(pkg.version, bump);
+    return TARGET_VERSION;
   },
   get channel() {
     return process.env.OPENCODE_CHANNEL ?? "latest";
@@ -58,6 +61,24 @@ const packageJsonPath = "packages/opencode-web/package.json";
 const packageJson = JSON.parse(await Bun.file(packageJsonPath).text());
 packageJson.version = Script.version;
 await Bun.write(packageJsonPath, JSON.stringify(packageJson, null, 2));
+
+// Verify version synchronization
+const verifySync = async () => {
+  const rootVersion = JSON.parse(await Bun.file(rootPackageJsonPath).text()).version;
+  const packageVersion = JSON.parse(await Bun.file(packageJsonPath).text()).version;
+  
+  if (rootVersion !== packageVersion) {
+    throw new Error(`Version mismatch: root=${rootVersion}, package=${packageVersion}`);
+  }
+  
+  if (rootVersion !== Script.version) {
+    throw new Error(`Version mismatch: expected=${Script.version}, root=${rootVersion}`);
+  }
+  
+  console.log(`✅ Version synchronization verified: ${rootVersion}`);
+};
+
+await verifySync();
 
 // Create README for the package
 const readme = `# OpenCode Web

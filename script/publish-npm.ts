@@ -17,12 +17,15 @@ const bumpVersion = (current: string, bump: "major" | "minor" | "patch") => {
   }
 };
 
+// Calculate version once at the start
+const bump = process.env.OPENCODE_BUMP as "major" | "minor" | "patch" | undefined;
+if (!bump) throw new Error("OPENCODE_BUMP not set");
+const currentPkg = JSON.parse(readFileSync("package.json", "utf8")) as { version: string };
+const TARGET_VERSION = bumpVersion(currentPkg.version, bump);
+
 const Script = {
   get version() {
-    const bump = process.env.OPENCODE_BUMP as "major" | "minor" | "patch" | undefined;
-    if (!bump) throw new Error("OPENCODE_BUMP not set");
-    const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { version: string };
-    return bumpVersion(pkg.version, bump);
+    return TARGET_VERSION;
   },
   get channel() {
     return process.env.OPENCODE_CHANNEL ?? "latest";
@@ -41,6 +44,16 @@ async function buildNpmPackage() {
 
 async function publishToNpm() {
   const packageDir = "packages/opencode-web";
+  
+  // Verify version synchronization before publishing
+  const rootVersion = JSON.parse(await Bun.file("package.json").text()).version;
+  const packageVersion = JSON.parse(await Bun.file(`${packageDir}/package.json`).text()).version;
+  
+  if (rootVersion !== packageVersion) {
+    throw new Error(`Version mismatch: root=${rootVersion}, package=${packageVersion}`);
+  }
+  
+  log("✅", `Version synchronization verified: ${rootVersion}`);
   
   // Configure NPM authentication
   const npmToken = process.env.NPM_TOKEN;

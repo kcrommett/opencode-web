@@ -53,4 +53,22 @@ jobs:
           OPENCODE_BUMP: ${{ inputs.bump }}
           OPENCODE_CHANNEL: latest
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: bun ./script/publish-npm.ts
+        run: |
+          # Get the version that will be published
+          VERSION=$(bun ./script/build-npm.ts 2>&1 | grep "Version synchronization verified" | awk '{print $NF}')
+          if [ -z "$VERSION" ]; then
+            echo "❌ Failed to determine version from build output"
+            exit 1
+          fi
+          echo "📦 Publishing version: $VERSION"
+          
+          # Publish to NPM
+          bun ./script/publish-npm.ts
+          
+          # Create and push git tag
+          git config --global user.email "bot@opencode.ai"
+          git config --global user.name "opencode-web-bot"
+          git tag -a "v$VERSION" -m "Release v$VERSION"
+          git push origin "v$VERSION"
+          
+          echo "✅ Release v$VERSION complete"

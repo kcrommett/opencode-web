@@ -186,6 +186,22 @@ fi
 
 echo "📦 Updated version: $NEW_VERSION"
 
+# Verify version synchronization between package.json files
+ROOT_VERSION=$(jq -r '.version' package.json)
+PACKAGE_VERSION=$(jq -r '.version' packages/opencode-web/package.json)
+
+if [[ "$ROOT_VERSION" != "$PACKAGE_VERSION" ]]; then
+  echo "❌ Version mismatch detected: root=$ROOT_VERSION, package=$PACKAGE_VERSION" >&2
+  exit 1
+fi
+
+if [[ "$ROOT_VERSION" != "$NEW_VERSION" ]]; then
+  echo "❌ Version mismatch detected: expected=$NEW_VERSION, root=$ROOT_VERSION" >&2
+  exit 1
+fi
+
+echo "✅ Version synchronization verified: $ROOT_VERSION"
+
 echo "🧩 Updating lockfiles..."
 if ! npm install --package-lock-only >/dev/null 2>&1; then
   echo "   npm install --package-lock-only failed, retrying with --legacy-peer-deps..."
