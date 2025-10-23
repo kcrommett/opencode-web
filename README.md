@@ -10,9 +10,9 @@
 <p align="center">The web interface for OpenCode.</p>
 <p align="center">
   <a href="https://opencode.ai/discord"><img alt="Discord" src="https://img.shields.io/discord/1391832426048651334?style=flat-square&label=discord" /></a>
-  <a href="https://www.npmjs.com/package/opencode-web"><img alt="npm" src="https://img.shields.io/npm/v/opencode-web?style=flat-square" /></a
+  <a href="https://www.npmjs.com/package/opencode-web"><img alt="npm" src="https://img.shields.io/npm/v/opencode-web?style=flat-square" /></a>
+  <a href="https://github.com/kcrommett/opencode-web/actions/workflows/release.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/kcrommett/opencode-web/release.yml?style=flat-square&branch=main" /></a>
 </p>
-[![release](https://github.com/kcrommett/opencode-web/actions/workflows/release.yml/badge.svg?branch=master)](https://github.com/kcrommett/opencode-web/actions/workflows/release.yml)
 OpenCode Web is a web-based interface for the OpenCode Server API, providing a browser-based way to interact with OpenCode sessions. Built on TanStack Start, React, and Bun, it offers a complete web experience for managing and monitoring OpenCode workflows.
 
 ## 🚀 Quick Start
