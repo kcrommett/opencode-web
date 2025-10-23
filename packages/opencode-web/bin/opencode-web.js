@@ -1,9 +1,14 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, delimiter } from 'node:path'
 import { createOpencode } from '@opencode-ai/sdk'
+
+if (typeof globalThis.Bun === 'undefined') {
+  console.error('opencode-web requires the Bun runtime. Run via `bunx opencode-web` or install Bun from https://bun.sh.')
+  process.exit(1)
+}
 
 const DEFAULT_PORT = 3000
 const DEFAULT_HOST = '127.0.0.1'
