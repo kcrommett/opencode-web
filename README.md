@@ -6,10 +6,11 @@
       <img src="assets/logo-ornate-light.svg" alt="OpenCode logo">
     </picture>
   </a>
+<br>
+(web)
 </p>
 <p align="center">The web interface for OpenCode.</p>
 <p align="center">
-  <a href="https://opencode.ai/discord"><img alt="Discord" src="https://img.shields.io/discord/1391832426048651334?style=flat-square&label=discord" /></a>
   <a href="https://www.npmjs.com/package/opencode-web"><img alt="npm" src="https://img.shields.io/npm/v/opencode-web?style=flat-square" /></a>
   <a href="https://github.com/kcrommett/opencode-web/actions/workflows/release.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/kcrommett/opencode-web/release.yml?style=flat-square&branch=main" /></a>
 </p>
@@ -17,9 +18,9 @@ OpenCode Web is a web-based interface for the OpenCode Server API, providing a b
 
 ## 🚀 Quick Start
 
-### Option 1: One-liner (Recommended)
+### Option 1: Run with bunx (Recommended)
 ```bash
-bunx opencode-web
+bunx opencode-web@latest
 ```
 
 ### Option 2: Install Globally
