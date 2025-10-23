@@ -215,6 +215,13 @@ fi
 if [[ $PUBLISH -eq 1 ]]; then
   echo "🚀 Publishing opencode-web@$NEW_VERSION to npm..."
   pushd packages/opencode-web >/dev/null
+  if [[ -n "${NPM_TOKEN:-}" ]]; then
+    echo "   using automation token from \$NPM_TOKEN"
+    npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN" >/dev/null
+  elif [[ -n "${NODE_AUTH_TOKEN:-}" ]]; then
+    echo "   using automation token from \$NODE_AUTH_TOKEN"
+    npm config set //registry.npmjs.org/:_authToken "$NODE_AUTH_TOKEN" >/dev/null
+  fi
   PUBLISH_ARGS=(--access public)
   if [[ -n "$OTP" ]]; then
     PUBLISH_ARGS+=(--otp "$OTP")
