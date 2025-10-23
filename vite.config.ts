@@ -7,12 +7,17 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  // Use relative URLs for PWA assets to work with reverse proxies
   const pwaAssetsUrl = env.VITE_PWA_ASSETS_URL || ''
   const allowedHostsEnv = env.VITE_ALLOWED_HOSTS
   const allowedHosts =
     allowedHostsEnv?.split(',').map((host) => host.trim()).filter(Boolean) ?? ['localhost']
+  
+  // Handle reverse proxy base path
+  const basePath = env.VITE_BASE_PATH || ''
 
   return {
+    base: basePath,
     server: {
       port: 3000,
       allowedHosts,
@@ -62,23 +67,23 @@ export default defineConfig(({ mode }) => {
           scope: '/',
           icons: [
             {
-              src: `${pwaAssetsUrl}/pwa-64x64.png`,
+              src: pwaAssetsUrl ? `${pwaAssetsUrl}/pwa-64x64.png` : '/pwa-64x64.png',
               sizes: '64x64',
               type: 'image/png',
             },
             {
-              src: `${pwaAssetsUrl}/pwa-192x192.png`,
+              src: pwaAssetsUrl ? `${pwaAssetsUrl}/pwa-192x192.png` : '/pwa-192x192.png',
               sizes: '192x192',
               type: 'image/png',
             },
             {
-              src: `${pwaAssetsUrl}/pwa-512x512.png`,
+              src: pwaAssetsUrl ? `${pwaAssetsUrl}/pwa-512x512.png` : '/pwa-512x512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any',
             },
             {
-              src: `${pwaAssetsUrl}/maskable-icon-512x512.png`,
+              src: pwaAssetsUrl ? `${pwaAssetsUrl}/maskable-icon-512x512.png` : '/maskable-icon-512x512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable',

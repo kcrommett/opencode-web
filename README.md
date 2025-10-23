@@ -198,6 +198,30 @@ This application is designed for local development and does not include built-in
 4. **Network isolation**: Keep it within your firewall when possible
 5. **Use VPN** for remote access instead of direct exposure
 
+Example Cloudflare Tunnel setup:
+```bash
+# Install cloudflared
+brew install cloudflared  # macOS
+# Or download from https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/
+
+# Create a tunnel with Access protection
+cloudflared tunnel --url http://localhost:3000
+```
+
+### Reverse Proxy Configuration
+
+When using reverse proxies like Cloudflare Access, Nginx, or Apache:
+
+1. **CORS Headers**: The server automatically adds CORS headers when accessed via reverse proxy
+2. **Virtual Endpoints**: Development endpoints (`@react-refresh`, `@vite-plugin-pwa/pwa-entry-point-loaded`) return empty responses in production
+3. **PWA Assets**: Use relative URLs by setting `VITE_PWA_ASSETS_URL=""` when building
+4. **Base Path**: Set `VITE_BASE_PATH="/your-path"` if hosting under a subdirectory
+
+Example production build for reverse proxy:
+```bash
+VITE_PWA_ASSETS_URL="" VITE_BASE_PATH="" bun run build
+```
+
 
 ## Contributing
 Follow the shared contributor handbook in `AGENTS.md`. Before opening a PR, run lint + typecheck, describe UI-visible changes, and flag any server-function updates.
