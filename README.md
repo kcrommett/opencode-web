@@ -1,8 +1,18 @@
 <p align="center">
-  <svg width='234' height='42' viewBox='0 0 234 42' fill='none' xmlns='http://www.w3.org/2000/svg'><path d='M18 30H6V18H18V30Z' fill='#4B4646'/><path d='M18 12H6V30H18V12ZM24 36H0V6H24V36Z' fill='#B7B1B1'/><path d='M48 30H36V18H48V30Z' fill='#4B4646'/><path d='M36 30H48V12H36V30ZM54 36H36V42H30V6H54V36Z' fill='#B7B1B1'/><path d='M84 24V30H66V24H84Z' fill='#4B4646'/><path d='M84 24H66V30H84V36H60V6H84V24ZM66 18H78V12H66V18Z' fill='#B7B1B1'/><path d='M108 36H96V18H108V36Z' fill='#4B4646'/><path d='M108 12H96V36H90V6H108V12ZM114 36H108V12H114V36Z' fill='#B7B1B1'/><path d='M144 30H126V18H144V30Z' fill='#4B4646'/><path d='M144 12H126V30H144V36H120V6H144V12Z' fill='#F1ECEC'/><path d='M168 30H156V18H168V30Z' fill='#4B4646'/><path d='M168 12H156V30H168V12ZM174 36H150V6H174V36Z' fill='#F1ECEC'/><path d='M198 30H186V18H198V30Z' fill='#4B4646'/><path d='M198 12H186V30H198V12ZM204 36H180V6H198V0H204V36Z' fill='#F1ECEC'/><path d='M234 24V30H216V24H234Z' fill='#4B4646'/><path d='M216 12V18H228V12H216ZM234 24H216V30H234V36H210V6H234V24Z' fill='#F1ECEC'/></svg>
+  <a href="https://opencode.ai">
+    <picture>
+      <source srcset="assets/logo-ornate-dark.svg" media="(prefers-color-scheme: dark)">
+      <source srcset="assets/logo-ornate-light.svg" media="(prefers-color-scheme: light)">
+      <img src="assets/logo-ornate-light.svg" alt="OpenCode logo">
+    </picture>
+  </a>
 </p>
-
-# opencode-web
+<p align="center">The web interface for OpenCode.</p>
+<p align="center">
+  <a href="https://opencode.ai/discord"><img alt="Discord" src="https://img.shields.io/discord/1391832426048651334?style=flat-square&label=discord" /></a>
+  <a href="https://www.npmjs.com/package/opencode-web"><img alt="npm" src="https://img.shields.io/npm/v/opencode-web?style=flat-square" /></a>
+  <a href="https://github.com/kcrommett/opencode-web/actions/workflows/release.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/kcrommett/opencode-web/release.yml?style=flat-square&branch=main" /></a>
+</p>
 
 OpenCode Web is a web-based interface for the OpenCode Server API, providing a browser-based way to interact with OpenCode sessions. Built on TanStack Start, React, and Bun, it offers a complete web experience for managing and monitoring OpenCode workflows.
 
@@ -174,3 +184,7 @@ Key entry points include:
 
 ## Contributing
 Follow the shared contributor handbook in `AGENTS.md`. Before opening a PR, run lint + typecheck, describe UI-visible changes, and flag any server-function updates.
+
+---
+
+**Join our community** [Discord](https://discord.gg/opencode) | [X.com](https://x.com/opencode)
