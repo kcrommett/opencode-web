@@ -100,6 +100,33 @@ async function initializeServer() {
         const staticResponse = await serveStatic(pathname)
         if (staticResponse) return staticResponse
 
+        // Handle virtual Vite endpoints for reverse proxy compatibility
+        if (pathname === '@vite-plugin-pwa/pwa-entry-point-loaded') {
+          return new Response('null', {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/javascript',
+              'Access-Control-Allow-Origin': req.headers.get('origin') || '*',
+              'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+              'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+              'Access-Control-Allow-Credentials': 'true',
+            }
+          })
+        }
+        
+        if (pathname === '@react-refresh') {
+          return new Response('// React refresh runtime placeholder', {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/javascript',
+              'Access-Control-Allow-Origin': req.headers.get('origin') || '*',
+              'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+              'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+              'Access-Control-Allow-Credentials': 'true',
+            }
+          })
+        }
+        
         const response = await handler.fetch(req)
         const webResponse = await toWebResponse(response)
         
