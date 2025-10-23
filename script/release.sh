@@ -93,6 +93,9 @@ PUBLISH=1
 OTP=""
 TAG_NAME=""
 CREATE_TAG=1
+TEMP_NPMRC=""
+ORIGINAL_NPM_CONFIG_USERCONFIG=${NPM_CONFIG_USERCONFIG-__UNSET__}
+ORIGINAL_NODE_AUTH_TOKEN=${NODE_AUTH_TOKEN-__UNSET__}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -147,6 +150,8 @@ cd "$ROOT_DIR"
 
 require_clean_tree
 
+ORIGINAL_HEAD=$(git rev-parse HEAD)
+
 CURRENT_VERSION=$(jq -r '.version' package.json)
 PUBLISHED_VERSION=$(npm view opencode-web version 2>/dev/null || echo "0.0.0")
 
@@ -196,8 +201,20 @@ cleanup_on_error() {
   if git rev-parse --verify "$TAG_NAME" >/dev/null 2>&1; then
     git tag -d "$TAG_NAME" >/dev/null 2>&1 || true
   fi
-  if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
-    git reset --soft HEAD^ >/dev/null 2>&1 || true
+  git reset --hard "$ORIGINAL_HEAD" >/dev/null 2>&1 || true
+  if [[ -n "$TEMP_NPMRC" && -f "$TEMP_NPMRC" ]]; then
+    rm -f "$TEMP_NPMRC"
+  fi
+  TEMP_NPMRC=""
+  if [[ "$ORIGINAL_NPM_CONFIG_USERCONFIG" == "__UNSET__" ]]; then
+    unset NPM_CONFIG_USERCONFIG || true
+  else
+    export NPM_CONFIG_USERCONFIG="$ORIGINAL_NPM_CONFIG_USERCONFIG"
+  fi
+  if [[ "$ORIGINAL_NODE_AUTH_TOKEN" == "__UNSET__" ]]; then
+    unset NODE_AUTH_TOKEN || true
+  else
+    export NODE_AUTH_TOKEN="$ORIGINAL_NODE_AUTH_TOKEN"
   fi
 }
 
@@ -215,12 +232,16 @@ fi
 if [[ $PUBLISH -eq 1 ]]; then
   echo "🚀 Publishing opencode-web@$NEW_VERSION to npm..."
   pushd packages/opencode-web >/dev/null
-  if [[ -n "${NPM_TOKEN:-}" ]]; then
-    echo "   using automation token from \$NPM_TOKEN"
-    npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN" >/dev/null
-  elif [[ -n "${NODE_AUTH_TOKEN:-}" ]]; then
-    echo "   using automation token from \$NODE_AUTH_TOKEN"
-    npm config set //registry.npmjs.org/:_authToken "$NODE_AUTH_TOKEN" >/dev/null
+  if [[ -n "${NPM_TOKEN:-${NODE_AUTH_TOKEN:-}}" ]]; then
+    TOKEN="${NPM_TOKEN:-${NODE_AUTH_TOKEN}}"
+    echo "   using automation token from environment"
+    TEMP_NPMRC=$(mktemp)
+    {
+      printf "//registry.npmjs.org/:_authToken=%s\n" "$TOKEN"
+      printf "always-auth=true\n"
+    } >"$TEMP_NPMRC"
+    export NPM_CONFIG_USERCONFIG="$TEMP_NPMRC"
+    export NODE_AUTH_TOKEN="$TOKEN"
   fi
   PUBLISH_ARGS=(--access public)
   if [[ -n "$OTP" ]]; then
@@ -238,6 +259,21 @@ git push origin HEAD:master
 if [[ $CREATE_TAG -eq 1 ]]; then
   echo "⬆️  Pushing tag $TAG_NAME..."
   git push origin "$TAG_NAME"
+fi
+
+if [[ -n "$TEMP_NPMRC" && -f "$TEMP_NPMRC" ]]; then
+  rm -f "$TEMP_NPMRC"
+fi
+TEMP_NPMRC=""
+if [[ "$ORIGINAL_NPM_CONFIG_USERCONFIG" == "__UNSET__" ]]; then
+  unset NPM_CONFIG_USERCONFIG
+else
+  export NPM_CONFIG_USERCONFIG="$ORIGINAL_NPM_CONFIG_USERCONFIG"
+fi
+if [[ "$ORIGINAL_NODE_AUTH_TOKEN" == "__UNSET__" ]]; then
+  unset NODE_AUTH_TOKEN
+else
+  export NODE_AUTH_TOKEN="$ORIGINAL_NODE_AUTH_TOKEN"
 fi
 
 echo "✅ Release v$NEW_VERSION complete."
