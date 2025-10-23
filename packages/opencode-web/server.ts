@@ -41,6 +41,22 @@ async function initializeServer() {
         const url = new URL(req.url)
         const pathname = url.pathname
         
+        // Handle CORS preflight requests
+        if (req.method === 'OPTIONS') {
+          const origin = req.headers.get('origin')
+          if (origin) {
+            return new Response(null, {
+              status: 200,
+              headers: {
+                'Access-Control-Allow-Origin': origin,
+                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+                'Access-Control-Allow-Credentials': 'true',
+              }
+            })
+          }
+        }
+        
         if (pathname === '/api/events') {
           const directory = url.searchParams.get('directory');
           const eventUrl = new URL(`${OPENCODE_SERVER_URL}/event`);
@@ -85,7 +101,18 @@ async function initializeServer() {
         if (staticResponse) return staticResponse
 
         const response = await handler.fetch(req)
-        return await toWebResponse(response)
+        const webResponse = await toWebResponse(response)
+        
+        // Add CORS headers for reverse proxy compatibility
+        const origin = req.headers.get('origin')
+        if (origin) {
+          webResponse.headers.set('Access-Control-Allow-Origin', origin)
+          webResponse.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+          webResponse.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
+          webResponse.headers.set('Access-Control-Allow-Credentials', 'true')
+        }
+        
+        return webResponse
       } catch (error) {
         console.error(`[ERROR] Request error: ${String(error)}`)
         return new Response('Internal Server Error', { status: 500 })
