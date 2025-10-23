@@ -106,6 +106,8 @@ async function initializeServer() {
         const staticResponse = await serveStatic(pathname)
         if (staticResponse) return staticResponse
 
+        
+
         // Handle virtual Vite endpoints for reverse proxy compatibility
         // These are development endpoints that shouldn't be requested in production
         if (pathname === '/@vite-plugin-pwa/pwa-entry-point-loaded') {
