@@ -182,7 +182,7 @@ const shouldStartBundledServer = !disableBundledServer && !externalServerUrl
 let stopOpencodeServer
 
 if (shouldStartBundledServer) {
-  console.log('⚙️ Starting bundled OpenCode Server via SDK...')
+  console.log('Starting bundled OpenCode Server via SDK...')
 
   const serverOptions = {}
   const requestedPort = process.env.OPENCODE_SERVER_PORT
@@ -244,7 +244,7 @@ console.log(`Starting OpenCode Web server on http://${displayHost}:${port}`)
 if (host === '0.0.0.0') {
   console.log('🔓 Listening on all network interfaces')
 }
-console.log(`📁 Serving from: ${packageDir}`)
+console.log(`Serving from: ${packageDir}`)
 
 const serverPath = join(packageDir, 'server.ts')
 await import(serverPath)

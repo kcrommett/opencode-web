@@ -18,7 +18,7 @@ const SERVER_ENTRY_POINT = new URL('./dist/server/server.js', import.meta.url)
 const OPENCODE_SERVER_URL = process.env.VITE_OPENCODE_SERVER_URL || 'http://localhost:4096'
 
 async function initializeServer() {
-  if (!IS_PRODUCTION) console.log('[INFO] Starting TanStack Start server...')
+  if (!IS_PRODUCTION) console.log('Starting TanStack Start server...')
 
   let handler: { fetch: (request: Request) => Response | Promise<Response> }
   try {
@@ -26,7 +26,7 @@ async function initializeServer() {
       default: { fetch: (request: Request) => Response | Promise<Response> }
     }
     handler = serverModule.default
-    if (!IS_PRODUCTION) console.log('[SUCCESS] Server handler initialized')
+    if (!IS_PRODUCTION) console.log('Server handler initialized')
   } catch (error) {
     console.error(`[ERROR] Failed to load server handler: ${String(error)}`)
     process.exit(1)
@@ -92,8 +92,8 @@ async function initializeServer() {
     },
   })
 
-  if (!IS_PRODUCTION) console.log(`[SUCCESS] Server listening on http://${SERVER_HOST}:${String(server.port)}`)
-  if (!IS_PRODUCTION && SERVER_HOST === '0.0.0.0') console.log('[INFO] Server exposed on all network interfaces')
+  if (!IS_PRODUCTION) console.log(`Server listening on http://${SERVER_HOST}:${String(server.port)}`)
+  if (!IS_PRODUCTION && SERVER_HOST === '0.0.0.0') console.log('Server exposed on all network interfaces')
 }
 
 function isImmutableAsset(relativePath: string) {
