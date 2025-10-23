@@ -15,6 +15,7 @@ const CLIENT_DIRECTORY = path.resolve(process.cwd(), 'dist/client')
 const SERVER_ASSETS_DIRECTORY = path.resolve(process.cwd(), 'dist/server/assets')
 const SERVER_ENTRY_POINT = new URL('./dist/server/server.js', import.meta.url)
 const OPENCODE_SERVER_URL = process.env.VITE_OPENCODE_SERVER_URL || 'http://localhost:4096'
+const BASE_PATH = process.env.VITE_BASE_PATH || ''
 
 async function initializeServer() {
   if (!IS_PRODUCTION) console.log('Starting TanStack Start server...')
@@ -39,7 +40,12 @@ async function initializeServer() {
     fetch: async (req: Request) => {
       try {
         const url = new URL(req.url)
-        const pathname = url.pathname
+        let pathname = url.pathname
+        
+        // Remove base path if configured
+        if (BASE_PATH && pathname.startsWith(BASE_PATH)) {
+          pathname = pathname.slice(BASE_PATH.length)
+        }
         
         // Handle CORS preflight requests
         if (req.method === 'OPTIONS') {
@@ -101,7 +107,9 @@ async function initializeServer() {
         if (staticResponse) return staticResponse
 
         // Handle virtual Vite endpoints for reverse proxy compatibility
-        if (pathname === '@vite-plugin-pwa/pwa-entry-point-loaded') {
+        // These are development endpoints that shouldn't be requested in production
+        if (pathname === '/@vite-plugin-pwa/pwa-entry-point-loaded') {
+          console.warn(`[WARN] Development endpoint ${pathname} requested in production`)
           return new Response('null', {
             status: 200,
             headers: {
@@ -110,12 +118,14 @@ async function initializeServer() {
               'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
               'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
               'Access-Control-Allow-Credentials': 'true',
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
             }
           })
         }
         
-        if (pathname === '@react-refresh') {
-          return new Response('// React refresh runtime placeholder', {
+        if (pathname === '/@react-refresh') {
+          console.warn(`[WARN] Development endpoint ${pathname} requested in production`)
+          return new Response('// React refresh runtime - not available in production', {
             status: 200,
             headers: {
               'Content-Type': 'application/javascript',
@@ -123,6 +133,7 @@ async function initializeServer() {
               'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
               'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
               'Access-Control-Allow-Credentials': 'true',
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
             }
           })
         }
