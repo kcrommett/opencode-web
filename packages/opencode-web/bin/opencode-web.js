@@ -12,7 +12,7 @@ const usage = `Usage: opencode-web [options]
 
 Options:
   -p, --port <number>           Port for the web UI (default: 3000)
-  -H, --host <hostname>         Host/interface to bind (default: 127.0.0.1)
+  -H, --host <hostname>         Host/interface to bind both web UI and OpenCode server (default: 127.0.0.1)
       --external-server <url>   Use an existing OpenCode Server
       --no-bundled-server       Skip launching the bundled OpenCode Server
   -h, --help                    Show this help message
@@ -199,6 +199,9 @@ if (shouldStartBundledServer) {
 
   if (requestedHost) {
     serverOptions.hostname = requestedHost
+  } else if (host && host !== '127.0.0.1') {
+    // If --host is specified and not the default, use it for the OpenCode server too
+    serverOptions.hostname = host
   }
 
   try {
@@ -242,7 +245,7 @@ process.on('exit', cleanup)
 const displayHost = host === '0.0.0.0' ? '0.0.0.0' : host
 console.log(`Starting OpenCode Web server on http://${displayHost}:${port}`)
 if (host === '0.0.0.0') {
-  console.log('🔓 Listening on all network interfaces')
+  console.log('Listening on all network interfaces')
 }
 console.log(`Serving from: ${packageDir}`)
 

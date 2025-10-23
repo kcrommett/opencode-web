@@ -49,6 +49,8 @@ curl -sSL https://raw.githubusercontent.com/kcrommett/opencode-web/main/install.
 
 Once started, open **http://localhost:3000** in your browser. The CLI launches a local OpenCode Server through the OpenCode SDK by default and wires its URL into the web client automatically. Use the command-line flags to connect to an existing server or adjust the listening host/port without touching environment variables.
 
+> **⚠️ Security Warning**: This application runs without authentication by default. Do not expose it directly to the internet without proper security measures. For secure remote access, consider using Cloudflare Access with Cloudflare Tunnel to add authentication and protect your instance.
+
 #### Command-line Options
 - `--external-server <url>` – connect to an existing OpenCode Server and skip the bundled instance.
 - `--no-bundled-server` – skip launching the bundled server (requires `--external-server` or `VITE_OPENCODE_SERVER_URL`).
@@ -186,9 +188,17 @@ Key entry points include:
 - Keep server function schemas synced with the OpenCode SDK.
 - Confirm UI changes in both desktop and mobile breakpoints.
 
+## Security Considerations
+
+This application is designed for local development and does not include built-in authentication. When exposing it outside your local network:
+
+1. **Never expose directly to the internet** without authentication
+2. **Use a reverse proxy with authentication** like Cloudflare Access
+3. **Recommended setup**: Cloudflare Tunnel + Cloudflare Access for secure, authenticated access
+4. **Network isolation**: Keep it within your firewall when possible
+5. **Use VPN** for remote access instead of direct exposure
+
+
 ## Contributing
 Follow the shared contributor handbook in `AGENTS.md`. Before opening a PR, run lint + typecheck, describe UI-visible changes, and flag any server-function updates.
 
----
-
-**Join our community** [Discord](https://discord.gg/opencode) | [X.com](https://x.com/opencode)

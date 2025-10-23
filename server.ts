@@ -31,8 +31,10 @@ async function initializeServer() {
     process.exit(1)
   }
 
+  const serverHost = process.env.HOST || 'localhost'
   const server = Bun.serve({
     port: SERVER_PORT,
+    hostname: serverHost,
     idleTimeout: 0, // Disable idle timeout for SSE connections
     fetch: async (req: Request) => {
       try {
@@ -91,7 +93,11 @@ async function initializeServer() {
     },
   })
 
-  console.log(`Server listening on http://localhost:${String(server.port)}`)
+  const displayHost = serverHost === '0.0.0.0' ? '0.0.0.0' : serverHost
+  console.log(`Server listening on http://${displayHost}:${String(server.port)}`)
+  if (serverHost === '0.0.0.0') {
+    console.log('Listening on all network interfaces')
+  }
 }
 
 function isImmutableAsset(relativePath: string) {
