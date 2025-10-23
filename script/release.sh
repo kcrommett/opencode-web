@@ -182,7 +182,10 @@ fi
 echo "📦 Updated version: $NEW_VERSION"
 
 echo "🧩 Updating lockfiles..."
-npm install --package-lock-only >/dev/null
+if ! npm install --package-lock-only >/dev/null 2>&1; then
+  echo "   npm install --package-lock-only failed, retrying with --legacy-peer-deps..."
+  npm install --package-lock-only --legacy-peer-deps >/dev/null
+fi
 bun install >/dev/null
 
 git status -sb
