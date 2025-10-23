@@ -7,25 +7,70 @@ export function PWAReloadPrompt() {
   const [updateSW, setUpdateSW] = useState<(() => Promise<void>) | null>(null);
 
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      import('virtual:pwa-register').then(({ registerSW }) => {
-        const update = registerSW({
-          onNeedRefresh() {
-            setNeedRefresh(true);
-          },
-          onOfflineReady() {
-            setOfflineReady(true);
-          },
-          onRegistered(registration?: ServiceWorkerRegistration) {
-            if (process.env.NODE_ENV !== 'production') console.log('SW Registered', registration);
-          },
-          onRegisterError(error: Error) {
-            if (process.env.NODE_ENV !== 'production') console.log('SW registration error', error);
-          },
-        });
-        setUpdateSW(() => update);
+    if (!('serviceWorker' in navigator)) return;
+
+    let isMounted = true;
+
+    const removeLegacyDevServiceWorkers = async () => {
+      if (import.meta.env.DEV) return;
+
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(
+          registrations.map(async (registration) => {
+            const scriptUrls = [
+              registration.active?.scriptURL,
+              registration.installing?.scriptURL,
+              registration.waiting?.scriptURL,
+            ].filter(Boolean) as string[];
+
+            const hasLegacyDevSw = scriptUrls.some((url) =>
+              url.includes('@vite-plugin-pwa') ||
+              url.includes('dev-sw.js') ||
+              url.includes('registerSW.js'),
+            );
+
+            if (hasLegacyDevSw) {
+              await registration.unregister();
+            }
+          }),
+        );
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.warn('Failed to remove legacy dev service workers', error);
+        }
+      }
+    };
+
+    const setupServiceWorker = async () => {
+      await removeLegacyDevServiceWorkers();
+
+      const { registerSW } = await import('virtual:pwa-register');
+      const update = registerSW({
+        onNeedRefresh() {
+          if (isMounted) setNeedRefresh(true);
+        },
+        onOfflineReady() {
+          if (isMounted) setOfflineReady(true);
+        },
+        onRegistered(registration?: ServiceWorkerRegistration) {
+          if (import.meta.env.DEV) console.log('SW Registered', registration);
+        },
+        onRegisterError(error: Error) {
+          if (import.meta.env.DEV) console.log('SW registration error', error);
+        },
       });
-    }
+
+      if (isMounted) {
+        setUpdateSW(() => update);
+      }
+    };
+
+    void setupServiceWorker();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const close = () => {

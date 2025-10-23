@@ -11,7 +11,7 @@ export function TextPart({ part }: TextPartProps) {
   const text = 'text' in part ? part.text : '';
   
   return (
-    <Pre size="small" className="break-words whitespace-pre-wrap">
+    <Pre size="small" className="whitespace-pre overflow-x-auto">
       {text}
     </Pre>
   );

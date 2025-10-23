@@ -7,6 +7,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  const isDev = mode === 'development'
   // Use relative URLs for PWA assets to work with reverse proxies
   const pwaAssetsUrl = env.VITE_PWA_ASSETS_URL || ''
   const allowedHostsEnv = env.VITE_ALLOWED_HOSTS
@@ -53,7 +54,9 @@ export default defineConfig(({ mode }) => {
       viteReact(),
       VitePWA({
         registerType: 'autoUpdate',
+        filename: 'sw.js',
         includeAssets: ['favicon.svg', 'favicon.ico', 'apple-touch-icon-180x180.png'],
+        injectRegister: 'auto',
         manifest: {
           name: 'opencode web',
           short_name: 'opencode',
@@ -126,7 +129,7 @@ export default defineConfig(({ mode }) => {
           cleanupOutdatedCaches: true,
         },
         devOptions: {
-          enabled: true,
+          enabled: isDev,
           type: 'module',
         },
       }),

@@ -174,11 +174,22 @@ function isImmutableAsset(relativePath: string) {
     relativePath.startsWith('start-') ||
     relativePath.startsWith('virtual_pwa-register') ||
     relativePath.startsWith('workbox-window') ||
-    relativePath.endsWith('.webmanifest') ||
     relativePath.endsWith('.png') ||
     relativePath.endsWith('.svg') ||
     relativePath.endsWith('.ico')
   )
+}
+
+function shouldBypassCache(relativePath: string) {
+  if (relativePath === 'sw.js' || relativePath === 'registerSW.js') {
+    return true
+  }
+
+  if (relativePath.endsWith('.webmanifest')) {
+    return true
+  }
+
+  return false
 }
 
 async function serveStatic(pathname: string): Promise<Response | null> {
@@ -198,8 +209,12 @@ async function serveStatic(pathname: string): Promise<Response | null> {
     if (await file.exists()) {
       const headers = new Headers()
       headers.set('Content-Type', file.type || 'application/octet-stream')
-      if (isImmutableAsset(relativePath)) {
+      if (shouldBypassCache(relativePath)) {
+        headers.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+      } else if (isImmutableAsset(relativePath)) {
         headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+      } else {
+        headers.set('Cache-Control', 'public, max-age=0, must-revalidate')
       }
       return new Response(file.stream(), { headers })
     }

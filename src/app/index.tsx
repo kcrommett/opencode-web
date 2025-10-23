@@ -2636,7 +2636,7 @@ function OpenCodeChatTUI() {
                         )}
                       </div>
                     ) : hasTextContent && selectedFile ? (
-                      <pre className="hljs bg-theme-background p-4 rounded overflow-y-auto scrollbar h-full text-sm font-mono m-0">
+                      <pre className="hljs bg-theme-background p-4 rounded overflow-auto scrollbar h-full text-sm font-mono m-0">
                         <code
                           dangerouslySetInnerHTML={{
                             __html: addLineNumbers(
