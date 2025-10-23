@@ -1,0 +1,50 @@
+{
+  "name": "opencode-web",
+  "version": "0.1.7",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.3.0",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "vite dev --host",
+    "build": "vite build",
+    "build:release": "bun ./script/build.ts",
+    "build:npm": "bun ./script/build-npm.ts",
+    "start": "bun server.ts",
+    "lint": "eslint",
+    "typecheck": "bun x tsc --noEmit",
+    "knip": "knip",
+    "test": "bun test",
+    "publish": "bun ./script/publish.ts",
+    "publish:npm": "bun ./script/publish-npm.ts"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "^1.132.25",
+    "@tanstack/react-start": "^1.132.25",
+    "@webtui/css": "^0.1.5",
+    "@webtui/theme-catppuccin": "^0.0.3",
+    "highlight.js": "^11.11.1",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.13",
+    "@types/bun": "^1.2.23",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^5.0.4",
+    "eslint": "^9",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "knip": "5.65.0",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "typescript-eslint": "^8.45.0",
+    "vite": "^6",
+    "vite-plugin-pwa": "^1.0.3",
+    "vite-tsconfig-paths": "^5.1.4",
+    "workbox-window": "^7.3.0"
+  }
+}

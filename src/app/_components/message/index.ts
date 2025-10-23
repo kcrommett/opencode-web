@@ -1,0 +1,1 @@
+export { MessagePart } from './MessagePart';
