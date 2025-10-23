@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+
+# Run ast-grep scan using sgconfig.yml
+bun x ast-grep scan --error
+
+# Run lint
+bun run lint

@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json.schemastore.org/package",
+  "name": "@opencode-ai/script",
+  "version": "0.1.1",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

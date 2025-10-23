@@ -1,0 +1,20 @@
+name: "Setup Bun with caching"
+description: "Setup Bun with caching and install dependencies"
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+
+    - name: Cache ~/.bun
+      id: cache-bun
+      uses: actions/cache@v4
+      with:
+        path: ~/.bun
+        key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+        restore-keys: |
+          bun-${{ runner.os }}-
+
+    - name: Install dependencies
+      shell: bash
+      run: bun install
