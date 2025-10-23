@@ -1,3 +1,5 @@
+> **Note:** This is an independent, community-maintained project created by fans of OpenCode. We are not affiliated with SST Corp. or the official OpenCode project. For the official OpenCode CLI, visit [opencode.ai](https://opencode.ai).
+
 <p align="center">
   <a href="https://opencode.ai">
     <picture>
