@@ -5,7 +5,7 @@
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
-    "opencode-web": "./bin/opencode-web.js"
+    "opencode-web": "bin/opencode-web.js"
   },
   "files": [
     "dist/",

@@ -396,24 +396,27 @@ button[box-=double][variant-="foreground0"] {
 
 /* WebTUI Scrollbar Styles */
 .scrollbar {
-  scrollbar-width: thin;
+  scrollbar-width: auto;
   scrollbar-color: var(--theme-backgroundAccent) var(--theme-backgroundAlt);
   -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable both-edges;
 }
 
 .scrollbar::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
 }
 
 .scrollbar::-webkit-scrollbar-track {
   background: var(--theme-backgroundAlt);
-  border-left: 1px solid var(--theme-border);
+  border: 1px solid var(--theme-border);
+  border-radius: 6px;
 }
 
 .scrollbar::-webkit-scrollbar-thumb {
   background: var(--theme-backgroundAccent);
   border: 1px solid var(--theme-border);
+  border-radius: 6px;
 }
 
 .scrollbar::-webkit-scrollbar-thumb:hover {

@@ -1591,7 +1591,7 @@ function OpenCodeChatTUI() {
       <Separator />
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden gap-0">
+      <div className="flex-1 min-w-0 flex overflow-hidden gap-0">
         {/* Desktop Sidebar - hidden on mobile */}
         <View
           box="square"
@@ -2175,7 +2175,7 @@ function OpenCodeChatTUI() {
         {/* Main Editor Area */}
         <View
           box="square"
-          className="flex-1 flex flex-col gap-0 bg-theme-background"
+          className="flex-1 min-w-0 flex flex-col gap-0 bg-theme-background"
           style={{
             filter: shouldBlurEditor ? "blur(4px)" : undefined,
             pointerEvents: shouldBlurEditor ? "none" : undefined,
@@ -2530,7 +2530,7 @@ function OpenCodeChatTUI() {
           )}
 
           {activeTab === "files" && (
-            <div className="flex-1 p-4 flex flex-col overflow-hidden bg-theme-background">
+            <div className="flex-1 min-w-0 p-4 flex flex-col overflow-hidden bg-theme-background">
               {selectedFile ? (
                 <>
                   <div className="flex justify-between items-center mb-4">
@@ -2596,13 +2596,13 @@ function OpenCodeChatTUI() {
                       </Button>
                     </div>
                   </div>
-                  <div className="flex-1 overflow-hidden">
+                  <div className="flex-1 min-w-0 overflow-hidden">
                     {fileError ? (
                       <div className="text-center text-sm text-red-400 p-4">
                         {fileError}
                       </div>
                     ) : selectedFileIsImage ? (
-                      <div className="flex items-center justify-center h-full bg-theme-backgroundAccent rounded p-4 overflow-auto scrollbar">
+                      <div className="flex items-center justify-center h-full max-w-full bg-theme-backgroundAccent rounded p-4 overflow-auto scrollbar">
                         {fileContent?.dataUrl ? (
                           <img
                             src={fileContent.dataUrl}
@@ -2622,7 +2622,7 @@ function OpenCodeChatTUI() {
                         )}
                       </div>
                     ) : selectedFileIsPdf ? (
-                      <div className="h-full bg-theme-backgroundAccent rounded overflow-hidden">
+                      <div className="h-full max-w-full bg-theme-backgroundAccent rounded overflow-auto scrollbar">
                         {fileContent?.dataUrl ? (
                           <iframe
                             src={fileContent.dataUrl}
