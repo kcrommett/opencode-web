@@ -3,7 +3,7 @@
  */
 
 import path from "node:path";
-import { getOpencodeServerUrl } from "../../src/lib/opencode-config.js";
+import { getOpencodeServerUrl } from "./src/lib/opencode-config.js";
 
 const argv = process.argv.slice(2);
 for (let i = 0; i < argv.length; i++) {
