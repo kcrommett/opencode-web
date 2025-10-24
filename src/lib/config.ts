@@ -1,3 +1,5 @@
+import type { OpencodeConfig, Agent } from "@/types/opencode";
+
 const serverUrl = (() => {
   if (
     typeof import.meta !== "undefined" &&
@@ -13,3 +15,38 @@ const serverUrl = (() => {
 })();
 
 export const getServerUrl = (): string => serverUrl;
+
+export function getAgentModel(
+  config: OpencodeConfig | null,
+  agent: Agent | null,
+): { providerID: string; modelID: string } | null {
+  if (!config || !agent) return null;
+
+  const agentConfig =
+    config.agent?.[agent.name] || config.agent?.[agent.id];
+  if (agentConfig?.model) {
+    return agentConfig.model;
+  }
+
+  if (agent.model) {
+    return agent.model;
+  }
+
+  return null;
+}
+
+export function getDefaultModel(
+  config: OpencodeConfig | null,
+): { providerID: string; modelID: string } | null {
+  if (!config?.model) return null;
+
+  const parts = config.model.split("/");
+  if (parts.length === 2) {
+    return {
+      providerID: parts[0],
+      modelID: parts[1],
+    };
+  }
+
+  return null;
+}

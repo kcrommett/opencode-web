@@ -1,12 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { openCodeService, handleOpencodeError } from "@/lib/opencode-client";
 import { OpencodeEvent, SSEConnectionState } from "@/lib/opencode-events";
+import { getAgentModel } from "@/lib/config";
+import { parseCommand, ParsedCommand } from "@/lib/commandParser";
 import type {
   Agent,
   FileContentData,
   Part,
   PermissionState,
   SessionTodo,
+  OpencodeConfig,
+  Command,
 } from "@/types/opencode";
 
 const isDevEnvironment = process.env.NODE_ENV !== "production";
@@ -166,14 +170,7 @@ interface Model {
   name: string;
 }
 
-interface Config {
-  model?: string;
-  providers?: {
-    id: string;
-    name?: string;
-    models?: { id: string; name?: string }[];
-  }[];
-}
+
 
 interface ProvidersData {
   providers?: {
@@ -237,7 +234,10 @@ export function useOpenCode() {
   );
 
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
-  const [config, setConfig] = useState<Config | null>(null);
+  const [config, setConfig] = useState<OpencodeConfig | null>(null);
+  const [configLoading, setConfigLoading] = useState(true);
+  const [commands, setCommands] = useState<Command[]>([]);
+  const [commandsLoading, setCommandsLoading] = useState(true);
   const [currentPath, setCurrentPath] = useState<string>("");
   const [sessionModelMap, setSessionModelMap] = useState<Record<string, Model>>(
     {},
@@ -1358,14 +1358,24 @@ export function useOpenCode() {
           }
         }
 
+        const effectiveAgent = agent || currentAgent;
+        const configModel = getAgentModel(config, effectiveAgent);
+
+        const effectiveProviderID =
+          providerID || configModel?.providerID || "anthropic";
+        const effectiveModelID =
+          modelID ||
+          configModel?.modelID ||
+          "claude-3-5-sonnet-20241022";
+
         // For now, use non-streaming; implement streaming later
         const response = await openCodeService.sendMessage(
           targetSession.id,
           content,
-          providerID,
-          modelID,
+          effectiveProviderID,
+          effectiveModelID,
           currentProject?.worktree,
-          agent,
+          effectiveAgent || undefined,
         );
 
         if (response.error) {
@@ -1438,7 +1448,8 @@ export function useOpenCode() {
         setLoading(false);
       }
     },
-    [currentSession, currentProject, selectedModel],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentSession, currentProject, selectedModel, currentAgent, config],
   );  
 
   const loadProjects = useCallback(async () => {
@@ -2025,15 +2036,76 @@ export function useOpenCode() {
   const loadConfig = useCallback(async () => {
     if (loadedConfig) return;
     try {
+      setConfigLoading(true);
       const response = await openCodeService.getConfig();
-      const configData = response.data as Config | undefined;
+      const configData = response.data as OpencodeConfig | undefined;
       setConfig(configData || null);
       setLoadedConfig(true);
-    } catch {
-      // Silently handle errors when server is unavailable
-      setLoadedConfig(true);
+      return configData || null;
+    } catch (error) {
+      if (process.env.NODE_ENV !== "production") {
+        console.error("Failed to load config:", error);
+      }
+      return null;
+    } finally {
+      setConfigLoading(false);
     }
   }, [loadedConfig]);
+
+  const loadCommands = useCallback(async () => {
+    try {
+      setCommandsLoading(true);
+      const response = await openCodeService.getCommands();
+      const commandsData = response.data as Record<string, unknown> | undefined;
+
+      if (!commandsData) {
+        setCommands([]);
+        return [];
+      }
+
+      const commandList: Command[] = Object.entries(commandsData).map(
+        ([name, cmd]: [string, unknown]) => {
+          const cmdObj = cmd as Record<string, unknown>;
+          return {
+            name,
+            description:
+              typeof cmdObj.description === "string"
+                ? cmdObj.description
+                : undefined,
+            agent:
+              typeof cmdObj.agent === "string" ? cmdObj.agent : undefined,
+            model:
+              cmdObj.model &&
+              typeof cmdObj.model === "object" &&
+              "providerID" in cmdObj.model &&
+              "modelID" in cmdObj.model
+                ? {
+                    providerID: String(cmdObj.model.providerID),
+                    modelID: String(cmdObj.model.modelID),
+                  }
+                : undefined,
+            prompt:
+              typeof cmdObj.prompt === "string" ? cmdObj.prompt : undefined,
+            trigger: Array.isArray(cmdObj.trigger)
+              ? cmdObj.trigger.map(String)
+              : [`/${name}`],
+            custom:
+              typeof cmdObj.custom === "boolean" ? cmdObj.custom : true,
+          };
+        },
+      );
+
+      setCommands(commandList);
+      return commandList;
+    } catch (error) {
+      if (process.env.NODE_ENV !== "production") {
+        console.error("Failed to load commands:", error);
+      }
+      return [];
+    } finally {
+      setCommandsLoading(false);
+    }
+  }, []);
 
   const loadCurrentPath = useCallback(async () => {
     try {
@@ -2132,6 +2204,12 @@ export function useOpenCode() {
     loadCustomCommands();
     loadAgents();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (isHydrated && !commandsLoading && commands.length === 0) {
+      loadCommands();
+    }
+  }, [isHydrated, loadCommands, commandsLoading, commands.length]);
 
   const currentProjectIdRef = useRef<string | null>(null);
 
@@ -2290,6 +2368,42 @@ export function useOpenCode() {
     [currentProject?.worktree],
   );
 
+  const executeSlashCommand = useCallback(
+    async (parsedCommand: ParsedCommand, sessionId?: string) => {
+      const targetSessionId = sessionId || currentSession?.id;
+      if (!targetSessionId) {
+        throw new Error("No active session");
+      }
+
+      if (!parsedCommand.matchedCommand) {
+        throw new Error(`Unknown command: ${parsedCommand.command}`);
+      }
+
+      const cmd = parsedCommand.matchedCommand;
+
+      let prompt = cmd.prompt || parsedCommand.content || "";
+
+      if (parsedCommand.args && parsedCommand.args.length > 0) {
+        prompt += "\n\n" + parsedCommand.args.join(" ");
+      }
+
+      const commandAgent = cmd.agent
+        ? agents.find((a) => a.name === cmd.agent || a.id === cmd.agent)
+        : currentAgent;
+
+      const commandModel = cmd.model || getAgentModel(config, commandAgent || null);
+
+      return sendMessage(
+        prompt,
+        commandModel?.providerID,
+        commandModel?.modelID,
+        currentSession || undefined,
+        commandAgent || currentAgent || undefined,
+      );
+    },
+    [currentSession, agents, currentAgent, config, sendMessage],
+  );
+
   return {
     currentSession,
     messages,
@@ -2320,6 +2434,11 @@ export function useOpenCode() {
     selectModel,
     loadModels,
     config,
+    configLoading,
+    loadConfig,
+    commands,
+    commandsLoading,
+    loadCommands,
     currentPath,
     loadCurrentPath,
     providersData,
@@ -2351,6 +2470,8 @@ export function useOpenCode() {
     unshareSession,
     initSession,
     summarizeSession,
+    executeSlashCommand,
+    parseCommand: (input: string) => parseCommand(input, commands),
     sseConnectionState,
     // Permission and todo state
     currentPermission,

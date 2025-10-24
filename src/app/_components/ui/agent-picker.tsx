@@ -1,12 +1,14 @@
 import React, { useEffect } from "react";
 import { Badge, Separator, Button } from "./index";
-import type { Agent } from "@/types/opencode";
+import type { Agent, OpencodeConfig } from "@/types/opencode";
+import { getAgentModel } from "@/lib/config";
 
 interface AgentPickerProps {
   agents: Agent[];
   selectedAgent: Agent | null;
   onSelect: (agent: Agent) => void;
   onClose: () => void;
+  config?: OpencodeConfig | null;
 }
 
 export const AgentPicker: React.FC<AgentPickerProps> = ({
@@ -14,6 +16,7 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
   selectedAgent,
   onSelect,
   onClose,
+  config,
 }) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -51,6 +54,8 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
             const agentId = agent.id || agent.name;
             const selectedId = selectedAgent?.id || selectedAgent?.name;
             const isSelected = selectedId === agentId;
+            const configModel = getAgentModel(config || null, agent);
+            
             return (
               <div
                 key={`agent-${agentId}-${index}`}
@@ -74,6 +79,11 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
                     {agent.description && (
                       <div className="text-xs opacity-70 mt-1">
                         {agent.description}
+                      </div>
+                    )}
+                    {configModel && (
+                      <div className="text-xs opacity-60 mt-1">
+                        Model: {configModel.providerID}/{configModel.modelID} (from config)
                       </div>
                     )}
                   </div>

@@ -343,6 +343,9 @@ function OpenCodeChatTUI() {
     shouldBlurEditor,
     setShouldBlurEditor,
     currentSessionTodos,
+    config,
+    commands,
+    executeSlashCommand,
   } = useOpenCodeContext();
 
   // Removed automatic session creation to prevent spam
@@ -452,6 +455,22 @@ function OpenCodeChatTUI() {
     const cmd = parsed.command;
     const args = parsed.args;
     const directory = currentProject?.worktree || "";
+
+    if (parsed.matchedCommand) {
+      try {
+        await executeSlashCommand(parsed, currentSession?.id);
+        await loadSessions();
+      } catch (error) {
+        const errorMsg = {
+          id: `assistant-${Date.now()}`,
+          type: "assistant" as const,
+          content: `Command failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, errorMsg]);
+      }
+      return;
+    }
 
     switch (cmd) {
       case "new":
@@ -1141,14 +1160,20 @@ function OpenCodeChatTUI() {
     }
     if (e.key === "Tab") {
       e.preventDefault();
+      const customCommandsList: Command[] = commands.map(cmd => ({
+        name: cmd.name,
+        description: cmd.description || "Custom command",
+        category: "custom" as const,
+        custom: true,
+      }));
       if (showCommandPicker && commandSuggestions.length > 0) {
-        const completed = completeCommand(input);
+        const completed = completeCommand(input, customCommandsList);
         if (completed) {
           setInput(completed + " ");
           setShowCommandPicker(false);
         }
       } else if (input.startsWith("/")) {
-        const completed = completeCommand(input);
+        const completed = completeCommand(input, customCommandsList);
         if (completed) {
           setInput(completed + " ");
         }
@@ -1192,7 +1217,13 @@ function OpenCodeChatTUI() {
   const handleInputChange = async (value: string) => {
     setInput(value);
     if (value.startsWith("/")) {
-      const suggestions = getCommandSuggestions(value);
+      const customCommandsList: Command[] = commands.map(cmd => ({
+        name: cmd.name,
+        description: cmd.description || "Custom command",
+        category: "custom" as const,
+        custom: true,
+      }));
+      const suggestions = getCommandSuggestions(value, customCommandsList);
       setCommandSuggestions(suggestions);
       setShowCommandPicker(suggestions.length > 0);
       setSelectedCommandIndex(0);
@@ -1221,7 +1252,10 @@ function OpenCodeChatTUI() {
   const handleCommandSelect = (command: Command) => {
     setShowCommandPicker(false);
 
-    if (command.name === "models") {
+    if (command.custom) {
+      setInput("");
+      void handleCommand(`/${command.name}`);
+    } else if (command.name === "models") {
       setInput("");
       setShowModelPicker(true);
     } else if (command.name === "themes") {
@@ -3223,6 +3257,7 @@ function OpenCodeChatTUI() {
           selectedAgent={currentAgent}
           onSelect={selectAgent}
           onClose={() => setShowAgentPicker(false)}
+          config={config}
         />
       )}
 
