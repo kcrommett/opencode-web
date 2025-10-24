@@ -1,12 +1,49 @@
-const OPENCODE_SERVER_URL =
-  typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_OPENCODE_SERVER_URL
-    ? import.meta.env.VITE_OPENCODE_SERVER_URL
-    : (typeof process !== 'undefined' && process.env?.VITE_OPENCODE_SERVER_URL
-        ? process.env.VITE_OPENCODE_SERVER_URL
-        : 'http://localhost:4096');
+const DEFAULT_OPENCODE_SERVER_URL = 'http://localhost:4096'
+
+type EnvMap = Record<string, string | undefined>
+
+const getFromProcessEnv = (): string | undefined => {
+  if (typeof process === 'undefined' || !process.env) return undefined
+  const env = process.env as EnvMap
+  return env.OPENCODE_SERVER_URL ?? env.VITE_OPENCODE_SERVER_URL
+}
+
+const getFromBunEnv = (): string | undefined => {
+  const bunEnv = (globalThis as typeof globalThis & { Bun?: { env?: EnvMap } }).Bun?.env
+  if (!bunEnv) return undefined
+  return bunEnv.OPENCODE_SERVER_URL ?? bunEnv.VITE_OPENCODE_SERVER_URL
+}
+
+const getFromGlobalInjection = (): string | undefined => {
+  const globalInjection = (globalThis as typeof globalThis & { __OPENCODE_SERVER_URL__?: string })
+    .__OPENCODE_SERVER_URL__
+  if (globalInjection) return globalInjection
+
+  if (typeof window !== 'undefined') {
+    const injected = (window as typeof window & { __OPENCODE_SERVER_URL__?: string }).__OPENCODE_SERVER_URL__
+    if (injected) return injected
+  }
+
+  return undefined
+}
+
+const getFromImportMeta = (): string | undefined => {
+  if (typeof import.meta === 'undefined' || !import.meta.env) return undefined
+  const metaEnv = import.meta.env as EnvMap
+  return metaEnv.VITE_OPENCODE_SERVER_URL
+}
+
+export function getOpenCodeServerUrl(): string {
+  const fromProcess = getFromProcessEnv()
+  const fromBun = getFromBunEnv()
+  const fromGlobal = getFromGlobalInjection()
+  const fromImportMeta = getFromImportMeta()
+
+  return fromProcess ?? fromBun ?? fromGlobal ?? fromImportMeta ?? DEFAULT_OPENCODE_SERVER_URL
+}
 
 function buildUrl(path: string, params?: Record<string, string>): string {
-  const url = new URL(path, OPENCODE_SERVER_URL)
+  const url = new URL(path, getOpenCodeServerUrl())
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined) {

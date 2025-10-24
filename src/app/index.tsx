@@ -14,6 +14,7 @@ import {
   InstallPrompt,
   PWAReloadPrompt,
 } from "@/app/_components/ui";
+import { getOpenCodeServerUrl } from "@/lib/opencode-http-api";
 import { CommandPicker } from "@/app/_components/ui/command-picker";
 import { AgentPicker } from "@/app/_components/ui/agent-picker";
 import { SessionPicker } from "@/app/_components/ui/session-picker";
@@ -956,13 +957,13 @@ function OpenCodeChatTUI() {
 
           // Fetch full session data
           const sessionResponse = await fetch(
-            `http://localhost:4096/session/${currentSession.id}`,
+            `${getOpenCodeServerUrl()}/session/${currentSession.id}`,
           );
           const sessionData = await sessionResponse.json();
 
           // Fetch all messages with full parts
           const messagesResponse = await fetch(
-            `http://localhost:4096/session/${currentSession.id}/message`,
+            `${getOpenCodeServerUrl()}/session/${currentSession.id}/message`,
           );
           const messagesData = await messagesResponse.json();
 
