@@ -55,7 +55,31 @@ console.log("Copying built files...");
 await $`mkdir -p packages/opencode-web/dist`;
 await $`cp -r dist/client packages/opencode-web/dist/`;
 await $`cp -r dist/server packages/opencode-web/dist/`;
-await $`cp server.ts packages/opencode-web/server.ts`;
+
+// Create a standalone server.ts with inlined config helper
+console.log("Creating standalone server.ts...");
+const serverTsContent = await Bun.file("server.ts").text();
+const configContent = await Bun.file("src/lib/opencode-config.ts").text();
+
+// Extract the functions from opencode-config.ts
+const normalizeBaseUrlMatch = configContent.match(
+  /export function normalizeBaseUrl[\s\S]*?^}/m,
+);
+const getOpencodeServerUrlMatch = configContent.match(
+  /export function getOpencodeServerUrl[\s\S]*?^}/m,
+);
+
+if (!normalizeBaseUrlMatch || !getOpencodeServerUrlMatch) {
+  throw new Error("Failed to extract config functions");
+}
+
+// Create standalone server.ts with inlined functions
+const standaloneServerTs = serverTsContent.replace(
+  /import \{ getOpencodeServerUrl \} from "\.\/src\/lib\/opencode-config\.js";/,
+  `// Inlined config helpers\n${normalizeBaseUrlMatch[0].replace("export ", "")}\n\n${getOpencodeServerUrlMatch[0].replace("export ", "")}`,
+);
+
+await Bun.write("packages/opencode-web/server.ts", standaloneServerTs);
 
 // Update package.json version in both root and NPM package
 const rootPackageJsonPath = "package.json";
