@@ -65,18 +65,25 @@ const configContent = await Bun.file("src/lib/opencode-config.ts").text();
 const normalizeBaseUrlMatch = configContent.match(
   /export function normalizeBaseUrl[\s\S]*?^}/m,
 );
+const resolveServerUrlFromEnvMatch = configContent.match(
+  /function resolveServerUrlFromEnv[\s\S]*?^}/m,
+);
 const getOpencodeServerUrlMatch = configContent.match(
   /export function getOpencodeServerUrl[\s\S]*?^}/m,
 );
 
-if (!normalizeBaseUrlMatch || !getOpencodeServerUrlMatch) {
+if (
+  !normalizeBaseUrlMatch ||
+  !resolveServerUrlFromEnvMatch ||
+  !getOpencodeServerUrlMatch
+) {
   throw new Error("Failed to extract config functions");
 }
 
 // Create standalone server.ts with inlined functions
 const standaloneServerTs = serverTsContent.replace(
   /import \{ getOpencodeServerUrl \} from "\.\/src\/lib\/opencode-config\.js";/,
-  `// Inlined config helpers\n${normalizeBaseUrlMatch[0].replace("export ", "")}\n\n${getOpencodeServerUrlMatch[0].replace("export ", "")}`,
+  `// Inlined config helpers\n${normalizeBaseUrlMatch[0].replace("export ", "")}\n\n${resolveServerUrlFromEnvMatch[0]}\n\n${getOpencodeServerUrlMatch[0].replace("export ", "")}`,
 );
 
 await Bun.write("packages/opencode-web/server.ts", standaloneServerTs);
