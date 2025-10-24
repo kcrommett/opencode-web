@@ -158,10 +158,13 @@ async function initializeServer() {
             `<head>
             <script>window.__OPENCODE_SERVER_URL__ = ${serializedUrl};</script>`
           )
+          // Clone headers and remove content-length, since body has changed
+          const newHeaders = new Headers(webResponse.headers)
+          newHeaders.delete('content-length')
           webResponse = new Response(injectedHtml, {
             status: webResponse.status,
             statusText: webResponse.statusText,
-            headers: webResponse.headers,
+            headers: newHeaders,
           })
         }
         
