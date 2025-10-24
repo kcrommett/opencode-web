@@ -30,7 +30,7 @@ These guidelines ensure consistency across the OpenCode Web project. Follow web 
 - Format with `bun x prettier --check .` before pushing.
 - Run `bun run lint` and `bun x tsc --noEmit`.
 - Confirm UI changes in both desktop and mobile layouts when applicable.
- 
+
 ## Local Dev Ergonomics
 
 - Run preview servers inside their own tmux session (for example `tmux new -s codex_dev 'bun run dev'`) so you can monitor logs without interfering with the user’s panes. Only kill the tmux sessions you create.

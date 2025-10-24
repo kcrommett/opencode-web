@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Button } from './button';
+import { useEffect, useState } from "react";
+import { Button } from "./button";
 
 export function PWAReloadPrompt() {
   const [needRefresh, setNeedRefresh] = useState(false);
@@ -7,7 +7,7 @@ export function PWAReloadPrompt() {
   const [updateSW, setUpdateSW] = useState<(() => Promise<void>) | null>(null);
 
   useEffect(() => {
-    if (!('serviceWorker' in navigator)) return;
+    if (!("serviceWorker" in navigator)) return;
 
     let isMounted = true;
 
@@ -24,10 +24,11 @@ export function PWAReloadPrompt() {
               registration.waiting?.scriptURL,
             ].filter(Boolean) as string[];
 
-            const hasLegacyDevSw = scriptUrls.some((url) =>
-              url.includes('@vite-plugin-pwa') ||
-              url.includes('dev-sw.js') ||
-              url.includes('registerSW.js'),
+            const hasLegacyDevSw = scriptUrls.some(
+              (url) =>
+                url.includes("@vite-plugin-pwa") ||
+                url.includes("dev-sw.js") ||
+                url.includes("registerSW.js"),
             );
 
             if (hasLegacyDevSw) {
@@ -37,7 +38,7 @@ export function PWAReloadPrompt() {
         );
       } catch (error) {
         if (import.meta.env.DEV) {
-          console.warn('Failed to remove legacy dev service workers', error);
+          console.warn("Failed to remove legacy dev service workers", error);
         }
       }
     };
@@ -45,7 +46,7 @@ export function PWAReloadPrompt() {
     const setupServiceWorker = async () => {
       await removeLegacyDevServiceWorkers();
 
-      const { registerSW } = await import('virtual:pwa-register');
+      const { registerSW } = await import("virtual:pwa-register");
       const update = registerSW({
         onNeedRefresh() {
           if (isMounted) setNeedRefresh(true);
@@ -54,10 +55,10 @@ export function PWAReloadPrompt() {
           if (isMounted) setOfflineReady(true);
         },
         onRegistered(registration?: ServiceWorkerRegistration) {
-          if (import.meta.env.DEV) console.log('SW Registered', registration);
+          if (import.meta.env.DEV) console.log("SW Registered", registration);
         },
         onRegisterError(error: Error) {
-          if (import.meta.env.DEV) console.log('SW registration error', error);
+          if (import.meta.env.DEV) console.log("SW registration error", error);
         },
       });
 
@@ -101,7 +102,7 @@ export function PWAReloadPrompt() {
           )}
           <div className="flex gap-2">
             {needRefresh && (
-              <Button 
+              <Button
                 onClick={handleReload}
                 variant="foreground0"
                 size="small"
@@ -110,11 +111,7 @@ export function PWAReloadPrompt() {
                 Reload
               </Button>
             )}
-            <Button 
-              onClick={close}
-              variant="background2"
-              size="small"
-            >
+            <Button onClick={close} variant="background2" size="small">
               Close
             </Button>
           </div>

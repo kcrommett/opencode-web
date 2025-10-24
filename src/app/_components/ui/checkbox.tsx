@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 interface CheckboxProps extends React.InputHTMLAttributes<HTMLInputElement> {
   children?: React.ReactNode;
@@ -7,16 +7,12 @@ interface CheckboxProps extends React.InputHTMLAttributes<HTMLInputElement> {
 
 export const Checkbox: React.FC<CheckboxProps> = ({
   children,
-  className = '',
+  className = "",
   ...props
 }) => {
   return (
     <label className={className}>
-      <input
-        type="checkbox"
-        is-="checkbox"
-        {...props}
-      />
+      <input type="checkbox" is-="checkbox" {...props} />
       {children}
     </label>
   );

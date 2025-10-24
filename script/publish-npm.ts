@@ -18,9 +18,15 @@ const bumpVersion = (current: string, bump: "major" | "minor" | "patch") => {
 };
 
 // Calculate version once at the start
-const bump = process.env.OPENCODE_BUMP as "major" | "minor" | "patch" | undefined;
+const bump = process.env.OPENCODE_BUMP as
+  | "major"
+  | "minor"
+  | "patch"
+  | undefined;
 if (!bump) throw new Error("OPENCODE_BUMP not set");
-const currentPkg = JSON.parse(readFileSync("package.json", "utf8")) as { version: string };
+const currentPkg = JSON.parse(readFileSync("package.json", "utf8")) as {
+  version: string;
+};
 const TARGET_VERSION = bumpVersion(currentPkg.version, bump);
 
 const Script = {
@@ -35,7 +41,8 @@ const Script = {
   },
 };
 
-const log = (prefix: string, message: string) => console.log(`${prefix} ${message}`);
+const log = (prefix: string, message: string) =>
+  console.log(`${prefix} ${message}`);
 
 async function buildNpmPackage() {
   log("INFO", "Building NPM package...");
@@ -44,23 +51,30 @@ async function buildNpmPackage() {
 
 async function publishToNpm() {
   const packageDir = "packages/opencode-web";
-  
+
   // Verify version synchronization before publishing
   const rootVersion = JSON.parse(await Bun.file("package.json").text()).version;
-  const packageVersion = JSON.parse(await Bun.file(`${packageDir}/package.json`).text()).version;
-  
+  const packageVersion = JSON.parse(
+    await Bun.file(`${packageDir}/package.json`).text(),
+  ).version;
+
   if (rootVersion !== packageVersion) {
-    throw new Error(`Version mismatch: root=${rootVersion}, package=${packageVersion}`);
+    throw new Error(
+      `Version mismatch: root=${rootVersion}, package=${packageVersion}`,
+    );
   }
-  
+
   log("INFO", `Version synchronization verified: ${rootVersion}`);
-  
+
   // Configure NPM authentication
   const npmToken = process.env.NPM_TOKEN;
   if (npmToken) {
-    await Bun.write(`${process.env.HOME}/.npmrc`, `//registry.npmjs.org/:_authToken=${npmToken}\n`);
+    await Bun.write(
+      `${process.env.HOME}/.npmrc`,
+      `//registry.npmjs.org/:_authToken=${npmToken}\n`,
+    );
   }
-  
+
   process.chdir(packageDir);
 
   // Check if already published
@@ -68,7 +82,9 @@ async function publishToNpm() {
   const version = JSON.parse(await Bun.file("package.json").text()).version;
 
   try {
-    const response = await fetch(`https://registry.npmjs.org/${packageName}/${version}`);
+    const response = await fetch(
+      `https://registry.npmjs.org/${packageName}/${version}`,
+    );
     if (response.ok) {
       log("WARNING", `Version ${version} already published to NPM`);
       return false;
@@ -81,10 +97,9 @@ async function publishToNpm() {
   const tag = Script.preview ? "preview" : "latest";
 
   log("INFO", `Publishing to NPM with tag: ${tag}`);
-  
-  const publishCmd = tag === "preview" 
-    ? $`npm publish --tag preview`
-    : $`npm publish`;
+
+  const publishCmd =
+    tag === "preview" ? $`npm publish --tag preview` : $`npm publish`;
 
   try {
     await publishCmd;
@@ -101,7 +116,7 @@ async function run() {
 
   try {
     await buildNpmPackage();
-    
+
     if (Script.preview) {
       log("INFO", "Preview build - skipping NPM publish");
       return;

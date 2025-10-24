@@ -253,20 +253,25 @@ function OpenCodeChatTUI() {
 
   const selectedFileName = selectedFile?.split("/").pop() ?? null;
   const fileTextContent = fileContent?.text ?? null;
-  const hasTextContent = fileTextContent !== null && fileTextContent !== undefined;
+  const hasTextContent =
+    fileTextContent !== null && fileTextContent !== undefined;
   const isBase64Encoded = fileContent?.encoding === "base64";
   const mimeType = fileContent?.mimeType?.toLowerCase() ?? "";
   const selectedFileIsImage =
     !!selectedFile && Boolean(isBase64Encoded) && isImageFile(selectedFile);
-  const selectedFileIsPdf = Boolean(isBase64Encoded) && mimeType.startsWith("application/pdf");
+  const selectedFileIsPdf =
+    Boolean(isBase64Encoded) && mimeType.startsWith("application/pdf");
   const hasBinaryDownload =
     !!fileContent &&
     Boolean(isBase64Encoded) &&
     !selectedFileIsImage &&
     !selectedFileIsPdf &&
     !hasTextContent;
-  const showLanguageBadge = hasTextContent && !selectedFileIsImage && !selectedFileIsPdf;
-  const showMimeTypeBadge = Boolean(fileContent?.mimeType) && (selectedFileIsImage || selectedFileIsPdf || hasBinaryDownload);
+  const showLanguageBadge =
+    hasTextContent && !selectedFileIsImage && !selectedFileIsPdf;
+  const showMimeTypeBadge =
+    Boolean(fileContent?.mimeType) &&
+    (selectedFileIsImage || selectedFileIsPdf || hasBinaryDownload);
   const copyButtonDisabled = !hasTextContent || Boolean(fileError);
 
   const triggerBinaryDownload = () => {
@@ -337,9 +342,8 @@ function OpenCodeChatTUI() {
     setShouldBlurEditor,
     currentSessionTodos,
   } = useOpenCodeContext();
- 
-   // Removed automatic session creation to prevent spam
 
+  // Removed automatic session creation to prevent spam
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
@@ -444,6 +448,7 @@ function OpenCodeChatTUI() {
     const parsed = parseCommand(command);
     const cmd = parsed.command;
     const args = parsed.args;
+    const directory = currentProject?.worktree || "";
 
     switch (cmd) {
       case "new":
@@ -954,17 +959,19 @@ function OpenCodeChatTUI() {
             break;
           }
 
-          // Fetch full session data
-          const sessionResponse = await fetch(
-            `http://localhost:4096/session/${currentSession.id}`,
+          // Proxy through server to avoid direct browser access to OpenCode API
+          const sessionResult = await openCodeService.getSession(
+            currentSession.id,
+            directory,
           );
-          const sessionData = await sessionResponse.json();
+          const sessionData = sessionResult.data;
 
-          // Fetch all messages with full parts
-          const messagesResponse = await fetch(
-            `http://localhost:4096/session/${currentSession.id}/message`,
+          // Proxy through server to avoid direct browser access to OpenCode API
+          const messagesResult = await openCodeService.getMessages(
+            currentSession.id,
+            directory,
           );
-          const messagesData = await messagesResponse.json();
+          const messagesData = messagesResult.data;
 
           const fullData = {
             session: sessionData,
@@ -1051,9 +1058,7 @@ function OpenCodeChatTUI() {
     const title = newSessionTitle.trim() || "New Session";
     const directory = currentProject?.worktree || "";
     if (!directory) {
-      console.warn(
-        "Select a project before creating a session.",
-      );
+      console.warn("Select a project before creating a session.");
       return;
     }
     try {
@@ -1068,7 +1073,8 @@ function OpenCodeChatTUI() {
   const handleCreateProject = async () => {
     const directory = newProjectDirectory.trim();
     if (!directory) return;
-    const projectLabel = directory.split(/[\\/]/).filter(Boolean).pop() || "New Project";
+    const projectLabel =
+      directory.split(/[\\/]/).filter(Boolean).pop() || "New Project";
     const title = `${projectLabel} session`;
     try {
       await createSession({ title, directory });
@@ -1639,7 +1645,8 @@ function OpenCodeChatTUI() {
                         </div>
                         {currentProjectLastTouched && (
                           <div>
-                            Updated: {currentProjectLastTouched.toLocaleDateString()}
+                            Updated:{" "}
+                            {currentProjectLastTouched.toLocaleDateString()}
                           </div>
                         )}
                       </div>
@@ -2005,12 +2012,17 @@ function OpenCodeChatTUI() {
                   />
                   {currentProject ? (
                     <div className="text-xs leading-relaxed space-y-1 text-theme-foreground">
-                      <div className="truncate">Dir: {currentProject.worktree}</div>
+                      <div className="truncate">
+                        Dir: {currentProject.worktree}
+                      </div>
                       <div className="truncate">
                         VCS: {currentProject.vcs || "Unknown"}
                       </div>
                       {currentProjectLastTouched && (
-                        <div>Updated: {currentProjectLastTouched.toLocaleDateString()}</div>
+                        <div>
+                          Updated:{" "}
+                          {currentProjectLastTouched.toLocaleDateString()}
+                        </div>
                       )}
                     </div>
                   ) : (
@@ -2148,15 +2160,15 @@ function OpenCodeChatTUI() {
                           }
                         }}
                       >
-                          <div className="flex items-center gap-2 text-sm">
-                            <FileIcon
-                              node={{
-                                path: file.path,
-                                type: isDirectory ? "directory" : "file",
-                              }}
-                            />
-                            <span className="truncate">{file.name}</span>
-                          </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <FileIcon
+                            node={{
+                              path: file.path,
+                              type: isDirectory ? "directory" : "file",
+                            }}
+                          />
+                          <span className="truncate">{file.name}</span>
+                        </div>
                       </div>
                     );
                   })
@@ -2320,7 +2332,8 @@ function OpenCodeChatTUI() {
                           )}
                           {message.error && (
                             <div className="text-xs text-theme-error">
-                              {message.errorMessage || "Send failed. Please retry."}
+                              {message.errorMessage ||
+                                "Send failed. Please retry."}
                             </div>
                           )}
                         </div>
@@ -2577,7 +2590,11 @@ function OpenCodeChatTUI() {
                           }}
                           size="small"
                           disabled={copyButtonDisabled}
-                          className={copyButtonDisabled ? "opacity-50 cursor-not-allowed" : undefined}
+                          className={
+                            copyButtonDisabled
+                              ? "opacity-50 cursor-not-allowed"
+                              : undefined
+                          }
                         >
                           Copy
                         </Button>
@@ -2606,10 +2623,17 @@ function OpenCodeChatTUI() {
                         {fileContent?.dataUrl ? (
                           <img
                             src={fileContent.dataUrl}
-                            alt={selectedFileName ?? selectedFile ?? "Selected file"}
+                            alt={
+                              selectedFileName ??
+                              selectedFile ??
+                              "Selected file"
+                            }
                             className="max-w-full max-h-full object-contain"
                             onError={() => {
-                              console.error("Image load error for:", selectedFile);
+                              console.error(
+                                "Image load error for:",
+                                selectedFile,
+                              );
                               setFileError(
                                 "Failed to load image. The file may be binary data that cannot be displayed.",
                               );
@@ -2626,7 +2650,9 @@ function OpenCodeChatTUI() {
                         {fileContent?.dataUrl ? (
                           <iframe
                             src={fileContent.dataUrl}
-                            title={selectedFileName ?? selectedFile ?? "PDF preview"}
+                            title={
+                              selectedFileName ?? selectedFile ?? "PDF preview"
+                            }
                             className="w-full h-full"
                           />
                         ) : (
@@ -2688,7 +2714,8 @@ function OpenCodeChatTUI() {
               <div className="space-y-2">
                 <h2 className="text-lg font-semibold">Add Project</h2>
                 <p className="text-xs text-theme-muted leading-relaxed">
-                  Project directories must already be git repositories. We'll create the first session automatically.
+                  Project directories must already be git repositories. We'll
+                  create the first session automatically.
                 </p>
               </div>
               <Input
@@ -2741,7 +2768,8 @@ function OpenCodeChatTUI() {
               <div className="space-y-2">
                 <h2 className="text-lg font-semibold">New Session</h2>
                 <p className="text-xs text-theme-muted leading-relaxed">
-                  Create a new session for the current project: {currentProject?.worktree}
+                  Create a new session for the current project:{" "}
+                  {currentProject?.worktree}
                 </p>
               </div>
               <Input

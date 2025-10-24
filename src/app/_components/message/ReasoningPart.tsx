@@ -1,26 +1,33 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { Part } from '@/types/opencode';
-import { Badge } from '../ui';
+import { useEffect, useMemo, useState } from "react";
+import type { Part } from "@/types/opencode";
+import { Badge } from "../ui";
 
 interface ReasoningPartProps {
   part: Part;
   showDetails: boolean;
 }
 
-const reasoningMetadataPriority = ['summary', 'thinking', 'text', 'content', 'details', 'explanation'];
-type ReasoningSource = 'part' | 'metadata' | null;
+const reasoningMetadataPriority = [
+  "summary",
+  "thinking",
+  "text",
+  "content",
+  "details",
+  "explanation",
+];
+type ReasoningSource = "part" | "metadata" | null;
 
 function extractReadableString(value: unknown): string {
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     const trimmed = value.trim();
-    if (trimmed.length === 0) return '';
+    if (trimmed.length === 0) return "";
     const containsLetter = /[a-zA-Z]/.test(trimmed);
-    const looksLikeSentence = trimmed.includes(' ');
-    if (!containsLetter) return '';
+    const looksLikeSentence = trimmed.includes(" ");
+    if (!containsLetter) return "";
     if (looksLikeSentence || trimmed.length > 40) {
       return value;
     }
-    return '';
+    return "";
   }
 
   if (Array.isArray(value)) {
@@ -28,10 +35,10 @@ function extractReadableString(value: unknown): string {
       const match = extractReadableString(item);
       if (match) return match;
     }
-    return '';
+    return "";
   }
 
-  if (value && typeof value === 'object') {
+  if (value && typeof value === "object") {
     const record = value as Record<string, unknown>;
     for (const key of reasoningMetadataPriority) {
       if (key in record) {
@@ -45,42 +52,45 @@ function extractReadableString(value: unknown): string {
     }
   }
 
-  return '';
+  return "";
 }
 
-function extractReasoningText(part: Part): { text: string; source: ReasoningSource } {
+function extractReasoningText(part: Part): {
+  text: string;
+  source: ReasoningSource;
+} {
   const rawText =
-    typeof part.text === 'string'
+    typeof part.text === "string"
       ? part.text
-      : typeof part.content === 'string'
+      : typeof part.content === "string"
         ? part.content
-        : typeof part.value === 'string'
+        : typeof part.value === "string"
           ? part.value
-          : '';
+          : "";
   if (rawText.trim().length > 0) {
-    return { text: rawText, source: 'part' };
+    return { text: rawText, source: "part" };
   }
 
   const metadata = (part as { metadata?: unknown }).metadata;
   const metadataText = extractReadableString(metadata);
   if (metadataText) {
-    return { text: metadataText, source: 'metadata' };
+    return { text: metadataText, source: "metadata" };
   }
 
-  return { text: '', source: null };
+  return { text: "", source: null };
 }
 
 export function ReasoningPart({ part, showDetails }: ReasoningPartProps) {
-  const isReasoningPart = part.type === 'reasoning';
+  const isReasoningPart = part.type === "reasoning";
   const [isExpanded, setIsExpanded] = useState(showDetails);
-  
+
   useEffect(() => {
     if (!isReasoningPart) return;
     setIsExpanded(showDetails);
   }, [isReasoningPart, showDetails]);
 
   const { text, source } = useMemo(() => extractReasoningText(part), [part]);
-  const derivedFromMetadata = source === 'metadata';
+  const derivedFromMetadata = source === "metadata";
   const hasReasoning = text.trim().length > 0;
 
   if (!isReasoningPart || !showDetails || !hasReasoning) return null;
@@ -90,7 +100,7 @@ export function ReasoningPart({ part, showDetails }: ReasoningPartProps) {
   };
 
   const contentId = part.id ? `reasoning-${part.id}` : undefined;
-  
+
   return (
     <div className="border border-theme-border rounded-md overflow-hidden bg-theme-background-alt mb-2">
       <button
@@ -103,7 +113,9 @@ export function ReasoningPart({ part, showDetails }: ReasoningPartProps) {
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs">THINK</span>
           <span className="text-sm font-medium">Thinking...</span>
-          <span className="text-xs opacity-60">{isExpanded ? '[-]' : '[+]'}</span>
+          <span className="text-xs opacity-60">
+            {isExpanded ? "[-]" : "[+]"}
+          </span>
         </div>
         <Badge variant="foreground0" cap="round" className="text-xs">
           {text.length} chars

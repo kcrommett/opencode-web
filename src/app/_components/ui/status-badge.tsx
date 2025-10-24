@@ -1,26 +1,37 @@
-import React from 'react';
-import { Badge } from './badge';
+import React from "react";
+import { Badge } from "./badge";
 
 interface StatusBadgeProps {
-  status: 'success' | 'warning' | 'error' | 'info' | 'pending';
+  status: "success" | "warning" | "error" | "info" | "pending";
   children: React.ReactNode;
-  cap?: 'square' | 'round' | 'triangle' | 'ribbon' | 'slant-top' | 'slant-bottom';
+  cap?:
+    | "square"
+    | "round"
+    | "triangle"
+    | "ribbon"
+    | "slant-top"
+    | "slant-bottom";
   className?: string;
 }
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({
   status,
   children,
-  cap = 'round',
-  className = ''
+  cap = "round",
+  className = "",
 }) => {
   const getStatusClass = () => {
     switch (status) {
-      case 'success': return 'status-badge-success';
-      case 'warning': return 'status-badge-warning';
-      case 'error': return 'status-badge-error';
-      case 'info': return 'status-badge-info';
-      default: return 'status-badge-pending';
+      case "success":
+        return "status-badge-success";
+      case "warning":
+        return "status-badge-warning";
+      case "error":
+        return "status-badge-error";
+      case "info":
+        return "status-badge-info";
+      default:
+        return "status-badge-pending";
     }
   };
 

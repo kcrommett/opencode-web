@@ -5,10 +5,10 @@
  * import them. The components remain available for future features and for the
  * documentation in `ui.md`.
  */
-import { StatusBadge } from './status-badge'
-import { Checkbox } from './checkbox'
-import { Radio } from './radio'
-import { Switch } from './switch'
+import { StatusBadge } from "./status-badge";
+import { Checkbox } from "./checkbox";
+import { Radio } from "./radio";
+import { Switch } from "./switch";
 import {
   Table,
   TableHeader,
@@ -16,13 +16,13 @@ import {
   TableRow,
   TableHead,
   TableCell,
-} from './table'
-import { Popover, PopoverTrigger, PopoverContent } from './popover'
-import { Tooltip, TooltipTrigger, TooltipContent } from './tooltip'
-import { Range } from './range'
-import { Progress } from './progress'
-import { BottomSheet } from './bottom-sheet'
-import { ResponsiveDialog } from './responsive-dialog'
+} from "./table";
+import { Popover, PopoverTrigger, PopoverContent } from "./popover";
+import { Tooltip, TooltipTrigger, TooltipContent } from "./tooltip";
+import { Range } from "./range";
+import { Progress } from "./progress";
+import { BottomSheet } from "./bottom-sheet";
+import { ResponsiveDialog } from "./responsive-dialog";
 
 void [
   StatusBadge,
@@ -45,4 +45,4 @@ void [
   Progress,
   BottomSheet,
   ResponsiveDialog,
-]
+];

@@ -1,15 +1,15 @@
-import React from 'react';
+import React from "react";
 
 interface PreProps extends React.HTMLAttributes<HTMLPreElement> {
   children: React.ReactNode;
-  size?: 'small' | 'large';
+  size?: "small" | "large";
   className?: string;
 }
 
 export const Pre: React.FC<PreProps> = ({
   children,
   size,
-  className = '',
+  className = "",
   ...props
 }) => {
   const preProps: Record<string, string> = {};
@@ -19,12 +19,7 @@ export const Pre: React.FC<PreProps> = ({
   }
 
   return (
-    <pre
-      is-="pre"
-      className={className}
-      {...preProps}
-      {...props}
-    >
+    <pre is-="pre" className={className} {...preProps} {...props}>
       {children}
     </pre>
   );

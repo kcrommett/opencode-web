@@ -1,17 +1,17 @@
-import z from "zod/v4"
-import { Bus } from "../bus"
-import { $ } from "bun"
-import { formatPatch, structuredPatch } from "diff"
-import path from "path"
-import fs from "fs"
-import ignore from "ignore"
-import { Log } from "../util/log"
-import { Instance } from "../project/instance"
-import { Ripgrep } from "./ripgrep"
-import fuzzysort from "fuzzysort"
+import z from "zod/v4";
+import { Bus } from "../bus";
+import { $ } from "bun";
+import { formatPatch, structuredPatch } from "diff";
+import path from "path";
+import fs from "fs";
+import ignore from "ignore";
+import { Log } from "../util/log";
+import { Instance } from "../project/instance";
+import { Ripgrep } from "./ripgrep";
+import fuzzysort from "fuzzysort";
 
 export namespace File {
-  const log = Log.create({ service: "file" })
+  const log = Log.create({ service: "file" });
 
   export const Info = z
     .object({
@@ -22,9 +22,9 @@ export namespace File {
     })
     .meta({
       ref: "File",
-    })
+    });
 
-  export type Info = z.infer<typeof Info>
+  export type Info = z.infer<typeof Info>;
 
   export const Node = z
     .object({
@@ -36,8 +36,8 @@ export namespace File {
     })
     .meta({
       ref: "FileNode",
-    })
-  export type Node = z.infer<typeof Node>
+    });
+  export type Node = z.infer<typeof Node>;
 
   export const Content = z
     .object({
@@ -65,32 +65,41 @@ export namespace File {
     })
     .meta({
       ref: "FileContent",
-    })
-  export type Content = z.infer<typeof Content>
+    });
+  export type Content = z.infer<typeof Content>;
 
-  async function isBinaryFile(filepath: string, file: Bun.BunFile): Promise<boolean> {
-    const ext = path.extname(filepath).toLowerCase()
+  async function isBinaryFile(
+    filepath: string,
+    file: Bun.BunFile,
+  ): Promise<boolean> {
+    const ext = path.extname(filepath).toLowerCase();
 
-    if ([".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".ico"].includes(ext)) {
-      return true
+    if (
+      [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".ico"].includes(ext)
+    ) {
+      return true;
     }
 
-    if ([".zip", ".tar", ".gz", ".exe", ".dll", ".so", ".pdf", ".wasm"].includes(ext)) {
-      return true
+    if (
+      [".zip", ".tar", ".gz", ".exe", ".dll", ".so", ".pdf", ".wasm"].includes(
+        ext,
+      )
+    ) {
+      return true;
     }
 
-    const stat = await file.stat()
-    if (stat.size === 0) return false
+    const stat = await file.stat();
+    if (stat.size === 0) return false;
 
-    const bufferSize = Math.min(512, stat.size)
-    const buffer = await file.arrayBuffer()
-    const bytes = new Uint8Array(buffer.slice(0, bufferSize))
+    const bufferSize = Math.min(512, stat.size);
+    const buffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(buffer.slice(0, bufferSize));
 
     for (let i = 0; i < bytes.length; i++) {
-      if (bytes[i] === 0) return true
+      if (bytes[i] === 0) return true;
     }
 
-    return false
+    return false;
   }
 
   export const Event = {
@@ -100,32 +109,32 @@ export namespace File {
         file: z.string(),
       }),
     ),
-  }
+  };
 
   const state = Instance.state(async () => {
-    type Entry = { files: string[]; dirs: string[] }
-    let cache: Entry = { files: [], dirs: [] }
-    let fetching = false
+    type Entry = { files: string[]; dirs: string[] };
+    let cache: Entry = { files: [], dirs: [] };
+    let fetching = false;
     const fn = async (result: Entry) => {
-      fetching = true
-      const set = new Set<string>()
+      fetching = true;
+      const set = new Set<string>();
       for await (const file of Ripgrep.files({ cwd: Instance.directory })) {
-        result.files.push(file)
-        let current = file
+        result.files.push(file);
+        let current = file;
         while (true) {
-          const dir = path.dirname(current)
-          if (dir === ".") break
-          if (dir === current) break
-          current = dir
-          if (set.has(dir)) continue
-          set.add(dir)
-          result.dirs.push(dir + "/")
+          const dir = path.dirname(current);
+          if (dir === ".") break;
+          if (dir === current) break;
+          current = dir;
+          if (set.has(dir)) continue;
+          set.add(dir);
+          result.dirs.push(dir + "/");
         }
       }
-      cache = result
-      fetching = false
-    }
-    fn(cache)
+      cache = result;
+      fetching = false;
+    };
+    fn(cache);
 
     return {
       async files() {
@@ -133,35 +142,39 @@ export namespace File {
           fn({
             files: [],
             dirs: [],
-          })
+          });
         }
-        return cache
+        return cache;
       },
-    }
-  })
+    };
+  });
 
   export function init() {
-    state()
+    state();
   }
 
   export async function status() {
-    const project = Instance.project
-    if (project.vcs !== "git") return []
+    const project = Instance.project;
+    if (project.vcs !== "git") return [];
 
-    const diffOutput = await $`git diff --numstat HEAD`.cwd(Instance.directory).quiet().nothrow().text()
+    const diffOutput = await $`git diff --numstat HEAD`
+      .cwd(Instance.directory)
+      .quiet()
+      .nothrow()
+      .text();
 
-    const changedFiles: Info[] = []
+    const changedFiles: Info[] = [];
 
     if (diffOutput.trim()) {
-      const lines = diffOutput.trim().split("\n")
+      const lines = diffOutput.trim().split("\n");
       for (const line of lines) {
-        const [added, removed, filepath] = line.split("\t")
+        const [added, removed, filepath] = line.split("\t");
         changedFiles.push({
           path: filepath,
           added: added === "-" ? 0 : parseInt(added, 10),
           removed: removed === "-" ? 0 : parseInt(removed, 10),
           status: "modified",
-        })
+        });
       }
     }
 
@@ -169,22 +182,24 @@ export namespace File {
       .cwd(Instance.directory)
       .quiet()
       .nothrow()
-      .text()
+      .text();
 
     if (untrackedOutput.trim()) {
-      const untrackedFiles = untrackedOutput.trim().split("\n")
+      const untrackedFiles = untrackedOutput.trim().split("\n");
       for (const filepath of untrackedFiles) {
         try {
-          const content = await Bun.file(path.join(Instance.directory, filepath)).text()
-          const lines = content.split("\n").length
+          const content = await Bun.file(
+            path.join(Instance.directory, filepath),
+          ).text();
+          const lines = content.split("\n").length;
           changedFiles.push({
             path: filepath,
             added: lines,
             removed: 0,
             status: "added",
-          })
+          });
         } catch {
-          continue
+          continue;
         }
       }
     }
@@ -194,103 +209,134 @@ export namespace File {
       .cwd(Instance.directory)
       .quiet()
       .nothrow()
-      .text()
+      .text();
 
     if (deletedOutput.trim()) {
-      const deletedFiles = deletedOutput.trim().split("\n")
+      const deletedFiles = deletedOutput.trim().split("\n");
       for (const filepath of deletedFiles) {
         changedFiles.push({
           path: filepath,
           added: 0,
           removed: 0, // Could get original line count but would require another git command
           status: "deleted",
-        })
+        });
       }
     }
 
     return changedFiles.map((x) => ({
       ...x,
       path: path.relative(Instance.directory, x.path),
-    }))
+    }));
   }
 
   export async function read(file: string) {
-    using _ = log.time("read", { file })
-    const project = Instance.project
-    const full = path.join(Instance.directory, file)
-    const bunFile = Bun.file(full)
+    using _ = log.time("read", { file });
+    const project = Instance.project;
+    const full = path.join(Instance.directory, file);
+    const bunFile = Bun.file(full);
 
-    const isBinary = await isBinaryFile(full, bunFile)
+    const isBinary = await isBinaryFile(full, bunFile);
 
     if (isBinary) {
-      const buffer = await bunFile.arrayBuffer().catch(() => new ArrayBuffer(0))
-      const content = Buffer.from(buffer).toString("base64")
-      return { content, encoding: "base64" as const }
+      const buffer = await bunFile
+        .arrayBuffer()
+        .catch(() => new ArrayBuffer(0));
+      const content = Buffer.from(buffer).toString("base64");
+      return { content, encoding: "base64" as const };
     }
 
     const content = await bunFile
       .text()
       .catch(() => "")
-      .then((x) => x.trim())
+      .then((x) => x.trim());
 
     if (project.vcs === "git") {
-      let diff = await $`git diff ${file}`.cwd(Instance.directory).quiet().nothrow().text()
-      if (!diff.trim()) diff = await $`git diff --staged ${file}`.cwd(Instance.directory).quiet().nothrow().text()
+      let diff = await $`git diff ${file}`
+        .cwd(Instance.directory)
+        .quiet()
+        .nothrow()
+        .text();
+      if (!diff.trim())
+        diff = await $`git diff --staged ${file}`
+          .cwd(Instance.directory)
+          .quiet()
+          .nothrow()
+          .text();
       if (diff.trim()) {
-        const original = await $`git show HEAD:${file}`.cwd(Instance.directory).quiet().nothrow().text()
-        const patch = structuredPatch(file, file, original, content, "old", "new", {
-          context: Infinity,
-          ignoreWhitespace: true,
-        })
-        const diff = formatPatch(patch)
-        return { content, encoding: "utf8" as const, patch, diff }
+        const original = await $`git show HEAD:${file}`
+          .cwd(Instance.directory)
+          .quiet()
+          .nothrow()
+          .text();
+        const patch = structuredPatch(
+          file,
+          file,
+          original,
+          content,
+          "old",
+          "new",
+          {
+            context: Infinity,
+            ignoreWhitespace: true,
+          },
+        );
+        const diff = formatPatch(patch);
+        return { content, encoding: "utf8" as const, patch, diff };
       }
     }
-    return { content, encoding: "utf8" as const }
+    return { content, encoding: "utf8" as const };
   }
 
   export async function list(dir?: string) {
-    const exclude = [".git", ".DS_Store"]
-    const project = Instance.project
-    let ignored = (_: string) => false
+    const exclude = [".git", ".DS_Store"];
+    const project = Instance.project;
+    let ignored = (_: string) => false;
     if (project.vcs === "git") {
-      const gitignore = Bun.file(path.join(Instance.worktree, ".gitignore"))
+      const gitignore = Bun.file(path.join(Instance.worktree, ".gitignore"));
       if (await gitignore.exists()) {
-        const ig = ignore().add(await gitignore.text())
-        ignored = ig.ignores.bind(ig)
+        const ig = ignore().add(await gitignore.text());
+        ignored = ig.ignores.bind(ig);
       }
     }
-    const resolved = dir ? path.join(Instance.directory, dir) : Instance.directory
-    const nodes: Node[] = []
-    for (const entry of await fs.promises.readdir(resolved, { withFileTypes: true })) {
-      if (exclude.includes(entry.name)) continue
-      const fullPath = path.join(resolved, entry.name)
-      const relativePath = path.relative(Instance.directory, fullPath)
-      const type = entry.isDirectory() ? "directory" : "file"
+    const resolved = dir
+      ? path.join(Instance.directory, dir)
+      : Instance.directory;
+    const nodes: Node[] = [];
+    for (const entry of await fs.promises.readdir(resolved, {
+      withFileTypes: true,
+    })) {
+      if (exclude.includes(entry.name)) continue;
+      const fullPath = path.join(resolved, entry.name);
+      const relativePath = path.relative(Instance.directory, fullPath);
+      const type = entry.isDirectory() ? "directory" : "file";
       nodes.push({
         name: entry.name,
         path: relativePath,
         absolute: fullPath,
         type,
-        ignored: ignored(type === "directory" ? relativePath + "/" : relativePath),
-      })
+        ignored: ignored(
+          type === "directory" ? relativePath + "/" : relativePath,
+        ),
+      });
     }
     return nodes.sort((a, b) => {
       if (a.type !== b.type) {
-        return a.type === "directory" ? -1 : 1
+        return a.type === "directory" ? -1 : 1;
       }
-      return a.name.localeCompare(b.name)
-    })
+      return a.name.localeCompare(b.name);
+    });
   }
 
   export async function search(input: { query: string; limit?: number }) {
-    log.info("search", { query: input.query })
-    const limit = input.limit ?? 100
-    const result = await state().then((x) => x.files())
-    if (!input.query) return result.dirs.toSorted().slice(0, limit)
-    const items = [...result.files, ...result.dirs]
-    const sorted = fuzzysort.go(input.query, items, { limit: limit }).map((r) => r.target)
-    log.info("search", { query: input.query, results: sorted.length })
-    return sorted
+    log.info("search", { query: input.query });
+    const limit = input.limit ?? 100;
+    const result = await state().then((x) => x.files());
+    if (!input.query) return result.dirs.toSorted().slice(0, limit);
+    const items = [...result.files, ...result.dirs];
+    const sorted = fuzzysort
+      .go(input.query, items, { limit: limit })
+      .map((r) => r.target);
+    log.info("search", { query: input.query, results: sorted.length });
+    return sorted;
   }
 }

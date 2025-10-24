@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import type { Part } from '@/types/opencode';
-import { Badge } from '../ui';
+import { useState } from "react";
+import type { Part } from "@/types/opencode";
+import { Badge } from "../ui";
 
 interface PatchPartProps {
   part: Part;
@@ -8,16 +8,16 @@ interface PatchPartProps {
 
 export function PatchPart({ part }: PatchPartProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  
-  if (part.type !== 'patch') return null;
-  
+
+  if (part.type !== "patch") return null;
+
   const rawDiff =
-    typeof part.diff === 'string'
+    typeof part.diff === "string"
       ? part.diff
-      : typeof part.content === 'string'
+      : typeof part.content === "string"
         ? part.content
-        : '';
-  const diff = rawDiff.trim().length > 0 ? rawDiff : '';
+        : "";
+  const diff = rawDiff.trim().length > 0 ? rawDiff : "";
 
   const candidateFiles = (part as { files?: unknown }).files;
   const fileList = Array.isArray(candidateFiles)
@@ -31,7 +31,7 @@ export function PatchPart({ part }: PatchPartProps) {
   const toggle = () => {
     setIsExpanded((value) => !value);
   };
-  
+
   return (
     <div className="border border-theme-border rounded-md overflow-hidden bg-theme-background-alt mb-2">
       <button
@@ -44,11 +44,15 @@ export function PatchPart({ part }: PatchPartProps) {
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs">PATCH</span>
           <span className="text-sm font-medium">File Changes</span>
-          <span className="text-xs opacity-60">{isExpanded ? '[-]' : '[+]'}</span>
+          <span className="text-xs opacity-60">
+            {isExpanded ? "[-]" : "[+]"}
+          </span>
         </div>
         {(hasFiles || hasDiff) && (
           <Badge variant="foreground0" cap="round" className="text-xs">
-            {hasFiles ? `${fileList.length} ${fileList.length === 1 ? 'file' : 'files'}` : `${diff.length} chars`}
+            {hasFiles
+              ? `${fileList.length} ${fileList.length === 1 ? "file" : "files"}`
+              : `${diff.length} chars`}
           </Badge>
         )}
       </button>

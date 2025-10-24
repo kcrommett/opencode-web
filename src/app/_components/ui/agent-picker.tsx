@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { Badge, Separator, Button } from './index';
+import React, { useEffect } from "react";
+import { Badge, Separator, Button } from "./index";
 
 interface Agent {
   name: string;
@@ -22,27 +22,27 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
 }) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         e.preventDefault();
         onClose();
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
   return (
-    <div 
+    <div
       className="fixed inset-0 flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
-      <div 
+      <div
         className="rounded border overflow-hidden shadow-2xl max-w-md w-full max-h-[80vh] overflow-y-auto scrollbar"
-        style={{ 
-          backgroundColor: 'var(--theme-background)',
-          borderColor: 'var(--theme-primary)',
-          borderWidth: '1px',
+        style={{
+          backgroundColor: "var(--theme-background)",
+          borderColor: "var(--theme-primary)",
+          borderWidth: "1px",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -50,7 +50,7 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
           <h2 className="text-lg font-bold mb-2">Select Agent</h2>
           <Separator className="mb-4" />
         </div>
-        
+
         <div className="px-4 pb-4 space-y-2">
           {agents.map((agent, index) => {
             const agentId = agent.id || agent.name;
@@ -61,8 +61,12 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
                 key={`agent-${agentId}-${index}`}
                 className="p-3 rounded cursor-pointer transition-colors"
                 style={{
-                  backgroundColor: isSelected ? 'var(--theme-primary)' : 'var(--theme-backgroundAlt)',
-                  color: isSelected ? 'var(--theme-background)' : 'var(--theme-foreground)',
+                  backgroundColor: isSelected
+                    ? "var(--theme-primary)"
+                    : "var(--theme-backgroundAlt)",
+                  color: isSelected
+                    ? "var(--theme-background)"
+                    : "var(--theme-foreground)",
                 }}
                 onClick={() => {
                   onSelect(agent);
@@ -73,11 +77,17 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
                   <div className="flex-1">
                     <div className="font-medium">{agent.name}</div>
                     {agent.description && (
-                      <div className="text-xs opacity-70 mt-1">{agent.description}</div>
+                      <div className="text-xs opacity-70 mt-1">
+                        {agent.description}
+                      </div>
                     )}
                   </div>
                   {isSelected && (
-                    <Badge variant="background2" cap="round" className="text-xs ml-2">
+                    <Badge
+                      variant="background2"
+                      cap="round"
+                      className="text-xs ml-2"
+                    >
                       Current
                     </Badge>
                   )}

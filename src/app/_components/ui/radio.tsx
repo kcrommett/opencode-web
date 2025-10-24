@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 interface RadioProps extends React.InputHTMLAttributes<HTMLInputElement> {
   children?: React.ReactNode;
@@ -7,16 +7,12 @@ interface RadioProps extends React.InputHTMLAttributes<HTMLInputElement> {
 
 export const Radio: React.FC<RadioProps> = ({
   children,
-  className = '',
+  className = "",
   ...props
 }) => {
   return (
     <label className={className}>
-      <input
-        type="radio"
-        is-="radio"
-        {...props}
-      />
+      <input type="radio" is-="radio" {...props} />
       {children}
     </label>
   );

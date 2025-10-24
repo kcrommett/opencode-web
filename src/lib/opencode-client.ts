@@ -1,13 +1,17 @@
-import * as serverFns from './opencode-server-fns'
-import { OpencodeSSEClient, OpencodeEvent, SSEConnectionState } from './opencode-events'
+import * as serverFns from "./opencode-server-fns";
+import {
+  OpencodeSSEClient,
+  OpencodeEvent,
+  SSEConnectionState,
+} from "./opencode-events";
 
-const isDevMode = process.env.NODE_ENV !== 'production'
+const isDevMode = process.env.NODE_ENV !== "production";
 const devLog = (...args: unknown[]) => {
-  if (isDevMode) console.log(...args)
-}
+  if (isDevMode) console.log(...args);
+};
 const devError = (...args: unknown[]) => {
-  if (isDevMode) console.error(...args)
-}
+  if (isDevMode) console.error(...args);
+};
 
 // SSE client and event handlers
 let sseClient: OpencodeSSEClient | null = null;
@@ -23,8 +27,12 @@ export const openCodeService = {
     }
   },
 
-  async log(message: string, level: 'info' | 'error' | 'debug' | 'warn' = 'info') {
-    if (process.env.NODE_ENV !== 'production') console.log(`[${level.toUpperCase()}] ${message}`);
+  async log(
+    message: string,
+    level: "info" | "error" | "debug" | "warn" = "info",
+  ) {
+    if (process.env.NODE_ENV !== "production")
+      console.log(`[${level.toUpperCase()}] ${message}`);
     return { data: true, error: null };
   },
 
@@ -39,7 +47,9 @@ export const openCodeService = {
 
   async getCurrentProject(directory?: string) {
     try {
-      const response = await serverFns.getCurrentProject({ data: { directory } });
+      const response = await serverFns.getCurrentProject({
+        data: { directory },
+      });
       return { data: response };
     } catch (error) {
       throw error;
@@ -73,18 +83,31 @@ export const openCodeService = {
     }
   },
 
-  async createSession({ title, directory }: { title?: string; directory?: string } = {}) {
+  async createSession({
+    title,
+    directory,
+  }: { title?: string; directory?: string } = {}) {
     try {
-      const response = await serverFns.createSession({ data: { title, directory } });
+      const response = await serverFns.createSession({
+        data: { title, directory },
+      });
       return { data: response, error: null };
     } catch (error) {
       return { data: null, error: handleOpencodeError(error) };
     }
   },
 
-  async sendMessage(sessionId: string, content: string, providerID = "anthropic", modelID = "claude-3-5-sonnet-20241022", directory?: string) {
+  async sendMessage(
+    sessionId: string,
+    content: string,
+    providerID = "anthropic",
+    modelID = "claude-3-5-sonnet-20241022",
+    directory?: string,
+  ) {
     try {
-      const response = await serverFns.sendMessage({ data: { sessionId, content, providerID, modelID, directory } });
+      const response = await serverFns.sendMessage({
+        data: { sessionId, content, providerID, modelID, directory },
+      });
       return { data: response, error: null };
     } catch (error) {
       return { data: null, error: handleOpencodeError(error) };
@@ -92,7 +115,9 @@ export const openCodeService = {
   },
 
   async getMessages(sessionId: string, directory?: string) {
-    const response = await serverFns.getMessages({ data: { sessionId, directory } });
+    const response = await serverFns.getMessages({
+      data: { sessionId, directory },
+    });
     return { data: response };
   },
 
@@ -101,23 +126,31 @@ export const openCodeService = {
       const response = await serverFns.getSessions({ data: { directory } });
       return { data: response };
     } catch (error) {
-      devError('Error in getSessions:', error);
+      devError("Error in getSessions:", error);
       return { data: [] };
     }
   },
 
   async getSession(sessionId: string, directory?: string) {
     try {
-      const response = await serverFns.getSession({ data: { sessionId, directory } });
+      const response = await serverFns.getSession({
+        data: { sessionId, directory },
+      });
       return { data: response };
     } catch (error) {
       throw error;
     }
   },
 
-  async updateSession(sessionId: string, updates: { title?: string }, directory?: string) {
+  async updateSession(
+    sessionId: string,
+    updates: { title?: string },
+    directory?: string,
+  ) {
     try {
-      const response = await serverFns.updateSession({ data: { sessionId, title: updates.title, directory } });
+      const response = await serverFns.updateSession({
+        data: { sessionId, title: updates.title, directory },
+      });
       return { data: response };
     } catch (error) {
       throw error;
@@ -126,7 +159,9 @@ export const openCodeService = {
 
   async deleteSession(sessionId: string, directory?: string) {
     try {
-      const response = await serverFns.deleteSession({ data: { sessionId, directory } });
+      const response = await serverFns.deleteSession({
+        data: { sessionId, directory },
+      });
       return { data: response };
     } catch (error) {
       throw error;
@@ -141,9 +176,17 @@ export const openCodeService = {
     }
   },
 
-  async initSession(sessionId: string, messageID: string, providerID: string, modelID: string, directory?: string) {
+  async initSession(
+    sessionId: string,
+    messageID: string,
+    providerID: string,
+    modelID: string,
+    directory?: string,
+  ) {
     try {
-      const response = await serverFns.initSession({ data: { sessionId, messageID, providerID, modelID, directory } });
+      const response = await serverFns.initSession({
+        data: { sessionId, messageID, providerID, modelID, directory },
+      });
       return { data: response };
     } catch (error) {
       throw error;
@@ -152,7 +195,9 @@ export const openCodeService = {
 
   async abortSession(sessionId: string, directory?: string) {
     try {
-      const response = await serverFns.abortSession({ data: { sessionId, directory } });
+      const response = await serverFns.abortSession({
+        data: { sessionId, directory },
+      });
       return { data: response };
     } catch (error) {
       throw error;
@@ -161,7 +206,9 @@ export const openCodeService = {
 
   async shareSession(sessionId: string, directory?: string) {
     try {
-      const response = await serverFns.shareSession({ data: { sessionId, directory } });
+      const response = await serverFns.shareSession({
+        data: { sessionId, directory },
+      });
       return { data: response };
     } catch (error) {
       throw error;
@@ -170,52 +217,87 @@ export const openCodeService = {
 
   async unshareSession(sessionId: string, directory?: string) {
     try {
-      const response = await serverFns.unshareSession({ data: { sessionId, directory } });
+      const response = await serverFns.unshareSession({
+        data: { sessionId, directory },
+      });
       return { data: response };
     } catch (error) {
       throw error;
     }
   },
 
-  async summarizeSession(sessionId: string, providerID: string, modelID: string, directory?: string) {
+  async summarizeSession(
+    sessionId: string,
+    providerID: string,
+    modelID: string,
+    directory?: string,
+  ) {
     try {
-      const response = await serverFns.summarizeSession({ data: { sessionId, providerID, modelID, directory } });
+      const response = await serverFns.summarizeSession({
+        data: { sessionId, providerID, modelID, directory },
+      });
       return { data: response };
     } catch (error) {
       throw error;
     }
   },
 
-  async getSessionMessage(sessionId: string, messageID: string, directory?: string) {
+  async getSessionMessage(
+    sessionId: string,
+    messageID: string,
+    directory?: string,
+  ) {
     try {
-      const response = await serverFns.getMessage({ data: { sessionId, messageId: messageID, directory } });
+      const response = await serverFns.getMessage({
+        data: { sessionId, messageId: messageID, directory },
+      });
       return { data: response };
     } catch (error) {
       throw error;
     }
   },
 
-  async sendCommand(sessionId: string, command: string, args?: string[], directory?: string) {
+  async sendCommand(
+    sessionId: string,
+    command: string,
+    args?: string[],
+    directory?: string,
+  ) {
     try {
-      const response = await serverFns.runCommand({ data: { sessionId, command, args, directory } });
+      const response = await serverFns.runCommand({
+        data: { sessionId, command, args, directory },
+      });
       return { data: response };
     } catch (error) {
       throw error;
     }
   },
 
-  async runShell(sessionId: string, command: string, args?: string[], directory?: string) {
+  async runShell(
+    sessionId: string,
+    command: string,
+    args?: string[],
+    directory?: string,
+  ) {
     try {
-      const response = await serverFns.runCommand({ data: { sessionId, command, args, directory } });
+      const response = await serverFns.runCommand({
+        data: { sessionId, command, args, directory },
+      });
       return { data: response };
     } catch (error) {
       throw error;
     }
   },
 
-  async revertMessage(sessionId: string, messageID: string, directory?: string) {
+  async revertMessage(
+    sessionId: string,
+    messageID: string,
+    directory?: string,
+  ) {
     try {
-      const response = await serverFns.revertMessage({ data: { sessionId, messageID, directory } });
+      const response = await serverFns.revertMessage({
+        data: { sessionId, messageID, directory },
+      });
       return { data: response };
     } catch (error) {
       throw error;
@@ -224,7 +306,9 @@ export const openCodeService = {
 
   async unrevertMessage(sessionId: string, directory?: string) {
     try {
-      const response = await serverFns.unrevertSession({ data: { sessionId, directory } });
+      const response = await serverFns.unrevertSession({
+        data: { sessionId, directory },
+      });
       return { data: response };
     } catch (error) {
       throw error;
@@ -242,7 +326,9 @@ export const openCodeService = {
 
   async findFiles(query: string, directory?: string) {
     try {
-      const response = await serverFns.findFiles({ data: { query, directory } });
+      const response = await serverFns.findFiles({
+        data: { query, directory },
+      });
       return { data: response };
     } catch (error) {
       throw error;
@@ -269,7 +355,9 @@ export const openCodeService = {
 
   async readFile(filePath: string, directory?: string) {
     try {
-      const response = await serverFns.readFile({ data: { filePath, directory } });
+      const response = await serverFns.readFile({
+        data: { filePath, directory },
+      });
       return { data: response };
     } catch (error) {
       throw error;
@@ -353,41 +441,54 @@ export const openCodeService = {
     }
   },
 
-  async showToast(message: string, title?: string, variant: 'success' | 'error' | 'warning' | 'info' = 'info') {
+  async showToast(
+    message: string,
+    title?: string,
+    variant: "success" | "error" | "warning" | "info" = "info",
+  ) {
     try {
-      const response = await serverFns.showToast({ data: { message, title, variant } });
+      const response = await serverFns.showToast({
+        data: { message, title, variant },
+      });
       if (
         response &&
-        typeof response === 'object' &&
-        'ok' in response &&
+        typeof response === "object" &&
+        "ok" in response &&
         response.ok === false
       ) {
-        const statusText = 'statusText' in response ? response.statusText : undefined;
-        const status = 'status' in response ? response.status : undefined;
+        const statusText =
+          "statusText" in response ? response.statusText : undefined;
+        const status = "status" in response ? response.status : undefined;
         return {
           data: null,
           error: statusText
-            ? `Toast not shown (${status ?? ''} ${statusText})`.trim()
-            : 'Toast not shown',
+            ? `Toast not shown (${status ?? ""} ${statusText})`.trim()
+            : "Toast not shown",
         };
       }
       return { data: response, error: null };
     } catch (error) {
-      devError('[Toast] Failed to show toast via server:', error);
+      devError("[Toast] Failed to show toast via server:", error);
       return { data: null, error: handleOpencodeError(error) };
     }
   },
 
-  async setAuth(providerId: string, type: 'api', key: string) {
+  async setAuth(providerId: string, type: "api", key: string) {
     try {
-      const response = await serverFns.setAuth({ data: { providerId, auth: { type, key } } });
+      const response = await serverFns.setAuth({
+        data: { providerId, auth: { type, key } },
+      });
       return { data: response };
     } catch (error) {
       throw error;
     }
   },
 
-  async subscribeToEvents(sessionId: string, onMessage: (event: OpencodeEvent) => void, directory?: string) {
+  async subscribeToEvents(
+    sessionId: string,
+    onMessage: (event: OpencodeEvent) => void,
+    directory?: string,
+  ) {
     try {
       if (sseClient) {
         sseClient.disconnect();
@@ -396,28 +497,30 @@ export const openCodeService = {
       // Add the event handler
       eventHandlers = [onMessage];
 
-      const eventStreamUrl = await serverFns.getEventStreamUrl({ data: { directory } });
+      const eventStreamUrl = await serverFns.getEventStreamUrl({
+        data: { directory },
+      });
 
       sseClient = new OpencodeSSEClient({
         url: eventStreamUrl,
         onEvent: (event: OpencodeEvent) => {
           // Debug logging (skip noisy diagnostics)
-          if (event.type !== 'lsp.client.diagnostics') {
-            devLog('[SSE Event]', event.type, event.properties);
+          if (event.type !== "lsp.client.diagnostics") {
+            devLog("[SSE Event]", event.type, event.properties);
           }
-          
+
           // Pass all events to handlers - let the handlers decide what to do
-          eventHandlers.forEach(handler => handler(event));
+          eventHandlers.forEach((handler) => handler(event));
         },
         onConnect: () => {
-          devLog('[SSE] Connected to event stream');
+          devLog("[SSE] Connected to event stream");
         },
         onDisconnect: () => {
-          devLog('[SSE] Disconnected from event stream');
+          devLog("[SSE] Disconnected from event stream");
         },
         onError: (error: Error) => {
-          devError('[SSE] Connection error:', error);
-        }
+          devError("[SSE] Connection error:", error);
+        },
       });
 
       sseClient.connect();
@@ -456,7 +559,9 @@ export const openCodeService = {
 
   async getTools(provider: string, model: string, directory?: string) {
     try {
-      const response = await serverFns.getTools({ data: { provider, model, directory } });
+      const response = await serverFns.getTools({
+        data: { provider, model, directory },
+      });
       return { data: response };
     } catch (error) {
       throw error;
@@ -465,16 +570,30 @@ export const openCodeService = {
 
   async getSessionChildren(sessionId: string, directory?: string) {
     try {
-      const response = await serverFns.getSessionChildren({ data: { sessionId, directory } });
+      const response = await serverFns.getSessionChildren({
+        data: { sessionId, directory },
+      });
       return { data: response };
     } catch (error) {
       throw error;
     }
   },
 
-  async respondToPermission(sessionId: string, permissionId: string, permissionResponse: boolean, directory?: string) {
+  async respondToPermission(
+    sessionId: string,
+    permissionId: string,
+    permissionResponse: boolean,
+    directory?: string,
+  ) {
     try {
-      const response = await serverFns.respondToPermission({ data: { sessionId, permissionId, response: permissionResponse, directory } });
+      const response = await serverFns.respondToPermission({
+        data: {
+          sessionId,
+          permissionId,
+          response: permissionResponse,
+          directory,
+        },
+      });
       return { data: response };
     } catch (error) {
       throw error;
@@ -492,24 +611,26 @@ export const openCodeService = {
 
   async updateConfig(config: Record<string, unknown>, directory?: string) {
     try {
-      const response = await serverFns.updateConfig({ data: { config, directory } });
+      const response = await serverFns.updateConfig({
+        data: { config, directory },
+      });
       return { data: response };
     } catch (error) {
       throw error;
     }
-  }
+  },
 };
 
 export function handleOpencodeError(error: unknown): string {
-  if (error && typeof error === 'object' && 'status' in error) {
-    const apiError = error as { status: number; message?: string }
-    return `API Error (${apiError.status}): ${apiError.message || 'Unknown error'}`
+  if (error && typeof error === "object" && "status" in error) {
+    const apiError = error as { status: number; message?: string };
+    return `API Error (${apiError.status}): ${apiError.message || "Unknown error"}`;
   }
-  if (error && typeof error === 'object' && 'message' in error) {
-    return (error as { message: string }).message
+  if (error && typeof error === "object" && "message" in error) {
+    return (error as { message: string }).message;
   }
   if (error instanceof Error) {
-    return error.message
+    return error.message;
   }
-  return `Unknown error occurred: ${JSON.stringify(error)}`
+  return `Unknown error occurred: ${JSON.stringify(error)}`;
 }

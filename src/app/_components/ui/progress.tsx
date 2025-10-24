@@ -1,18 +1,13 @@
-import React from 'react';
+import React from "react";
 
-interface ProgressProps extends React.ProgressHTMLAttributes<HTMLProgressElement> {
+interface ProgressProps
+  extends React.ProgressHTMLAttributes<HTMLProgressElement> {
   className?: string;
 }
 
 export const Progress: React.FC<ProgressProps> = ({
-  className = '',
+  className = "",
   ...props
 }) => {
-  return (
-    <progress
-      is-="progress"
-      className={className}
-      {...props}
-    />
-  );
+  return <progress is-="progress" className={className} {...props} />;
 };
