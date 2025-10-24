@@ -1,13 +1,13 @@
-import React from 'react';
+import React from "react";
 
 interface SpinnerProps extends React.HTMLAttributes<HTMLDivElement> {
-  size?: 'small' | 'large';
+  size?: "small" | "large";
   className?: string;
 }
 
 export const Spinner: React.FC<SpinnerProps> = ({
   size,
-  className = '',
+  className = "",
   ...props
 }) => {
   const spinnerProps: Record<string, string> = {};
@@ -17,11 +17,6 @@ export const Spinner: React.FC<SpinnerProps> = ({
   }
 
   return (
-    <div
-      is-="spinner"
-      className={className}
-      {...spinnerProps}
-      {...props}
-    />
+    <div is-="spinner" className={className} {...spinnerProps} {...props} />
   );
 };

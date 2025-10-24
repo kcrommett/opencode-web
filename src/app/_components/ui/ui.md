@@ -9,11 +9,13 @@ WebTUI is a CSS library that brings terminal-inspired aesthetics to web browsers
 ## Installation & Setup
 
 The WebTUI CSS library is already installed:
+
 ```json
 "@webtui/css": "^0.1.5"
 ```
 
 Import the CSS in your global styles:
+
 ```css
 @import "@webtui/css/base.css";
 @import "@webtui/css/components/button.css";
@@ -27,10 +29,10 @@ Import the CSS in your global styles:
 
 ```tsx
 // Import individual components
-import { Button, Badge, Input } from '@/app/_components/ui';
+import { Button, Badge, Input } from "@/app/_components/ui";
 
 // Import all components
-import * as UI from '@/app/_components/ui';
+import * as UI from "@/app/_components/ui";
 ```
 
 ## Components Reference
@@ -45,6 +47,7 @@ Displays small status indicators or labels.
 ```
 
 **Props:**
+
 - `children`: React.ReactNode - Content to display
 - `variant?`: 'background0' | 'background1' | 'background2' | 'background3' | 'foreground0' | 'foreground1' | 'foreground2'
 - `cap?`: 'square' | 'round' | 'triangle' | 'ribbon' | 'slant-top' | 'slant-bottom'
@@ -60,6 +63,7 @@ Interactive button component with various styling options.
 ```
 
 **Props:**
+
 - `children`: React.ReactNode - Button content
 - `variant?`: 'background0' | 'background1' | 'background2' | 'background3' | 'foreground0' | 'foreground1' | 'foreground2'
 - `box?`: 'square' | 'round' | 'double'
@@ -77,6 +81,7 @@ Text input component.
 ```
 
 **Props:**
+
 - `size?`: 'small' | 'large'
 - `className?`: string
 - Plus all standard input HTML attributes (except `size` which conflicts)
@@ -90,6 +95,7 @@ Multi-line text input component.
 ```
 
 **Props:**
+
 - `size?`: 'small' | 'large'
 - `className?`: string
 - Plus all standard textarea HTML attributes
@@ -105,6 +111,7 @@ Checkbox input wrapped in a label.
 ```
 
 **Props:**
+
 - `children?`: React.ReactNode - Label text
 - `className?`: string
 - Plus all standard input HTML attributes
@@ -114,12 +121,13 @@ Checkbox input wrapped in a label.
 Radio input wrapped in a label.
 
 ```tsx
-<Radio name="choice" value="option1" checked={selected === 'option1'}>
+<Radio name="choice" value="option1" checked={selected === "option1"}>
   Option 1
 </Radio>
 ```
 
 **Props:**
+
 - `children?`: React.ReactNode - Label text
 - `className?`: string
 - Plus all standard input HTML attributes
@@ -135,6 +143,7 @@ Toggle switch component.
 ```
 
 **Props:**
+
 - `children?`: React.ReactNode - Label text
 - `className?`: string
 - Plus all standard input HTML attributes
@@ -145,13 +154,14 @@ Preformatted text component.
 
 ```tsx
 <Pre size="large">
-{`function hello() {
+  {`function hello() {
   console.log("Hello World");
 }`}
 </Pre>
 ```
 
 **Props:**
+
 - `children`: React.ReactNode - Preformatted content
 - `size?`: 'small' | 'large'
 - `className?`: string
@@ -178,6 +188,7 @@ Complete table system with multiple sub-components.
 ```
 
 **Components:**
+
 - `Table` - Main table wrapper
 - `TableHeader` - Table header section
 - `TableBody` - Table body section
@@ -197,6 +208,7 @@ Visual separator/divider component.
 ```
 
 **Props:**
+
 - `direction?`: 'horizontal' | 'vertical' | 'x' | 'y' (default: 'horizontal')
 - `cap?`: 'edge' | 'bisect' | 'default'
 - `className?`: string
@@ -212,6 +224,7 @@ Modal dialog component.
 ```
 
 **Props:**
+
 - `children`: React.ReactNode - Dialog content
 - `size?`: 'full'
 - `container?`: 'fill'
@@ -234,6 +247,7 @@ Expandable content component.
 ```
 
 **Components:**
+
 - `Popover` - Main popover wrapper
   - `position?`: 'bottom right' | 'bottom left' | 'top right' | 'top left'
 - `PopoverTrigger` - Clickable trigger element
@@ -255,6 +269,7 @@ Hover tooltip component.
 ```
 
 **Components:**
+
 - `Tooltip` - Main tooltip wrapper
 - `TooltipTrigger` - Element that triggers the tooltip
 - `TooltipContent` - Tooltip content
@@ -268,6 +283,7 @@ Range input slider.
 ```
 
 **Props:**
+
 - `className?`: string
 - Plus all standard input HTML attributes
 
@@ -280,6 +296,7 @@ Progress bar component.
 ```
 
 **Props:**
+
 - `className?`: string
 - Plus all standard progress HTML attributes
 
@@ -292,6 +309,7 @@ Loading spinner component.
 ```
 
 **Props:**
+
 - `size?`: 'small' | 'large'
 - `className?`: string
 
@@ -306,6 +324,7 @@ General container component with box utilities.
 ```
 
 **Props:**
+
 - `children`: React.ReactNode - Container content
 - `box?`: 'square' | 'round' | 'double'
 - `shear?`: 'top' | 'bottom' | 'both'
@@ -335,7 +354,15 @@ General container component with box utilities.
 ### Complete Form Example
 
 ```tsx
-import { Button, Input, Textarea, Checkbox, Radio, Switch, Badge } from '@/app/_components/ui';
+import {
+  Button,
+  Input,
+  Textarea,
+  Checkbox,
+  Radio,
+  Switch,
+  Badge,
+} from "@/app/_components/ui";
 
 function ContactForm() {
   return (
@@ -343,26 +370,19 @@ function ContactForm() {
       <h2>Contact Form</h2>
 
       <div className="space-y-4">
-        <Input
-          type="text"
-          placeholder="Full Name"
-          size="large"
-        />
+        <Input type="text" placeholder="Full Name" size="large" />
 
-        <Input
-          type="email"
-          placeholder="Email Address"
-        />
+        <Input type="email" placeholder="Email Address" />
 
-        <Textarea
-          placeholder="Message"
-          rows={4}
-          size="large"
-        />
+        <Textarea placeholder="Message" rows={4} size="large" />
 
         <div className="space-y-2">
-          <Radio name="priority" value="low">Low Priority</Radio>
-          <Radio name="priority" value="high">High Priority</Radio>
+          <Radio name="priority" value="low">
+            Low Priority
+          </Radio>
+          <Radio name="priority" value="high">
+            High Priority
+          </Radio>
         </div>
 
         <Switch>Subscribe to newsletter</Switch>
@@ -386,14 +406,27 @@ function ContactForm() {
 ### Dashboard Example
 
 ```tsx
-import { Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Separator, Progress } from '@/app/_components/ui';
+import {
+  Badge,
+  Button,
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+  Separator,
+  Progress,
+} from "@/app/_components/ui";
 
 function Dashboard() {
   return (
     <View box="square" className="p-4">
       <div className="flex items-center justify-between mb-4">
         <h1>Dashboard</h1>
-        <Badge variant="background2" cap="round">Live</Badge>
+        <Badge variant="background2" cap="round">
+          Live
+        </Badge>
       </div>
 
       <Separator />
@@ -421,7 +454,9 @@ function Dashboard() {
         <TableBody>
           <TableRow>
             <TableCell>Project Alpha</TableCell>
-            <TableCell><Badge variant="background2">In Progress</Badge></TableCell>
+            <TableCell>
+              <Badge variant="background2">In Progress</Badge>
+            </TableCell>
             <TableCell>
               <Button size="small">Edit</Button>
             </TableCell>

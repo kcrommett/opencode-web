@@ -1,19 +1,23 @@
-import type { KnipConfig } from 'knip'
+import type { KnipConfig } from "knip";
 
 const config: KnipConfig = {
   entry: [
-    'src/app/index.tsx',
-    'src/app/__root.tsx',
-    'src/router.tsx',
-    'src/app/globals.css',
-    'server.ts',
+    "src/app/index.tsx",
+    "src/app/__root.tsx",
+    "src/router.tsx",
+    "src/app/globals.css",
+    "server.ts",
   ],
-  project: ['src/**/*.{ts,tsx}'],
-  ignore: ['index.ts'],
-  ignoreDependencies: ['tailwindcss', '@webtui/css', '@webtui/theme-catppuccin'],
+  project: ["src/**/*.{ts,tsx}"],
+  ignore: ["index.ts"],
+  ignoreDependencies: [
+    "tailwindcss",
+    "@webtui/css",
+    "@webtui/theme-catppuccin",
+  ],
   vite: {
-    entry: ['vite.config.ts'],
+    entry: ["vite.config.ts"],
   },
-}
+};
 
-export default config
+export default config;

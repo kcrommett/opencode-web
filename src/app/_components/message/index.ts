@@ -1,1 +1,1 @@
-export { MessagePart } from './MessagePart';
+export { MessagePart } from "./MessagePart";

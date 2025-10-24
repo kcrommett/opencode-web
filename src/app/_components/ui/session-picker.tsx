@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { Badge, Separator, Button, Dialog, View } from './index';
+import React, { useEffect } from "react";
+import { Badge, Separator, Button, Dialog, View } from "./index";
 
 interface Session {
   id: string;
@@ -28,14 +28,14 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
 }) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         e.preventDefault();
         onClose();
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
   return (
@@ -44,15 +44,15 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
         box="square"
         className="rounded border overflow-hidden shadow-2xl max-w-md w-full max-h-[80vh] overflow-y-auto scrollbar"
         style={{
-          backgroundColor: 'var(--theme-background)',
-          borderColor: 'var(--theme-primary)',
-          borderWidth: '1px',
+          backgroundColor: "var(--theme-background)",
+          borderColor: "var(--theme-primary)",
+          borderWidth: "1px",
         }}
       >
         <div className="p-4">
           <h2 className="text-lg font-bold mb-2">Sessions</h2>
         </div>
-        
+
         <Separator />
 
         <div className="px-4 py-2 space-y-2 max-h-96 overflow-y-auto scrollbar">
@@ -68,8 +68,12 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
                   key={session.id}
                   className="p-3 rounded cursor-pointer transition-colors"
                   style={{
-                    backgroundColor: isSelected ? 'var(--theme-primary)' : 'var(--theme-backgroundAlt)',
-                    color: isSelected ? 'var(--theme-background)' : 'var(--theme-foreground)',
+                    backgroundColor: isSelected
+                      ? "var(--theme-primary)"
+                      : "var(--theme-backgroundAlt)",
+                    color: isSelected
+                      ? "var(--theme-background)"
+                      : "var(--theme-foreground)",
                   }}
                   onClick={() => {
                     onSelect(session.id);
@@ -82,9 +86,11 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
                         {session.title || session.id.slice(0, 8)}
                       </div>
                       <div className="text-xs opacity-70 mt-1">
-                        {session.createdAt?.toLocaleDateString() || 'Unknown'}
+                        {session.createdAt?.toLocaleDateString() || "Unknown"}
                         {session.messageCount !== undefined && (
-                          <span className="ml-2">• {session.messageCount} messages</span>
+                          <span className="ml-2">
+                            • {session.messageCount} messages
+                          </span>
                         )}
                       </div>
                       {session.directory && (
@@ -95,7 +101,11 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
                     </div>
                     <div className="flex gap-1 flex-shrink-0">
                       {isSelected && (
-                        <Badge variant="background2" cap="round" className="text-xs">
+                        <Badge
+                          variant="background2"
+                          cap="round"
+                          className="text-xs"
+                        >
                           Current
                         </Badge>
                       )}
@@ -105,7 +115,7 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
                         size="small"
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (confirm('Delete this session?')) {
+                          if (confirm("Delete this session?")) {
                             onDelete(session.id);
                           }
                         }}

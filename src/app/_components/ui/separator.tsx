@@ -1,20 +1,20 @@
-import React from 'react';
+import React from "react";
 
 interface SeparatorProps extends React.HTMLAttributes<HTMLDivElement> {
-  direction?: 'horizontal' | 'vertical' | 'x' | 'y';
-  cap?: 'edge' | 'bisect' | 'default';
+  direction?: "horizontal" | "vertical" | "x" | "y";
+  cap?: "edge" | "bisect" | "default";
   className?: string;
 }
 
 export const Separator: React.FC<SeparatorProps> = ({
-  direction = 'horizontal',
+  direction = "horizontal",
   cap,
-  className = '',
+  className = "",
   ...props
 }) => {
   const separatorProps: Record<string, string> = {};
 
-  if (direction && direction !== 'horizontal') {
+  if (direction && direction !== "horizontal") {
     separatorProps[`data-direction`] = direction;
   }
 
@@ -23,11 +23,6 @@ export const Separator: React.FC<SeparatorProps> = ({
   }
 
   return (
-    <div
-      is-="separator"
-      className={className}
-      {...separatorProps}
-      {...props}
-    />
+    <div is-="separator" className={className} {...separatorProps} {...props} />
   );
 };

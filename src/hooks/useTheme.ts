@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
-import { applyTheme, getStoredTheme, themes } from '@/lib/themes';
+import { useState, useEffect } from "react";
+import { applyTheme, getStoredTheme, themes } from "@/lib/themes";
 
 export function useTheme() {
-  const [currentTheme, setCurrentTheme] = useState<string>('catppuccin');
+  const [currentTheme, setCurrentTheme] = useState<string>("catppuccin");
 
   useEffect(() => {
     const storedTheme = getStoredTheme();

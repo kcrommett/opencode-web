@@ -1,9 +1,9 @@
-import React from 'react';
+import React from "react";
 
 interface ViewProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
-  box?: 'square' | 'round' | 'double';
-  shear?: 'top' | 'bottom' | 'both';
+  box?: "square" | "round" | "double";
+  shear?: "top" | "bottom" | "both";
   className?: string;
 }
 
@@ -11,7 +11,7 @@ export const View: React.FC<ViewProps> = ({
   children,
   box,
   shear,
-  className = '',
+  className = "",
   ...props
 }) => {
   const viewProps: Record<string, string> = {};
@@ -25,12 +25,7 @@ export const View: React.FC<ViewProps> = ({
   }
 
   return (
-    <div
-      is-="view"
-      className={className}
-      {...viewProps}
-      {...props}
-    >
+    <div is-="view" className={className} {...viewProps} {...props}>
       {children}
     </div>
   );

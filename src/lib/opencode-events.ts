@@ -1,44 +1,44 @@
-import type { Part } from '@/types/opencode'
+import type { Part } from "@/types/opencode";
 
 /**
  * OpenCode Server-Sent Events types and client
  */
 
-const isDevMode = process.env.NODE_ENV !== 'production'
+const isDevMode = process.env.NODE_ENV !== "production";
 
 const devLog = (...args: unknown[]) => {
-  if (isDevMode) console.log(...args)
-}
+  if (isDevMode) console.log(...args);
+};
 
 const devError = (...args: unknown[]) => {
-  if (isDevMode) console.error(...args)
-}
+  if (isDevMode) console.error(...args);
+};
 
 const devWarn = (...args: unknown[]) => {
-  if (isDevMode) console.warn(...args)
-}
+  if (isDevMode) console.warn(...args);
+};
 
 interface ServerConnectedEvent {
-  type: 'server.connected';
+  type: "server.connected";
   properties: Record<string, unknown>;
 }
 
 interface InstallationUpdatedEvent {
-  type: 'installation.updated';
+  type: "installation.updated";
   properties: {
     version: string;
   };
 }
 
 interface IdeInstalledEvent {
-  type: 'ide.installed';
+  type: "ide.installed";
   properties: {
     ide: string;
   };
 }
 
 interface SessionUpdatedEvent {
-  type: 'session.updated';
+  type: "session.updated";
   properties: {
     info?: {
       id: string;
@@ -49,7 +49,7 @@ interface SessionUpdatedEvent {
 }
 
 interface SessionDeletedEvent {
-  type: 'session.deleted';
+  type: "session.deleted";
   properties: {
     info?: {
       id: string;
@@ -59,21 +59,21 @@ interface SessionDeletedEvent {
 }
 
 interface SessionCompactedEvent {
-  type: 'session.compacted';
+  type: "session.compacted";
   properties: {
     sessionID: string;
   };
 }
 
 interface SessionIdleEvent {
-  type: 'session.idle';
+  type: "session.idle";
   properties: {
     sessionID: string;
   };
 }
 
 interface SessionErrorEvent {
-  type: 'session.error';
+  type: "session.error";
   properties: {
     error?: {
       type: string;
@@ -85,11 +85,11 @@ interface SessionErrorEvent {
 }
 
 interface MessageUpdatedEvent {
-  type: 'message.updated';
+  type: "message.updated";
   properties: {
     info?: {
       id: string;
-      role: 'user' | 'assistant';
+      role: "user" | "assistant";
       time: {
         created: number;
         modified?: number;
@@ -109,7 +109,7 @@ interface MessageUpdatedEvent {
 }
 
 interface MessageRemovedEvent {
-  type: 'message.removed';
+  type: "message.removed";
   properties: {
     messageID: string;
     sessionID: string;
@@ -117,7 +117,7 @@ interface MessageRemovedEvent {
 }
 
 interface MessagePartUpdatedEvent {
-  type: 'message.part.updated';
+  type: "message.part.updated";
   properties: {
     sessionID?: string;
     messageID?: string;
@@ -126,7 +126,7 @@ interface MessagePartUpdatedEvent {
 }
 
 interface MessagePartRemovedEvent {
-  type: 'message.part.removed';
+  type: "message.part.removed";
   properties: {
     messageID: string;
     partID: string;
@@ -135,7 +135,7 @@ interface MessagePartRemovedEvent {
 }
 
 interface PermissionUpdatedEvent {
-  type: 'permission.updated';
+  type: "permission.updated";
   properties: {
     id: string;
     sessionID: string;
@@ -146,7 +146,7 @@ interface PermissionUpdatedEvent {
 }
 
 interface PermissionRepliedEvent {
-  type: 'permission.replied';
+  type: "permission.replied";
   properties: {
     permissionID: string;
     response: string;
@@ -155,35 +155,35 @@ interface PermissionRepliedEvent {
 }
 
 interface FileEditedEvent {
-  type: 'file.edited';
+  type: "file.edited";
   properties: {
     file: string;
   };
 }
 
 interface FileWatcherUpdatedEvent {
-  type: 'file.watcher.updated';
+  type: "file.watcher.updated";
   properties: {
     file: string;
-    event: 'add' | 'change' | 'unlink';
+    event: "add" | "change" | "unlink";
   };
 }
 
 interface TodoUpdatedEvent {
-  type: 'todo.updated';
+  type: "todo.updated";
   properties: {
     sessionID: string;
     todos?: Array<{
       content: string;
-      status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
-      priority: 'high' | 'medium' | 'low';
+      status: "pending" | "in_progress" | "completed" | "cancelled";
+      priority: "high" | "medium" | "low";
       id: string;
     }>;
   };
 }
 
 interface LSPDiagnosticsEvent {
-  type: 'lsp.client.diagnostics';
+  type: "lsp.client.diagnostics";
   properties: {
     path: string;
     serverID: string;
@@ -238,7 +238,7 @@ export class OpencodeSSEClient {
     connected: false,
     reconnecting: false,
     error: null,
-    reconnectAttempts: 0
+    reconnectAttempts: 0,
   };
 
   constructor(options: SSEClientOptions) {
@@ -246,7 +246,7 @@ export class OpencodeSSEClient {
       maxReconnectAttempts: 5,
       reconnectDelay: 1000,
       withCredentials: false,
-      ...options
+      ...options,
     };
   }
 
@@ -261,16 +261,16 @@ export class OpencodeSSEClient {
 
     try {
       this.eventSource = new EventSource(this.options.url, {
-        withCredentials: this.options.withCredentials
+        withCredentials: this.options.withCredentials,
       });
 
       this.eventSource.onopen = () => {
-        devLog('[SSE] Connection opened')
+        devLog("[SSE] Connection opened");
         this.state = {
           connected: true,
           reconnecting: false,
           error: null,
-          reconnectAttempts: 0
+          reconnectAttempts: 0,
         };
         this.reconnectAttempts = 0;
         this.options.onConnect?.();
@@ -278,28 +278,27 @@ export class OpencodeSSEClient {
 
       this.eventSource.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data)
-          devLog('[SSE] Received event:', data.type, data)
-          this.options.onEvent(data)
+          const data = JSON.parse(event.data);
+          devLog("[SSE] Received event:", data.type, data);
+          this.options.onEvent(data);
         } catch (error) {
-          devError('[SSE] Failed to parse event data:', error)
+          devError("[SSE] Failed to parse event data:", error);
         }
       };
 
       this.eventSource.onerror = (error) => {
-        devError('[SSE] Connection error:', error)
+        devError("[SSE] Connection error:", error);
         this.state = {
           ...this.state,
           connected: false,
-          error: 'Connection failed'
+          error: "Connection failed",
         };
-        
-        this.options.onError?.(new Error('SSE connection failed'));
+
+        this.options.onError?.(new Error("SSE connection failed"));
         this.handleReconnection();
       };
-
     } catch (error) {
-      devError('[SSE] Failed to create EventSource:', error)
+      devError("[SSE] Failed to create EventSource:", error);
       this.options.onError?.(error as Error);
       this.handleReconnection();
     }
@@ -311,11 +310,11 @@ export class OpencodeSSEClient {
     }
 
     if (this.reconnectAttempts >= (this.options.maxReconnectAttempts || 5)) {
-      devWarn('[SSE] Max reconnection attempts reached')
+      devWarn("[SSE] Max reconnection attempts reached");
       this.state = {
         ...this.state,
         reconnecting: false,
-        error: 'Max reconnection attempts reached'
+        error: "Max reconnection attempts reached",
       };
       this.options.onDisconnect?.();
       return;
@@ -325,11 +324,15 @@ export class OpencodeSSEClient {
     this.state = {
       ...this.state,
       reconnecting: true,
-      reconnectAttempts: this.reconnectAttempts
+      reconnectAttempts: this.reconnectAttempts,
     };
 
-    const delay = (this.options.reconnectDelay || 1000) * Math.pow(2, this.reconnectAttempts - 1);
-    devLog(`[SSE] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`)
+    const delay =
+      (this.options.reconnectDelay || 1000) *
+      Math.pow(2, this.reconnectAttempts - 1);
+    devLog(
+      `[SSE] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`,
+    );
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
@@ -352,14 +355,14 @@ export class OpencodeSSEClient {
     this.state = {
       ...this.state,
       connected: false,
-      reconnecting: false
+      reconnecting: false,
     };
 
     this.options.onDisconnect?.();
   }
 
   reconnect(): void {
-    devLog('[SSE] Manual reconnect requested')
+    devLog("[SSE] Manual reconnect requested");
     this.disconnect();
     this.reconnectAttempts = 0;
     this.connect();

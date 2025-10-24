@@ -1,17 +1,17 @@
-import { useState } from 'react'
-import { Dialog } from './dialog'
-import { Button } from './button'
+import { useState } from "react";
+import { Dialog } from "./dialog";
+import { Button } from "./button";
 
 interface PermissionRequest {
-  message?: string
-  details?: unknown
+  message?: string;
+  details?: unknown;
 }
 
 interface PermissionModalProps {
-  permission: PermissionRequest | null
-  isOpen: boolean
-  onClose: () => void
-  onRespond: (response: boolean) => Promise<void> | void
+  permission: PermissionRequest | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onRespond: (response: boolean) => Promise<void> | void;
 }
 
 export function PermissionModal({
@@ -20,33 +20,34 @@ export function PermissionModal({
   onClose,
   onRespond,
 }: PermissionModalProps) {
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleResponse = async (response: boolean) => {
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      await onRespond(response)
-      onClose()
+      await onRespond(response);
+      onClose();
     } catch (error) {
-      console.error('Failed to respond to permission:', error)
+      console.error("Failed to respond to permission:", error);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
-  if (!isOpen || !permission) return null
+  if (!isOpen || !permission) return null;
 
   const detailsText =
     permission.details !== undefined
       ? JSON.stringify(permission.details, null, 2)
-      : null
+      : null;
 
   return (
     <Dialog onClose={onClose} className="max-w-md">
       <div className="p-6">
         <h2 className="text-lg font-semibold mb-4">Permission Request</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          {permission.message || 'An action requires your permission to proceed.'}
+          {permission.message ||
+            "An action requires your permission to proceed."}
         </p>
 
         {detailsText && (
@@ -70,10 +71,10 @@ export function PermissionModal({
             onClick={() => handleResponse(true)}
             disabled={isLoading}
           >
-            {isLoading ? 'Processing...' : 'Allow'}
+            {isLoading ? "Processing..." : "Allow"}
           </Button>
         </div>
       </div>
     </Dialog>
-  )
+  );
 }

@@ -1,11 +1,12 @@
-import React from 'react';
+import React from "react";
 
 interface TableProps extends React.TableHTMLAttributes<HTMLTableElement> {
   children: React.ReactNode;
   className?: string;
 }
 
-interface TableHeaderProps extends React.HTMLAttributes<HTMLTableSectionElement> {
+interface TableHeaderProps
+  extends React.HTMLAttributes<HTMLTableSectionElement> {
   children: React.ReactNode;
   className?: string;
 }
@@ -32,7 +33,7 @@ interface TableCellProps extends React.TdHTMLAttributes<HTMLTableCellElement> {
 
 export const Table: React.FC<TableProps> = ({
   children,
-  className = '',
+  className = "",
   ...props
 }) => {
   return (
@@ -44,7 +45,7 @@ export const Table: React.FC<TableProps> = ({
 
 export const TableHeader: React.FC<TableHeaderProps> = ({
   children,
-  className = '',
+  className = "",
   ...props
 }) => {
   return (
@@ -56,7 +57,7 @@ export const TableHeader: React.FC<TableHeaderProps> = ({
 
 export const TableBody: React.FC<TableBodyProps> = ({
   children,
-  className = '',
+  className = "",
   ...props
 }) => {
   return (
@@ -68,7 +69,7 @@ export const TableBody: React.FC<TableBodyProps> = ({
 
 export const TableRow: React.FC<TableRowProps> = ({
   children,
-  className = '',
+  className = "",
   ...props
 }) => {
   return (
@@ -80,7 +81,7 @@ export const TableRow: React.FC<TableRowProps> = ({
 
 export const TableHead: React.FC<TableHeadProps> = ({
   children,
-  className = '',
+  className = "",
   ...props
 }) => {
   return (
@@ -92,7 +93,7 @@ export const TableHead: React.FC<TableHeadProps> = ({
 
 export const TableCell: React.FC<TableCellProps> = ({
   children,
-  className = '',
+  className = "",
   ...props
 }) => {
   return (

@@ -1,8 +1,8 @@
-import React from 'react';
+import React from "react";
 
 interface PopoverProps extends React.HTMLAttributes<HTMLDetailsElement> {
   children: React.ReactNode;
-  position?: 'bottom right' | 'bottom left' | 'top right' | 'top left';
+  position?: "bottom right" | "bottom left" | "top right" | "top left";
   className?: string;
 }
 
@@ -19,7 +19,7 @@ interface PopoverContentProps extends React.HTMLAttributes<HTMLDivElement> {
 export const Popover: React.FC<PopoverProps> = ({
   children,
   position,
-  className = '',
+  className = "",
   ...props
 }) => {
   const popoverProps: Record<string, string> = {};
@@ -29,12 +29,7 @@ export const Popover: React.FC<PopoverProps> = ({
   }
 
   return (
-    <details
-      is-="popover"
-      className={className}
-      {...popoverProps}
-      {...props}
-    >
+    <details is-="popover" className={className} {...popoverProps} {...props}>
       {children}
     </details>
   );
@@ -42,15 +37,11 @@ export const Popover: React.FC<PopoverProps> = ({
 
 export const PopoverTrigger: React.FC<PopoverTriggerProps> = ({
   children,
-  className = '',
+  className = "",
   ...props
 }) => {
   return (
-    <summary
-      is-="popover-trigger"
-      className={className}
-      {...props}
-    >
+    <summary is-="popover-trigger" className={className} {...props}>
       {children}
     </summary>
   );
@@ -58,15 +49,11 @@ export const PopoverTrigger: React.FC<PopoverTriggerProps> = ({
 
 export const PopoverContent: React.FC<PopoverContentProps> = ({
   children,
-  className = '',
+  className = "",
   ...props
 }) => {
   return (
-    <div
-      is-="popover-content"
-      className={className}
-      {...props}
-    >
+    <div is-="popover-content" className={className} {...props}>
       {children}
     </div>
   );

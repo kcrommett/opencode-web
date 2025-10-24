@@ -1,21 +1,21 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 interface DialogProps extends React.DialogHTMLAttributes<HTMLDialogElement> {
   children: React.ReactNode;
-  size?: 'full';
-  container?: 'fill';
+  size?: "full";
+  container?: "fill";
   className?: string;
   onClose?: () => void;
 }
 
 const useIsomorphicLayoutEffect =
-  typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 export const Dialog: React.FC<DialogProps> = ({
   children,
   size,
   container,
-  className = '',
+  className = "",
   onClose,
   ...props
 }) => {
@@ -33,18 +33,18 @@ export const Dialog: React.FC<DialogProps> = ({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && onClose) {
+      if (e.key === "Escape" && onClose) {
         e.preventDefault();
         onClose();
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
   useIsomorphicLayoutEffect(() => {
-    if (typeof window === 'undefined') {
+    if (typeof window === "undefined") {
       return;
     }
 
@@ -62,8 +62,10 @@ export const Dialog: React.FC<DialogProps> = ({
         return;
       }
 
-      const anchor = (parent.querySelector('[data-dialog-anchor]') as HTMLElement | null) ?? parent;
-      if (typeof ResizeObserver !== 'undefined') {
+      const anchor =
+        (parent.querySelector("[data-dialog-anchor]") as HTMLElement | null) ??
+        parent;
+      if (typeof ResizeObserver !== "undefined") {
         if (!resizeObserver) {
           resizeObserver = new ResizeObserver(() => updateOffset());
         }
@@ -83,7 +85,10 @@ export const Dialog: React.FC<DialogProps> = ({
       const nextOffset = chatCenter - viewportCenter;
 
       setHorizontalOffset((current) => {
-        if (Number.isFinite(nextOffset) && Math.abs(current - nextOffset) > 0.5) {
+        if (
+          Number.isFinite(nextOffset) &&
+          Math.abs(current - nextOffset) > 0.5
+        ) {
           return nextOffset;
         }
         if (!Number.isFinite(nextOffset)) {
@@ -95,12 +100,12 @@ export const Dialog: React.FC<DialogProps> = ({
 
     updateOffset();
 
-    window.addEventListener('resize', updateOffset);
-    window.addEventListener('scroll', updateOffset, true);
+    window.addEventListener("resize", updateOffset);
+    window.addEventListener("scroll", updateOffset, true);
 
     return () => {
-      window.removeEventListener('resize', updateOffset);
-      window.removeEventListener('scroll', updateOffset, true);
+      window.removeEventListener("resize", updateOffset);
+      window.removeEventListener("scroll", updateOffset, true);
       if (resizeObserver && observedElement) {
         resizeObserver.unobserve(observedElement);
       }
@@ -111,7 +116,7 @@ export const Dialog: React.FC<DialogProps> = ({
   const { style, ...restProps } = props;
   const offsetPx = Number.isFinite(horizontalOffset)
     ? `${horizontalOffset.toFixed(2)}px`
-    : '0px';
+    : "0px";
   const dialogStyle = {
     ...style,
     translate: style?.translate ?? `calc(-50% + ${offsetPx})`,

@@ -1,16 +1,13 @@
 /**
  * TanStack Start Production Server with Bun
  */
-
 import path from "node:path";
 import { getOpencodeServerUrl } from "../../src/lib/opencode-config.js";
-
 const NODE_ENV = process.env.NODE_ENV ?? "production";
 if (!process.env.NODE_ENV) {
   process.env.NODE_ENV = NODE_ENV;
 }
 const IS_PRODUCTION = NODE_ENV === "production";
-
 const SERVER_PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_DIRECTORY = path.resolve(process.cwd(), "dist/client");
 const SERVER_ASSETS_DIRECTORY = path.resolve(
@@ -18,39 +15,31 @@ const SERVER_ASSETS_DIRECTORY = path.resolve(
   "dist/server/assets",
 );
 const SERVER_ENTRY_POINT = new URL("./dist/server/server.js", import.meta.url);
-
 const BASE_PATH = process.env.VITE_BASE_PATH || "";
-
 async function initializeServer() {
   if (!IS_PRODUCTION) console.log("Starting TanStack Start server...");
-
-  let handler: { fetch: (request: Request) => Response | Promise<Response> };
+  let handler;
   try {
-    const serverModule = (await import(SERVER_ENTRY_POINT.href)) as {
-      default: { fetch: (request: Request) => Response | Promise<Response> };
-    };
+    const serverModule = await import(SERVER_ENTRY_POINT.href);
     handler = serverModule.default;
     if (!IS_PRODUCTION) console.log("Server handler initialized");
   } catch (error) {
     console.error(`[ERROR] Failed to load server handler: ${String(error)}`);
     process.exit(1);
   }
-
   const serverHost = process.env.HOST || "localhost";
   const server = Bun.serve({
     port: SERVER_PORT,
     hostname: serverHost,
     idleTimeout: 0, // Disable idle timeout for SSE connections
-    fetch: async (req: Request) => {
+    fetch: async (req) => {
       try {
         const url = new URL(req.url);
         let pathname = url.pathname;
-
         // Remove base path if configured
         if (BASE_PATH && pathname.startsWith(BASE_PATH)) {
           pathname = pathname.slice(BASE_PATH.length);
         }
-
         // Handle CORS preflight requests
         if (req.method === "OPTIONS") {
           const origin = req.headers.get("origin");
@@ -68,7 +57,6 @@ async function initializeServer() {
             });
           }
         }
-
         if (pathname === "/api/events") {
           const directory = url.searchParams.get("directory");
           const serverUrl = getOpencodeServerUrl();
@@ -91,7 +79,6 @@ async function initializeServer() {
           if (directory) {
             eventUrl.searchParams.set("directory", directory);
           }
-
           try {
             const response = await fetch(eventUrl.toString(), {
               headers: {
@@ -100,7 +87,6 @@ async function initializeServer() {
                 Connection: "keep-alive",
               },
             });
-
             if (!response.ok) {
               return new Response(
                 JSON.stringify({ error: "Failed to connect to event stream" }),
@@ -110,7 +96,6 @@ async function initializeServer() {
                 },
               );
             }
-
             return new Response(response.body, {
               headers: {
                 "Content-Type": "text/event-stream",
@@ -133,10 +118,8 @@ async function initializeServer() {
             );
           }
         }
-
         const staticResponse = await serveStatic(pathname);
         if (staticResponse) return staticResponse;
-
         // Handle virtual Vite endpoints for reverse proxy compatibility
         // These are development endpoints that shouldn't be requested in production
         if (pathname === "/@vite-plugin-pwa/pwa-entry-point-loaded") {
@@ -156,7 +139,6 @@ async function initializeServer() {
             },
           });
         }
-
         if (pathname === "/@react-refresh") {
           console.warn(
             `[WARN] Development endpoint ${pathname} requested in production`,
@@ -178,10 +160,8 @@ async function initializeServer() {
             },
           );
         }
-
         const response = await handler.fetch(req);
         const webResponse = await toWebResponse(response);
-
         // Add CORS headers for reverse proxy compatibility
         const origin = req.headers.get("origin");
         if (origin) {
@@ -196,7 +176,6 @@ async function initializeServer() {
           );
           webResponse.headers.set("Access-Control-Allow-Credentials", "true");
         }
-
         return webResponse;
       } catch (error) {
         console.error(`[ERROR] Request error: ${String(error)}`);
@@ -204,7 +183,6 @@ async function initializeServer() {
       }
     },
   });
-
   const displayHost = serverHost === "0.0.0.0" ? "0.0.0.0" : serverHost;
   console.log(
     `Server listening on http://${displayHost}:${String(server.port)}`,
@@ -213,8 +191,7 @@ async function initializeServer() {
     console.log("Listening on all network interfaces");
   }
 }
-
-function isImmutableAsset(relativePath: string) {
+function isImmutableAsset(relativePath) {
   return (
     relativePath.startsWith("assets/") ||
     relativePath.startsWith("_tanstack-start") ||
@@ -228,20 +205,16 @@ function isImmutableAsset(relativePath: string) {
     relativePath.endsWith(".ico")
   );
 }
-
-function shouldBypassCache(relativePath: string) {
+function shouldBypassCache(relativePath) {
   if (relativePath === "sw.js" || relativePath === "registerSW.js") {
     return true;
   }
-
   if (relativePath.endsWith(".webmanifest")) {
     return true;
   }
-
   return false;
 }
-
-async function serveStatic(pathname: string): Promise<Response | null> {
+async function serveStatic(pathname) {
   if (!pathname || pathname === "/") return null;
   const relativePath = pathname.startsWith("/") ? pathname.slice(1) : pathname;
   if (
@@ -250,12 +223,10 @@ async function serveStatic(pathname: string): Promise<Response | null> {
     relativePath.includes("\0")
   )
     return null;
-
   const candidates = [
     { root: CLIENT_DIRECTORY, path: relativePath },
     { root: SERVER_ASSETS_DIRECTORY, path: relativePath },
   ];
-
   for (const candidate of candidates) {
     const absolutePath = path.resolve(candidate.root, candidate.path);
     if (!absolutePath.startsWith(candidate.root)) continue;
@@ -273,18 +244,15 @@ async function serveStatic(pathname: string): Promise<Response | null> {
       return new Response(file.stream(), { headers });
     }
   }
-
   return null;
 }
-
-async function toWebResponse(maybeResponse: unknown): Promise<Response> {
+async function toWebResponse(maybeResponse) {
   if (
     maybeResponse instanceof Response &&
     maybeResponse.constructor?.name === "Response"
   ) {
     return maybeResponse;
   }
-
   if (!maybeResponse || typeof maybeResponse !== "object") {
     console.error(
       "[ERROR] Handler returned invalid response value:",
@@ -292,61 +260,33 @@ async function toWebResponse(maybeResponse: unknown): Promise<Response> {
     );
     return new Response("Internal Server Error", { status: 500 });
   }
-
-  type CandidateHeaders =
-    | Headers
-    | Map<string, unknown>
-    | Iterable<[string, unknown]>
-    | Record<string, unknown>;
-
-  type CandidateResponse = {
-    body?: unknown;
-    headers?: CandidateHeaders;
-    status?: number;
-    statusText?: string;
-    arrayBuffer?: () => Promise<ArrayBuffer>;
-    bytes?: () => Promise<ArrayBuffer | ArrayBufferView>;
-    text?: () => Promise<string>;
-  };
-
-  type SharedArrayBufferLike = ArrayBufferLike & {
-    readonly byteLength: number;
-  };
-
-  const appendHeaders = (target: Headers, source?: CandidateHeaders) => {
+  const appendHeaders = (target, source) => {
     if (!source) return;
-
     if (source instanceof Headers) {
       source.forEach((value, key) => target.set(key, value));
       return;
     }
-
     if (source instanceof Map) {
       source.forEach((value, key) => target.set(key, String(value)));
       return;
     }
-
     if (
-      typeof (source as Iterable<unknown>)[Symbol.iterator] === "function" &&
+      typeof source[Symbol.iterator] === "function" &&
       !(source instanceof Map)
     ) {
-      for (const entry of source as Iterable<[string, unknown]>) {
+      for (const entry of source) {
         const [key, value] = entry;
         target.set(key, String(value));
       }
       return;
     }
-
     for (const [key, value] of Object.entries(source)) {
       target.set(key, String(value));
     }
   };
-
-  const isBodyInit = (value: unknown): value is BodyInit => {
+  const isBodyInit = (value) => {
     if (value == null) return false;
-
     if (typeof value === "string") return true;
-
     if (
       value instanceof Blob ||
       value instanceof FormData ||
@@ -354,107 +294,86 @@ async function toWebResponse(maybeResponse: unknown): Promise<Response> {
     ) {
       return true;
     }
-
     if (value instanceof ReadableStream) {
       return true;
     }
-
     if (isSharedArrayBuffer(value)) {
       return false;
     }
-
     if (value instanceof ArrayBuffer) {
       return true;
     }
-
     if (ArrayBuffer.isView(value)) {
-      const view = value as ArrayBufferView;
+      const view = value;
       if (isSharedArrayBuffer(view.buffer)) {
         return false;
       }
       return true;
     }
-
     return false;
   };
-
-  const isSharedArrayBuffer = (
-    value: unknown,
-  ): value is SharedArrayBufferLike => {
+  const isSharedArrayBuffer = (value) => {
     return (
       Object.prototype.toString.call(value) === "[object SharedArrayBuffer]"
     );
   };
-
-  const cloneBufferView = (view: ArrayBufferView): ArrayBuffer => {
+  const cloneBufferView = (view) => {
     const copy = new Uint8Array(view.byteLength);
     copy.set(new Uint8Array(view.buffer, view.byteOffset, view.byteLength));
     return copy.buffer;
   };
-
-  const cloneSharedBuffer = (buffer: SharedArrayBufferLike): ArrayBuffer => {
+  const cloneSharedBuffer = (buffer) => {
     const view = new Uint8Array(buffer);
     const copy = new Uint8Array(view.length);
     copy.set(view);
     return copy.buffer;
   };
-
-  const candidate = maybeResponse as CandidateResponse;
-
+  const candidate = maybeResponse;
   const headers = new Headers();
   appendHeaders(headers, candidate.headers);
-
-  const init: ResponseInit = {
+  const init = {
     status: typeof candidate.status === "number" ? candidate.status : 200,
     statusText:
       typeof candidate.statusText === "string" ? candidate.statusText : "OK",
     headers,
   };
-
   if (isBodyInit(candidate.body)) {
     return new Response(candidate.body, init);
   }
-
   if (isSharedArrayBuffer(candidate.body)) {
     return new Response(cloneSharedBuffer(candidate.body), init);
   }
-
   if (candidate.body && ArrayBuffer.isView(candidate.body)) {
-    const view = candidate.body as ArrayBufferView;
+    const view = candidate.body;
     return new Response(cloneBufferView(view), init);
   }
-
   if (typeof candidate.arrayBuffer === "function") {
     const buffer = await candidate.arrayBuffer();
     return new Response(buffer, init);
   }
-
   if (typeof candidate.bytes === "function") {
     const buffer = await candidate.bytes();
     if (isBodyInit(buffer)) {
       return new Response(buffer, init);
     }
     if (ArrayBuffer.isView(buffer)) {
-      const view = buffer as ArrayBufferView;
+      const view = buffer;
       return new Response(cloneBufferView(view), init);
     }
     if (isSharedArrayBuffer(buffer)) {
       return new Response(cloneSharedBuffer(buffer), init);
     }
   }
-
   if (typeof candidate.text === "function") {
     const text = await candidate.text();
     return new Response(text, init);
   }
-
   console.error(
     "[ERROR] Unable to normalize handler response, returning empty payload.",
   );
   return new Response(null, init);
 }
-
-initializeServer().catch((error: unknown) => {
+initializeServer().catch((error) => {
   console.error(`[ERROR] Failed to start server: ${String(error)}`);
   process.exit(1);
 });

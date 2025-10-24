@@ -61,14 +61,14 @@ jobs:
             exit 1
           fi
           echo "Publishing version: $VERSION"
-          
+
           # Publish to NPM
           bun ./script/publish-npm.ts
-          
+
           # Create and push git tag
           git config --global user.email "bot@opencode.ai"
           git config --global user.name "opencode-web-bot"
           git tag -a "v$VERSION" -m "Release v$VERSION"
           git push origin "v$VERSION"
-          
+
           echo "Release v$VERSION complete"

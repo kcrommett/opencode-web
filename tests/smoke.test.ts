@@ -5,6 +5,7 @@ import {
   isImageFile,
   addLineNumbers,
 } from "@/lib/highlight";
+import { getOpencodeServerUrl } from "@/lib/opencode-config";
 
 describe("highlight utilities", () => {
   describe("detectLanguage", () => {
@@ -49,6 +50,36 @@ describe("highlight utilities", () => {
       expect(lines).toHaveLength(3);
       expect(lines[0]).toContain('<span class="line-number">1</span>first');
       expect(lines[2]).toContain('<span class="line-number">3</span>third');
+    });
+  });
+});
+
+describe("opencode-config", () => {
+  describe("getOpencodeServerUrl", () => {
+    it("defaults to http://localhost:4096 when no env vars are set", () => {
+      // Clear any existing env vars
+      delete process.env.OPENCODE_SERVER_URL;
+      delete process.env.VITE_OPENCODE_SERVER_URL;
+      delete (globalThis as any).__OPENCODE_SERVER_URL__;
+      expect(getOpencodeServerUrl()).toBe("http://localhost:4096");
+    });
+
+    it("respects VITE_OPENCODE_SERVER_URL", () => {
+      process.env.VITE_OPENCODE_SERVER_URL = "https://example.com";
+      expect(getOpencodeServerUrl()).toBe("https://example.com");
+    });
+
+    it("respects OPENCODE_SERVER_URL over VITE_OPENCODE_SERVER_URL", () => {
+      process.env.OPENCODE_SERVER_URL = "https://override.com";
+      process.env.VITE_OPENCODE_SERVER_URL = "https://example.com";
+      expect(getOpencodeServerUrl()).toBe("https://override.com");
+    });
+
+    it("respects globalThis.__OPENCODE_SERVER_URL__", () => {
+      delete process.env.OPENCODE_SERVER_URL;
+      delete process.env.VITE_OPENCODE_SERVER_URL;
+      (globalThis as any).__OPENCODE_SERVER_URL__ = "https://global.com";
+      expect(getOpencodeServerUrl()).toBe("https://global.com");
     });
   });
 });

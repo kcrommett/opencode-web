@@ -1090,6 +1090,6 @@ export const iconNames = [
   "Abc",
   "Abap",
   "3d",
-] as const
+] as const;
 
-export type IconName = (typeof iconNames)[number]
+export type IconName = (typeof iconNames)[number];

@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from 'react';
-import { Badge, Separator } from './index';
-import type { Command } from '@/lib/commands';
+import React, { useEffect, useRef } from "react";
+import { Badge, Separator } from "./index";
+import type { Command } from "@/lib/commands";
 
 interface CommandPickerProps {
   commands: Command[];
@@ -19,34 +19,39 @@ export const CommandPicker: React.FC<CommandPickerProps> = ({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+      if (
+        pickerRef.current &&
+        !pickerRef.current.contains(event.target as Node)
+      ) {
         onClose?.();
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [onClose]);
 
   if (commands.length === 0) return null;
 
-  const categories = Array.from(new Set(commands.map(c => c.category)));
+  const categories = Array.from(new Set(commands.map((c) => c.category)));
 
   return (
-    <div 
+    <div
       ref={pickerRef}
       className="absolute bottom-full left-0 right-0 mb-2 rounded border overflow-hidden shadow-lg max-h-64 overflow-y-auto scrollbar"
-      style={{ 
-        backgroundColor: 'var(--theme-backgroundAlt)',
-        borderColor: 'var(--theme-primary)',
-        borderWidth: '1px',
-        zIndex: 100
+      style={{
+        backgroundColor: "var(--theme-backgroundAlt)",
+        borderColor: "var(--theme-primary)",
+        borderWidth: "1px",
+        zIndex: 100,
       }}
     >
       {categories.map((category, catIndex) => {
-        const categoryCommands = commands.filter(c => c.category === category);
+        const categoryCommands = commands.filter(
+          (c) => c.category === category,
+        );
         return (
           <div key={category}>
             {catIndex > 0 && <Separator />}
@@ -61,32 +66,46 @@ export const CommandPicker: React.FC<CommandPickerProps> = ({
                   key={cmd.name}
                   className="px-3 py-2 cursor-pointer transition-colors"
                   style={{
-                    backgroundColor: isSelected ? 'var(--theme-primary)' : 'transparent',
-                    color: isSelected ? 'var(--theme-background)' : 'var(--theme-foreground)',
+                    backgroundColor: isSelected
+                      ? "var(--theme-primary)"
+                      : "transparent",
+                    color: isSelected
+                      ? "var(--theme-background)"
+                      : "var(--theme-foreground)",
                   }}
                   onClick={() => onSelect(cmd)}
                   onMouseEnter={(e) => {
                     if (!isSelected) {
-                      e.currentTarget.style.backgroundColor = 'var(--theme-backgroundAlt)';
-                      e.currentTarget.style.opacity = '0.8';
+                      e.currentTarget.style.backgroundColor =
+                        "var(--theme-backgroundAlt)";
+                      e.currentTarget.style.opacity = "0.8";
                     }
                   }}
                   onMouseLeave={(e) => {
                     if (!isSelected) {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.opacity = '1';
+                      e.currentTarget.style.backgroundColor = "transparent";
+                      e.currentTarget.style.opacity = "1";
                     }
                   }}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex-1">
                       <div className="font-medium">
-                        /{cmd.name} {cmd.args && <span className="opacity-70 text-sm">{cmd.args}</span>}
+                        /{cmd.name}{" "}
+                        {cmd.args && (
+                          <span className="opacity-70 text-sm">{cmd.args}</span>
+                        )}
                       </div>
-                      <div className="text-xs opacity-70 mt-0.5">{cmd.description}</div>
+                      <div className="text-xs opacity-70 mt-0.5">
+                        {cmd.description}
+                      </div>
                     </div>
                     {isSelected && (
-                      <Badge variant="background2" cap="round" className="text-xs">
+                      <Badge
+                        variant="background2"
+                        cap="round"
+                        className="text-xs"
+                      >
                         ↵
                       </Badge>
                     )}

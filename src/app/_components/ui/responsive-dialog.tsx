@@ -1,7 +1,7 @@
-import React from 'react';
-import { useIsMobile } from '@/lib/breakpoints';
-import { Dialog } from './dialog';
-import { BottomSheet } from './bottom-sheet';
+import React from "react";
+import { useIsMobile } from "@/lib/breakpoints";
+import { Dialog } from "./dialog";
+import { BottomSheet } from "./bottom-sheet";
 
 interface ResponsiveDialogProps {
   isOpen: boolean;
@@ -19,7 +19,7 @@ export const ResponsiveDialog: React.FC<ResponsiveDialogProps> = ({
   fullScreenOnMobile = false,
 }) => {
   const isMobile = useIsMobile();
-  
+
   if (isMobile) {
     return (
       <BottomSheet
@@ -32,24 +32,24 @@ export const ResponsiveDialog: React.FC<ResponsiveDialogProps> = ({
       </BottomSheet>
     );
   }
-  
+
   return isOpen ? (
     <Dialog open={isOpen}>
       <div className="p-4">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-bold">{title}</h2>
-           <button
-             onClick={onClose}
-             className="text-2xl leading-none hover:opacity-70 rounded"
-             style={{
-               backgroundColor: 'transparent',
-               border: 'none',
-               color: 'var(--theme-foreground)'
-             }}
-             aria-label="Close"
-           >
-             X
-           </button>
+          <button
+            onClick={onClose}
+            className="text-2xl leading-none hover:opacity-70 rounded"
+            style={{
+              backgroundColor: "transparent",
+              border: "none",
+              color: "var(--theme-foreground)",
+            }}
+            aria-label="Close"
+          >
+            X
+          </button>
         </div>
         {children}
       </div>

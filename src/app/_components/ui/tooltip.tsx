@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 interface TooltipProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
@@ -17,15 +17,11 @@ interface TooltipContentProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export const Tooltip: React.FC<TooltipProps> = ({
   children,
-  className = '',
+  className = "",
   ...props
 }) => {
   return (
-    <div
-      is-="tooltip"
-      className={className}
-      {...props}
-    >
+    <div is-="tooltip" className={className} {...props}>
       {children}
     </div>
   );
@@ -33,15 +29,11 @@ export const Tooltip: React.FC<TooltipProps> = ({
 
 export const TooltipTrigger: React.FC<TooltipTriggerProps> = ({
   children,
-  className = '',
+  className = "",
   ...props
 }) => {
   return (
-    <div
-      is-="tooltip-trigger"
-      className={className}
-      {...props}
-    >
+    <div is-="tooltip-trigger" className={className} {...props}>
       {children}
     </div>
   );
@@ -49,15 +41,11 @@ export const TooltipTrigger: React.FC<TooltipTriggerProps> = ({
 
 export const TooltipContent: React.FC<TooltipContentProps> = ({
   children,
-  className = '',
+  className = "",
   ...props
 }) => {
   return (
-    <div
-      is-="tooltip-content"
-      className={className}
-      {...props}
-    >
+    <div is-="tooltip-content" className={className} {...props}>
       {children}
     </div>
   );

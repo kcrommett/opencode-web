@@ -19,7 +19,11 @@ const bumpVersion = (current: string, bump: "major" | "minor" | "patch") => {
 
 export const Script = {
   get version() {
-    const bump = process.env.OPENCODE_BUMP as "major" | "minor" | "patch" | undefined;
+    const bump = process.env.OPENCODE_BUMP as
+      | "major"
+      | "minor"
+      | "patch"
+      | undefined;
     if (!bump) throw new Error("OPENCODE_BUMP not set");
     const pkg = readRootPackage();
     return bumpVersion(pkg.version, bump);
