@@ -76,7 +76,7 @@ jobs:
       - name: Commit release
         run: |
           git add -A
-          git commit -m "chore: release v${{ steps.version.outputs.version }}"
+          git diff --quiet && git diff --staged --quiet || git commit -m "chore: release v${{ steps.version.outputs.version }}"
 
       - name: Create and push tag
         run: |
