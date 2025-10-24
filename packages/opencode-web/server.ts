@@ -11,9 +11,9 @@ if (!process.env.NODE_ENV) {
 const IS_PRODUCTION = NODE_ENV === 'production'
 
 const SERVER_PORT = Number(process.env.PORT ?? 3000)
-const CLIENT_DIRECTORY = path.resolve(process.cwd(), 'dist/client')
-const SERVER_ASSETS_DIRECTORY = path.resolve(process.cwd(), 'dist/server/assets')
-const SERVER_ENTRY_POINT = new URL('./dist/server/server.js', import.meta.url)
+const CLIENT_DIRECTORY = path.resolve(process.cwd(), '../../dist/client')
+const SERVER_ASSETS_DIRECTORY = path.resolve(process.cwd(), '../../dist/server/assets')
+const SERVER_ENTRY_POINT = new URL('../../dist/server/server.js', import.meta.url)
 const OPENCODE_SERVER_URL =
   process.env.OPENCODE_SERVER_URL ??
   process.env.VITE_OPENCODE_SERVER_URL ??
