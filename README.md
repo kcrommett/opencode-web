@@ -29,16 +29,7 @@ bunx opencode-web@latest
 
 ### Option 2: Install Globally
 ```bash
-# Using Bun
 bun add -g opencode-web
-opencode-web
-
-# Using npm
-npm install -g opencode-web
-opencode-web
-
-# Using yarn
-yarn global add opencode-web
 opencode-web
 ```
 
