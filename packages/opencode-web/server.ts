@@ -153,11 +153,18 @@ async function initializeServer() {
         if (webResponse.headers.get('content-type')?.includes('text/html')) {
           const text = await webResponse.text()
           const serializedUrl = JSON.stringify(OPENCODE_SERVER_URL)
-          const injectedHtml = text.replace(
-            '<head>',
-            `<head>
-            <script>window.__OPENCODE_SERVER_URL__ = ${serializedUrl};</script>`
-          )
+          let injectedHtml: string
+          // Try to inject after <head> (case-insensitive)
+          const headTagMatch = text.match(/<head[^>]*>/i)
+          if (headTagMatch) {
+            injectedHtml = text.replace(
+              /<head([^>]*)>/i,
+              `<head$1>\n<script>window.__OPENCODE_SERVER_URL__ = ${serializedUrl};</script>`
+            )
+          } else {
+            // Fallback: inject at the top of the document
+            injectedHtml = `<script>window.__OPENCODE_SERVER_URL__ = ${serializedUrl};</script>\n` + text
+          }
           // Clone headers and remove content-length, since body has changed
           const newHeaders = new Headers(webResponse.headers)
           newHeaders.delete('content-length')
