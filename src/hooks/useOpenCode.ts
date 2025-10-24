@@ -189,6 +189,7 @@ interface Agent {
   name: string;
   description?: string;
   id?: string;
+  mode?: "primary" | "subagent" | "all";
 }
 
 interface ProjectResponse {
@@ -2080,9 +2081,12 @@ export function useOpenCode() {
     if (loadedAgentsRef.current) return;
     try {
       const response = await openCodeService.getAgents();
-      const agentsArray: Agent[] = Array.isArray(response.data)
+      const allAgents: Agent[] = Array.isArray(response.data)
         ? response.data
         : [];
+      const agentsArray = allAgents.filter(
+        (agent) => agent.mode === "primary" || agent.mode === "all" || !agent.mode
+      );
       setAgents(agentsArray);
       loadedAgentsRef.current = true;
 
