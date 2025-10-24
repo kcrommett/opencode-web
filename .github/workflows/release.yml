@@ -99,4 +99,4 @@ jobs:
           echo "Successfully published opencode-web@${{ steps.version.outputs.version }}"
 
       - name: Push commit
-        run: git push origin HEAD:master
+        run: git push origin HEAD
