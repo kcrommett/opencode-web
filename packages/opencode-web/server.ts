@@ -12,6 +12,29 @@ function normalizeBaseUrl(url: string): string {
   return normalized;
 }
 
+function resolveServerUrlFromEnv(): string {
+  const processEnv =
+    typeof process !== "undefined" ? process.env : undefined;
+  const importMetaEnv =
+    typeof import.meta !== "undefined"
+      ? ((import.meta as ImportMeta & {
+          env?: Record<string, string | undefined>;
+        }).env ?? undefined)
+      : undefined;
+  const globalRuntimeUrl = (
+    globalThis as typeof globalThis & { __OPENCODE_SERVER_URL__?: string }
+  ).__OPENCODE_SERVER_URL__;
+
+  const url =
+    processEnv?.OPENCODE_SERVER_URL ||
+    processEnv?.VITE_OPENCODE_SERVER_URL ||
+    importMetaEnv?.VITE_OPENCODE_SERVER_URL ||
+    globalRuntimeUrl ||
+    "http://localhost:4096";
+
+  return normalizeBaseUrl(url);
+}
+
 function getOpencodeServerUrl(): string {
   const isBrowser = typeof window !== "undefined";
 
