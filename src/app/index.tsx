@@ -1,5 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo, useEffect, useRef } from "react";
+
+// Utility for generating stable IDs to avoid hydration mismatches
+let idCounter = 0;
+const generateStableId = (prefix: string) => {
+  return `${prefix}-${++idCounter}`;
+};
+
+// Utility for creating timestamps safely (avoids hydration mismatch)
+const createTimestamp = () => {
+  if (typeof window === 'undefined') {
+    return new Date(0); // Placeholder for server-side
+  }
+  return new Date();
+};
 import {
   Button,
   Input,
@@ -14,6 +28,7 @@ import {
   InstallPrompt,
   PWAReloadPrompt,
 } from "@/app/_components/ui";
+import { getOpenCodeServerUrl } from "@/lib/opencode-http-api";
 import { CommandPicker } from "@/app/_components/ui/command-picker";
 import { AgentPicker } from "@/app/_components/ui/agent-picker";
 import { SessionPicker } from "@/app/_components/ui/session-picker";
@@ -200,6 +215,12 @@ function coerceToDate(value?: Date | string | number | null) {
   return null;
 }
 
+const MAIN_TABS = ["workspace", "files"] as const;
+type MainTab = (typeof MAIN_TABS)[number];
+
+const isMainTab = (value: string): value is MainTab =>
+  MAIN_TABS.includes(value as MainTab);
+
 export const Route = createFileRoute("/")({
   component: OpenCodeChatTUI,
 });
@@ -218,21 +239,11 @@ function OpenCodeChatTUI() {
     setShowNewSessionForm(false);
     setNewSessionTitle("");
   };
-  const [activeTab, setActiveTab] = useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("opencode-active-tab") || "workspace";
-    }
-    return "workspace";
-  });
+  const [activeTab, setActiveTab] = useState<MainTab>("workspace");
   const [fileSearchQuery, setFileSearchQuery] = useState("");
   const [modelSearchQuery, setModelSearchQuery] = useState("");
 
-  const [selectedFile, setSelectedFile] = useState<string | null>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("opencode-selected-file");
-    }
-    return null;
-  });
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<FileContentData | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [fileSuggestions, setFileSuggestions] = useState<string[]>([]);
@@ -361,14 +372,14 @@ function OpenCodeChatTUI() {
       } else if (parsed.type === "shell") {
         await handleShellCommand(parsed.command || "");
       } else {
-        const pendingId = `user-${Date.now()}`;
+        const pendingId = generateStableId("user");
         setMessages((prev) => [
           ...prev,
           {
             id: pendingId,
             type: "user" as const,
             content: messageText,
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
             optimistic: true,
           },
         ]);
@@ -398,10 +409,10 @@ function OpenCodeChatTUI() {
   const handleShellCommand = async (command: string) => {
     if (!currentSession) {
       const errorMsg = {
-        id: `assistant-${Date.now()}`,
+        id: generateStableId("assistant"),
         type: "assistant" as const,
         content: "No active session. Create a session first.",
-        timestamp: new Date(),
+        timestamp: createTimestamp(),
       };
       setMessages((prev) => [...prev, errorMsg]);
       return;
@@ -409,10 +420,10 @@ function OpenCodeChatTUI() {
 
     try {
       const userMessage = {
-        id: `user-${Date.now()}`,
+        id: generateStableId("user"),
         type: "user" as const,
         content: `$ ${command}`,
-        timestamp: new Date(),
+        timestamp: createTimestamp(),
       };
       setMessages((prev) => [...prev, userMessage]);
 
@@ -424,17 +435,17 @@ function OpenCodeChatTUI() {
           type: "assistant" as const,
           content: extractTextFromParts(response.data.parts),
           parts: response.data.parts,
-          timestamp: new Date(),
+          timestamp: createTimestamp(),
         };
         setMessages((prev) => [...prev, assistantMessage]);
       }
     } catch (error) {
       console.error("Failed to execute shell command:", error);
       const errorMsg = {
-        id: `assistant-${Date.now()}`,
+        id: generateStableId("assistant"),
         type: "assistant" as const,
         content: `Command failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-        timestamp: new Date(),
+        timestamp: createTimestamp(),
       };
       setMessages((prev) => [...prev, errorMsg]);
     }
@@ -450,10 +461,10 @@ function OpenCodeChatTUI() {
       case "clear":
         await createSession({ title: "New Session" });
         const newMessage = {
-          id: `assistant-${Date.now()}`,
+          id: generateStableId("assistant"),
           type: "assistant" as const,
           content: "Started new session.",
-          timestamp: new Date(),
+          timestamp: createTimestamp(),
         };
         setMessages((prev) => [...prev, newMessage]);
         break;
@@ -464,10 +475,10 @@ function OpenCodeChatTUI() {
       case "model":
         if (!args || args.length < 1) {
           const errorMessage = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: "Usage: /model <provider>/<model>",
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, errorMessage]);
           break;
@@ -479,18 +490,18 @@ function OpenCodeChatTUI() {
         if (model) {
           selectModel(model);
           const successMessage = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: `Selected model: ${model.name}`,
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, successMessage]);
         } else {
           const errorMessage = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: `Model not found: ${args[0]}`,
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, errorMessage]);
         }
@@ -510,10 +521,10 @@ function OpenCodeChatTUI() {
       case "undo":
         if (!currentSession || messages.length === 0) {
           const errorMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: "No messages to undo.",
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, errorMsg]);
           break;
@@ -532,10 +543,10 @@ function OpenCodeChatTUI() {
           await loadSessions();
 
           const successMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: "Undid last message and reverted file changes.",
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, successMsg]);
 
@@ -544,10 +555,10 @@ function OpenCodeChatTUI() {
           }
         } catch (error) {
           const errorMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: `Undo failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, errorMsg]);
         }
@@ -555,10 +566,10 @@ function OpenCodeChatTUI() {
       case "redo":
         if (!currentSession) {
           const errorMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: "No active session.",
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, errorMsg]);
           break;
@@ -569,10 +580,10 @@ function OpenCodeChatTUI() {
           await loadSessions();
 
           const successMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: "Restored reverted changes.",
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, successMsg]);
 
@@ -581,10 +592,10 @@ function OpenCodeChatTUI() {
           }
         } catch (error) {
           const errorMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: `Redo failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, errorMsg]);
         }
@@ -592,10 +603,10 @@ function OpenCodeChatTUI() {
       case "share":
         if (!currentSession) {
           const errorMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: "No active session to share.",
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, errorMsg]);
           break;
@@ -609,20 +620,20 @@ function OpenCodeChatTUI() {
           await navigator.clipboard.writeText(shareUrl);
 
           const successMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: `Session shared.\n\nURL: ${shareUrl}\n\n(Copied to clipboard)`,
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, successMsg]);
 
           await loadSessions();
         } catch (error) {
           const errorMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: `Share failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, errorMsg]);
         }
@@ -630,10 +641,10 @@ function OpenCodeChatTUI() {
       case "unshare":
         if (!currentSession) {
           const errorMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: "No active session.",
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, errorMsg]);
           break;
@@ -643,20 +654,20 @@ function OpenCodeChatTUI() {
           await unshareSession(currentSession.id);
 
           const successMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: "Session is no longer shared.",
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, successMsg]);
 
           await loadSessions();
         } catch (error) {
           const errorMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: `Unshare failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, errorMsg]);
         }
@@ -664,10 +675,10 @@ function OpenCodeChatTUI() {
       case "init":
         if (!currentSession || !selectedModel) {
           const errorMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: "Need an active session and selected model.",
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, errorMsg]);
           break;
@@ -685,11 +696,11 @@ function OpenCodeChatTUI() {
           );
 
           const successMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content:
               "Project initialized. AGENTS.md has been created or updated.",
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, successMsg]);
 
@@ -698,10 +709,10 @@ function OpenCodeChatTUI() {
           }
         } catch (error) {
           const errorMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: `Init failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, errorMsg]);
         }
@@ -709,10 +720,10 @@ function OpenCodeChatTUI() {
       case "compact":
         if (!currentSession) {
           const errorMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: "No active session to compact.",
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, errorMsg]);
           break;
@@ -720,10 +731,10 @@ function OpenCodeChatTUI() {
 
         if (!selectedModel) {
           const errorMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: "No model selected. Please select a model first.",
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, errorMsg]);
           break;
@@ -731,10 +742,10 @@ function OpenCodeChatTUI() {
 
         try {
           const infoMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: "Compacting session... This may take a moment.",
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, infoMsg]);
 
@@ -841,18 +852,18 @@ function OpenCodeChatTUI() {
 
           // Add success message using the reloaded messages array
           const successMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: `Session compacted successfully. Current tokens: ${totalTokens.toLocaleString()}`,
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages([...reloadedMessages, successMsg]);
         } catch (error) {
           const errorMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: `Compact failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, errorMsg]);
         }
@@ -860,20 +871,20 @@ function OpenCodeChatTUI() {
       case "details":
         setShowDetails((prev) => !prev);
         const detailsMsg = {
-          id: `assistant-${Date.now()}`,
+          id: generateStableId("assistant"),
           type: "assistant" as const,
           content: `Details ${!showDetails ? "shown" : "hidden"}.`,
-          timestamp: new Date(),
+          timestamp: createTimestamp(),
         };
         setMessages((prev) => [...prev, detailsMsg]);
         break;
       case "export":
         if (!currentSession || messages.length === 0) {
           const errorMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: "No session to export.",
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, errorMsg]);
           break;
@@ -925,18 +936,18 @@ function OpenCodeChatTUI() {
           URL.revokeObjectURL(url);
 
           const successMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: "Session exported as markdown.",
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, successMsg]);
         } catch (error) {
           const errorMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: `Export failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, errorMsg]);
         }
@@ -945,10 +956,10 @@ function OpenCodeChatTUI() {
         try {
           if (!currentSession) {
             const noSessionMsg = {
-              id: `assistant-${Date.now()}`,
+              id: generateStableId("assistant"),
               type: "assistant" as const,
               content: "No active session to debug.",
-              timestamp: new Date(),
+              timestamp: createTimestamp(),
             };
             setMessages((prev) => [...prev, noSessionMsg]);
             break;
@@ -956,13 +967,13 @@ function OpenCodeChatTUI() {
 
           // Fetch full session data
           const sessionResponse = await fetch(
-            `http://localhost:4096/session/${currentSession.id}`,
+            `${getOpenCodeServerUrl()}/session/${currentSession.id}`,
           );
           const sessionData = await sessionResponse.json();
 
           // Fetch all messages with full parts
           const messagesResponse = await fetch(
-            `http://localhost:4096/session/${currentSession.id}/message`,
+            `${getOpenCodeServerUrl()}/session/${currentSession.id}/message`,
           );
           const messagesData = await messagesResponse.json();
 
@@ -986,18 +997,18 @@ function OpenCodeChatTUI() {
           URL.revokeObjectURL(url);
 
           const debugMessage = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: `Session data exported to SESSION-${currentSession.id}.json\n\nIncludes:\n- Session metadata\n- ${messagesData.length} messages with full parts\n- All tool executions and state`,
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, debugMessage]);
         } catch (error) {
           const errorMessage = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: `Debug export failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, errorMessage]);
         }
@@ -1008,18 +1019,18 @@ function OpenCodeChatTUI() {
           await handleFileSelect(filePath);
           setActiveTab("files");
           const successMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: `Opened ${filePath} in file viewer.`,
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, successMsg]);
         } else {
           const errorMsg = {
-            id: `assistant-${Date.now()}`,
+            id: generateStableId("assistant"),
             type: "assistant" as const,
             content: "Usage: /editor <file-path>",
-            timestamp: new Date(),
+            timestamp: createTimestamp(),
           };
           setMessages((prev) => [...prev, errorMsg]);
         }
@@ -1029,19 +1040,19 @@ function OpenCodeChatTUI() {
         setInput("");
         setActiveTab("workspace");
         const exitMsg = {
-          id: `assistant-${Date.now()}`,
+          id: generateStableId("assistant"),
           type: "assistant" as const,
           content: "Messages cleared. Use /new to start a new session.",
-          timestamp: new Date(),
+          timestamp: createTimestamp(),
         };
         setMessages((prev) => [...prev, exitMsg]);
         break;
       default:
         const unknownMessage = {
-          id: `assistant-${Date.now()}`,
+          id: generateStableId("assistant"),
           type: "assistant" as const,
           content: `Unknown command: ${cmd}. Type /help for available commands.`,
-          timestamp: new Date(),
+          timestamp: createTimestamp(),
         };
         setMessages((prev) => [...prev, unknownMessage]);
     }
@@ -1374,7 +1385,7 @@ function OpenCodeChatTUI() {
     };
   }, [messages]);
 
-  const handleTabChange = (tab: string) => {
+  const handleTabChange = (tab: MainTab) => {
     setActiveTab(tab);
     if (tab === "files") {
       if (files.length === 0) {
@@ -1418,6 +1429,20 @@ function OpenCodeChatTUI() {
   useEffect(() => {
     setSelectedModelIndex(0);
   }, [modelSearchQuery]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const storedTab = localStorage.getItem("opencode-active-tab");
+    if (storedTab && isMainTab(storedTab)) {
+      setActiveTab(storedTab);
+    }
+
+    const storedFile = localStorage.getItem("opencode-selected-file");
+    if (storedFile) {
+      setSelectedFile(storedFile);
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -1552,7 +1577,7 @@ function OpenCodeChatTUI() {
             )}
           </div>
           <div className="flex gap-2">
-            {["workspace", "files"].map((tab) => (
+            {MAIN_TABS.map((tab) => (
               <Button
                 key={tab}
                 onClick={() => handleTabChange(tab)}

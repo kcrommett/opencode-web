@@ -14,8 +14,14 @@ const SERVER_PORT = Number(process.env.PORT ?? 3000)
 const CLIENT_DIRECTORY = path.resolve(process.cwd(), 'dist/client')
 const SERVER_ASSETS_DIRECTORY = path.resolve(process.cwd(), 'dist/server/assets')
 const SERVER_ENTRY_POINT = new URL('./dist/server/server.js', import.meta.url)
-const OPENCODE_SERVER_URL = process.env.VITE_OPENCODE_SERVER_URL || 'http://localhost:4096'
+const OPENCODE_SERVER_URL =
+  process.env.OPENCODE_SERVER_URL ??
+  process.env.VITE_OPENCODE_SERVER_URL ??
+  'http://localhost:4096'
 const BASE_PATH = process.env.VITE_BASE_PATH || ''
+
+;(globalThis as typeof globalThis & { __OPENCODE_SERVER_URL__?: string }).__OPENCODE_SERVER_URL__ =
+  OPENCODE_SERVER_URL
 
 async function initializeServer() {
   if (!IS_PRODUCTION) console.log('Starting TanStack Start server...')

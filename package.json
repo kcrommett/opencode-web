@@ -12,7 +12,7 @@
     "build": "vite build",
     "build:release": "bun ./script/build.ts",
     "build:npm": "bun ./script/build-npm.ts",
-    "start": "bun server.ts",
+    "start": "bun packages/opencode-web/bin/opencode-web.js",
     "lint": "eslint",
     "typecheck": "bun x tsc --noEmit",
     "knip": "knip",

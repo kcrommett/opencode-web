@@ -2,7 +2,7 @@
  * TanStack Start Production Server with Bun
  */
 
-import path from 'node:path'
+import path, { dirname } from 'node:path'
 
 const NODE_ENV = process.env.NODE_ENV ?? 'production'
 if (!process.env.NODE_ENV) {
@@ -11,11 +11,18 @@ if (!process.env.NODE_ENV) {
 const IS_PRODUCTION = NODE_ENV === 'production'
 
 const SERVER_PORT = Number(process.env.PORT ?? 3000)
-const CLIENT_DIRECTORY = path.resolve(process.cwd(), 'dist/client')
-const SERVER_ASSETS_DIRECTORY = path.resolve(process.cwd(), 'dist/server/assets')
-const SERVER_ENTRY_POINT = new URL('./dist/server/server.js', import.meta.url)
-const OPENCODE_SERVER_URL = process.env.VITE_OPENCODE_SERVER_URL || 'http://localhost:4096'
+const PROJECT_ROOT = process.cwd()
+const CLIENT_DIRECTORY = path.resolve(PROJECT_ROOT, 'dist/client')
+const SERVER_ASSETS_DIRECTORY = path.resolve(PROJECT_ROOT, 'dist/server/assets')
+const SERVER_ENTRY_POINT = new URL('../../dist/server/server.js', import.meta.url)
+const OPENCODE_SERVER_URL =
+  process.env.OPENCODE_SERVER_URL ??
+  process.env.VITE_OPENCODE_SERVER_URL ??
+  'http://localhost:4096'
 const BASE_PATH = process.env.VITE_BASE_PATH || ''
+
+;(globalThis as typeof globalThis & { __OPENCODE_SERVER_URL__?: string }).__OPENCODE_SERVER_URL__ =
+  OPENCODE_SERVER_URL
 
 async function initializeServer() {
   if (!IS_PRODUCTION) console.log('Starting TanStack Start server...')
@@ -141,7 +148,33 @@ async function initializeServer() {
         }
         
         const response = await handler.fetch(req)
-        const webResponse = await toWebResponse(response)
+        let webResponse = await toWebResponse(response)
+        
+        // Inject OpenCode server URL into HTML responses
+        if (webResponse.headers.get('content-type')?.includes('text/html')) {
+          const text = await webResponse.text()
+          const serializedUrl = JSON.stringify(OPENCODE_SERVER_URL)
+          let injectedHtml: string
+          // Try to inject after <head> (case-insensitive)
+          const headTagMatch = text.match(/<head[^>]*>/i)
+          if (headTagMatch) {
+            injectedHtml = text.replace(
+              /<head([^>]*)>/i,
+              `<head$1>\n<script>window.__OPENCODE_SERVER_URL__ = ${serializedUrl};</script>`
+            )
+          } else {
+            // Fallback: inject at the top of the document
+            injectedHtml = `<script>window.__OPENCODE_SERVER_URL__ = ${serializedUrl};</script>\n` + text
+          }
+          // Clone headers and remove content-length, since body has changed
+          const newHeaders = new Headers(webResponse.headers)
+          newHeaders.delete('content-length')
+          webResponse = new Response(injectedHtml, {
+            status: webResponse.status,
+            statusText: webResponse.statusText,
+            headers: newHeaders,
+          })
+        }
         
         // Add CORS headers for reverse proxy compatibility
         const origin = req.headers.get('origin')

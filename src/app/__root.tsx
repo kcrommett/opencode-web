@@ -8,7 +8,15 @@ import "./globals.css";
 import { OpenCodeProvider } from "@/contexts/OpenCodeContext";
 import { themes } from "@/lib/themes";
 
-const pwaAssetsUrl = import.meta.env.VITE_PWA_ASSETS_URL || '';
+const rawPwaAssetsUrl = import.meta.env.VITE_PWA_ASSETS_URL || "";
+const pwaAssetsUrl = rawPwaAssetsUrl.replace(/\/+$/, "");
+
+const getAssetHref = (asset: string, sameOriginOnly = false) => {
+  if (sameOriginOnly || !pwaAssetsUrl) {
+    return `/${asset}`.replace(/\/{2,}/g, "/");
+  }
+  return `${pwaAssetsUrl}/${asset}`;
+};
 
 export const Route = createRootRoute({
   head: () => ({
@@ -24,10 +32,10 @@ export const Route = createRootRoute({
       { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
     ],
     links: [
-      { rel: "icon", type: "image/svg+xml", href: `${pwaAssetsUrl}/favicon.svg` },
-      { rel: "icon", type: "image/x-icon", href: `${pwaAssetsUrl}/favicon.ico`, sizes: "any" },
-      { rel: "apple-touch-icon", href: `${pwaAssetsUrl}/apple-touch-icon-180x180.png` },
-      { rel: "manifest", href: `${pwaAssetsUrl}/manifest.webmanifest` },
+      { rel: "icon", type: "image/svg+xml", href: getAssetHref("favicon.svg") },
+      { rel: "icon", type: "image/x-icon", href: getAssetHref("favicon.ico"), sizes: "any" },
+      { rel: "apple-touch-icon", href: getAssetHref("apple-touch-icon-180x180.png") },
+      { rel: "manifest", href: getAssetHref("manifest.webmanifest", true) },
     ],
     title: "opencode web",
   }),
@@ -58,10 +66,10 @@ function RootLayout() {
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <title>opencode web</title>
-        <link rel="icon" type="image/svg+xml" href={`${pwaAssetsUrl}/favicon.svg`} />
-        <link rel="icon" type="image/x-icon" href={`${pwaAssetsUrl}/favicon.ico`} sizes="any" />
-        <link rel="apple-touch-icon" href={`${pwaAssetsUrl}/apple-touch-icon-180x180.png`} />
-        <link rel="manifest" href={`${pwaAssetsUrl}/manifest.webmanifest`} />
+        <link rel="icon" type="image/svg+xml" href={getAssetHref("favicon.svg")} />
+        <link rel="icon" type="image/x-icon" href={getAssetHref("favicon.ico")} sizes="any" />
+        <link rel="apple-touch-icon" href={getAssetHref("apple-touch-icon-180x180.png")} />
+        <link rel="manifest" href={getAssetHref("manifest.webmanifest", true)} />
         <script
           dangerouslySetInnerHTML={{
             __html: `
