@@ -383,6 +383,7 @@ function OpenCodeChatTUI() {
             selectedModel?.providerID,
             selectedModel?.modelID,
             session, // Pass the session we just created or the existing one
+            currentAgent ?? undefined,
           );
         } catch (error) {
           setMessages((prev) =>

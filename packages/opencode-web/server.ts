@@ -12,6 +12,29 @@ function normalizeBaseUrl(url: string): string {
   return normalized;
 }
 
+function resolveServerUrlFromEnv(): string {
+  const processEnv =
+    typeof process !== "undefined" ? process.env : undefined;
+  const importMetaEnv =
+    typeof import.meta !== "undefined"
+      ? ((import.meta as ImportMeta & {
+          env?: Record<string, string | undefined>;
+        }).env ?? undefined)
+      : undefined;
+  const globalRuntimeUrl = (
+    globalThis as typeof globalThis & { __OPENCODE_SERVER_URL__?: string }
+  ).__OPENCODE_SERVER_URL__;
+
+  const url =
+    processEnv?.OPENCODE_SERVER_URL ||
+    processEnv?.VITE_OPENCODE_SERVER_URL ||
+    importMetaEnv?.VITE_OPENCODE_SERVER_URL ||
+    globalRuntimeUrl ||
+    "http://localhost:4096";
+
+  return normalizeBaseUrl(url);
+}
+
 function getOpencodeServerUrl(): string {
   const isBrowser = typeof window !== "undefined";
 
@@ -24,15 +47,11 @@ function getOpencodeServerUrl(): string {
     }
   }
 
-  const url =
-    process.env.OPENCODE_SERVER_URL ||
-    process.env.VITE_OPENCODE_SERVER_URL ||
-    (globalThis as typeof globalThis & { __OPENCODE_SERVER_URL__?: string })
-      .__OPENCODE_SERVER_URL__ ||
-    "http://localhost:4096";
-
   if (process.env.NODE_ENV !== "production") {
-    console.log("[opencode-config] getOpencodeServerUrl() resolved:", url);
+    console.log(
+      "[opencode-config] getOpencodeServerUrl() resolved:",
+      resolveServerUrlFromEnv(),
+    );
     console.log("[opencode-config] Environment variables:", {
       OPENCODE_SERVER_URL: process.env.OPENCODE_SERVER_URL,
       VITE_OPENCODE_SERVER_URL: process.env.VITE_OPENCODE_SERVER_URL,
@@ -40,7 +59,7 @@ function getOpencodeServerUrl(): string {
     });
   }
 
-  return normalizeBaseUrl(url);
+  return resolveServerUrlFromEnv();
 }
 
 const argv = process.argv.slice(2);
