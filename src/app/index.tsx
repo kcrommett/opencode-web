@@ -247,6 +247,8 @@ function OpenCodeChatTUI() {
   const [selectedModelIndex, setSelectedModelIndex] = useState(0);
   const [showDetails, setShowDetails] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [showConfig, setShowConfig] = useState(false);
+  const [configData, setConfigData] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const modelSearchInputRef = useRef<HTMLInputElement>(null);
   const fileSearchInputRef = useRef<HTMLInputElement>(null);
@@ -1591,6 +1593,23 @@ function OpenCodeChatTUI() {
             className="border-none"
           >
             Themes
+          </Button>
+          <Button
+            variant="foreground0"
+            box="round"
+            onClick={async () => {
+              try {
+                const config = await openCodeService.getConfig();
+                setConfigData(JSON.stringify(config, null, 2));
+                setShowConfig(true);
+              } catch (error) {
+                console.error("Failed to fetch config:", error);
+              }
+            }}
+            size="small"
+            className="border-none"
+          >
+            Config
           </Button>
         </div>
       </div>
@@ -3007,6 +3026,35 @@ function OpenCodeChatTUI() {
                 variant="foreground0"
                 box="round"
                 onClick={() => setShowThemes(false)}
+                size="small"
+              >
+                Close
+              </Button>
+            </div>
+          </View>
+        </Dialog>
+      )}
+
+      {/* Config Dialog */}
+      {showConfig && (
+        <Dialog open={showConfig} onClose={() => setShowConfig(false)}>
+          <View
+            box="square"
+            className="p-6 max-w-4xl w-full max-h-[80vh] overflow-hidden bg-theme-background text-theme-foreground"
+          >
+            <h2 className="text-lg font-bold mb-4">OpenCode Configuration</h2>
+            <Separator className="mb-4" />
+            <div className="max-h-96 overflow-y-auto scrollbar mb-4">
+              <Pre className="text-xs bg-theme-background-alt p-4 rounded">
+                {configData || "Loading..."}
+              </Pre>
+            </div>
+            <Separator className="mb-4" />
+            <div className="flex justify-end">
+              <Button
+                variant="foreground0"
+                box="round"
+                onClick={() => setShowConfig(false)}
                 size="small"
               >
                 Close
