@@ -186,8 +186,6 @@ interface ProvidersData {
   default?: { [key: string]: string };
 }
 
-
-
 interface ProjectResponse {
   id: string;
   worktree: string;
@@ -2079,9 +2077,12 @@ export function useOpenCode() {
     if (loadedAgentsRef.current) return;
     try {
       const response = await openCodeService.getAgents();
-      const agentsArray: Agent[] = Array.isArray(response.data)
+      const allAgents: Agent[] = Array.isArray(response.data)
         ? response.data
         : [];
+      const agentsArray = allAgents.filter(
+        (agent) => agent.mode === "primary" || agent.mode === "all" || !agent.mode
+      );
       setAgents(agentsArray);
       loadedAgentsRef.current = true;
 
