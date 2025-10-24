@@ -2,7 +2,7 @@
  * TanStack Start Production Server with Bun
  */
 
-import path from 'node:path'
+import path, { dirname } from 'node:path'
 
 const NODE_ENV = process.env.NODE_ENV ?? 'production'
 if (!process.env.NODE_ENV) {
@@ -11,8 +11,9 @@ if (!process.env.NODE_ENV) {
 const IS_PRODUCTION = NODE_ENV === 'production'
 
 const SERVER_PORT = Number(process.env.PORT ?? 3000)
-const CLIENT_DIRECTORY = path.resolve(process.cwd(), '../../dist/client')
-const SERVER_ASSETS_DIRECTORY = path.resolve(process.cwd(), '../../dist/server/assets')
+const PROJECT_ROOT = process.cwd()
+const CLIENT_DIRECTORY = path.resolve(PROJECT_ROOT, 'dist/client')
+const SERVER_ASSETS_DIRECTORY = path.resolve(PROJECT_ROOT, 'dist/server/assets')
 const SERVER_ENTRY_POINT = new URL('../../dist/server/server.js', import.meta.url)
 const OPENCODE_SERVER_URL =
   process.env.OPENCODE_SERVER_URL ??

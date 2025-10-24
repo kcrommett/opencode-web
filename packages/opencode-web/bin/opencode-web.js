@@ -123,7 +123,6 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
 const packageDir = dirname(__dirname)
-process.chdir(packageDir)
 
 const localBinDir = join(packageDir, 'node_modules', '.bin')
 if (existsSync(localBinDir)) {
