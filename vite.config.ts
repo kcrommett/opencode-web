@@ -8,6 +8,14 @@ import { getOpencodeServerUrl } from "./src/lib/opencode-config";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
+  // Ensure helpers that read from process.env (like getOpencodeServerUrl)
+  // see the same values we loaded via loadEnv when running the bare Vite dev server.
+  if (!process.env.VITE_OPENCODE_SERVER_URL && env.VITE_OPENCODE_SERVER_URL) {
+    process.env.VITE_OPENCODE_SERVER_URL = env.VITE_OPENCODE_SERVER_URL;
+  }
+  if (!process.env.OPENCODE_SERVER_URL && env.OPENCODE_SERVER_URL) {
+    process.env.OPENCODE_SERVER_URL = env.OPENCODE_SERVER_URL;
+  }
   const isDev = mode === "development";
   // Use relative URLs for PWA assets to work with reverse proxies
   const pwaAssetsUrl = env.VITE_PWA_ASSETS_URL || "";

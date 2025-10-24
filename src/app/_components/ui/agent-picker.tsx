@@ -1,11 +1,6 @@
 import React, { useEffect } from "react";
 import { Badge, Separator, Button } from "./index";
-
-interface Agent {
-  name: string;
-  description?: string;
-  id?: string;
-}
+import type { Agent } from "@/types/opencode";
 
 interface AgentPickerProps {
   agents: Agent[];

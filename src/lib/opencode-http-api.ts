@@ -1,4 +1,5 @@
 import { getOpencodeServerUrl } from "./opencode-config";
+import { Agent } from "../types/opencode";
 
 function buildUrl(
   path: string,
@@ -140,6 +141,7 @@ export async function sendMessage(
   providerID?: string,
   modelID?: string,
   directory?: string,
+  agent?: Agent,
 ) {
   const body: Record<string, unknown> = {
     parts: [
@@ -151,6 +153,9 @@ export async function sendMessage(
   };
   if (providerID && modelID) {
     body.model = { providerID, modelID };
+  }
+  if (agent) {
+    body.agent = agent.id || agent.name;
   }
 
   const url = buildUrl(

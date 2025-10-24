@@ -38,3 +38,10 @@ export interface FileContentData {
   text: string | null;
   dataUrl: string | null;
 }
+
+export interface Agent {
+  id: string;
+  name: string;
+  mode: string;
+  description?: string;
+}

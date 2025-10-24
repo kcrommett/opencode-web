@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { openCodeService, handleOpencodeError } from "@/lib/opencode-client";
 import { OpencodeEvent, SSEConnectionState } from "@/lib/opencode-events";
 import type {
+  Agent,
   FileContentData,
   Part,
   PermissionState,
@@ -183,12 +184,6 @@ interface ProvidersData {
       | Record<string, { name?: string; [key: string]: unknown }>;
   }[];
   default?: { [key: string]: string };
-}
-
-interface Agent {
-  name: string;
-  description?: string;
-  id?: string;
 }
 
 interface ProjectResponse {
@@ -1336,6 +1331,7 @@ export function useOpenCode() {
       providerID?: string,
       modelID?: string,
       sessionOverride?: Session,
+      agent?: Agent,
     ) => {
       const targetSession = sessionOverride || currentSession;
       if (!targetSession) {
@@ -1369,6 +1365,7 @@ export function useOpenCode() {
           providerID,
           modelID,
           currentProject?.worktree,
+          agent,
         );
 
         if (response.error) {
@@ -2080,9 +2077,12 @@ export function useOpenCode() {
     if (loadedAgentsRef.current) return;
     try {
       const response = await openCodeService.getAgents();
-      const agentsArray: Agent[] = Array.isArray(response.data)
+      const allAgents: Agent[] = Array.isArray(response.data)
         ? response.data
         : [];
+      const agentsArray = allAgents.filter(
+        (agent) => agent.mode === "primary" || agent.mode === "all" || !agent.mode
+      );
       setAgents(agentsArray);
       loadedAgentsRef.current = true;
 
