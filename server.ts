@@ -5,6 +5,20 @@
 import path from "node:path";
 import { getOpencodeServerUrl } from "./src/lib/opencode-config.js";
 
+const argv = process.argv.slice(2);
+for (let i = 0; i < argv.length; i++) {
+  const arg = argv[i];
+  if (
+    (arg === "--external-server" || arg === "-s") &&
+    i + 1 < argv.length &&
+    !process.env.OPENCODE_SERVER_URL
+  ) {
+    process.env.OPENCODE_SERVER_URL = argv[i + 1];
+    process.env.VITE_OPENCODE_SERVER_URL = argv[i + 1];
+    i++;
+  }
+}
+
 const NODE_ENV = process.env.NODE_ENV ?? "production";
 if (!process.env.NODE_ENV) {
   process.env.NODE_ENV = NODE_ENV;
