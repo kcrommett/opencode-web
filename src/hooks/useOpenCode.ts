@@ -1567,10 +1567,10 @@ export function useOpenCode() {
         directory: session.directory,
         projectID: session.projectID || currentProject?.id,
         createdAt: session.time?.created
-          ? new Date(session.time.created * 1000)
+          ? new Date(session.time.created)
           : undefined,
         updatedAt: session.time?.updated
-          ? new Date(session.time.updated * 1000)
+          ? new Date(session.time.updated)
           : undefined,
         messageCount: undefined,
       }));
@@ -1694,10 +1694,10 @@ export function useOpenCode() {
         directory: session.directory,
         projectID: session.projectID || project.id, // Ensure projectID is set
         createdAt: session.time?.created
-          ? new Date(session.time.created * 1000)
+          ? new Date(session.time.created)
           : undefined,
         updatedAt: session.time?.updated
-          ? new Date(session.time.updated * 1000)
+          ? new Date(session.time.updated)
           : undefined,
         messageCount: undefined,
       }));
