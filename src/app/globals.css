@@ -811,3 +811,10 @@ textarea::placeholder {
     text-shadow: 0 0 1px rgba(0, 0, 0, 0.1);
   }
 }
+
+/* Message Spacing Optimizations */
+pre.whitespace-pre-wrap {
+  padding: 0.5rem 0.5rem !important;
+  background-color: transparent !important;
+  background-image: none !important;
+}

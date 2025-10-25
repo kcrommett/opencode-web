@@ -24,8 +24,19 @@ export function getAgentModel(
 
   const agentConfig =
     config.agent?.[agent.name] || config.agent?.[agent.id];
+  
   if (agentConfig?.model) {
-    return agentConfig.model;
+    if (typeof agentConfig.model === 'string') {
+      const parts = agentConfig.model.split('/');
+      if (parts.length === 2) {
+        return {
+          providerID: parts[0],
+          modelID: parts[1],
+        };
+      }
+    } else {
+      return agentConfig.model;
+    }
   }
 
   if (agent.model) {

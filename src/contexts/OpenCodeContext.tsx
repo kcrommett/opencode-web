@@ -38,9 +38,10 @@ interface OpenCodeContextType {
   loadCommands: ReturnType<typeof useOpenCode>["loadCommands"];
   currentPath: ReturnType<typeof useOpenCode>["currentPath"];
   loadCurrentPath: ReturnType<typeof useOpenCode>["loadCurrentPath"];
-  providersData: ReturnType<typeof useOpenCode>["providersData"];
+providersData: ReturnType<typeof useOpenCode>["providersData"];
   isConnected: ReturnType<typeof useOpenCode>["isConnected"];
   sseConnectionState: ReturnType<typeof useOpenCode>["sseConnectionState"];
+  isStreaming: ReturnType<typeof useOpenCode>["isStreaming"];
   isHydrated: ReturnType<typeof useOpenCode>["isHydrated"];
   openHelp: ReturnType<typeof useOpenCode>["openHelp"];
   openSessions: ReturnType<typeof useOpenCode>["openSessions"];

@@ -33,5 +33,6 @@ These guidelines ensure consistency across the OpenCode Web project. Follow web 
 
 ## Local Dev Ergonomics
 
-- Run preview servers inside their own tmux session (for example `tmux new -s codex_dev 'bun run dev'`) so you can monitor logs without interfering with the user’s panes. Only kill the tmux sessions you create.
-- Use DevTools MCP to hit the running URL (e.g. `http://localhost:3000`) from the browser, inspect network activity, and keep the browser console open for client-side logs when debugging SSR or hydration issues.
+- **Check for existing servers first**: Before starting any dev server or preview server, verify whether one is already running. Generally, an active server will be present. Do not start extra servers on different ports.
+- Run preview servers inside their own tmux session (for example `tmux new -s codex_dev 'bun run dev'`) so you can monitor logs without interfering with the user's panes. Only kill the tmux sessions you create.
+- **DevTools MCP**: When using DevTools MCP, always check what tabs are currently open before opening new ones. Reuse existing tabs when possible.

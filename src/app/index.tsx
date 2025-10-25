@@ -294,6 +294,7 @@ function OpenCodeChatTUI() {
     setMessages,
     sessions,
     loading,
+    isStreaming,
     createSession,
     sendMessage,
     loadSessions,
@@ -364,7 +365,7 @@ function OpenCodeChatTUI() {
         await loadSessions();
       }
 
-      const parsed = parseCommand(messageText);
+      const parsed = parseCommand(messageText, commands);
       if (parsed.type === "slash") {
         await handleCommand(messageText);
       } else if (parsed.type === "shell") {
@@ -451,7 +452,7 @@ function OpenCodeChatTUI() {
   };
 
   const handleCommand = async (command: string) => {
-    const parsed = parseCommand(command);
+    const parsed = parseCommand(command, commands);
     const cmd = parsed.command;
     const args = parsed.args;
     const directory = currentProject?.worktree || "";
@@ -2273,8 +2274,9 @@ function OpenCodeChatTUI() {
               data-dialog-anchor="chat"
             >
               {/* Chat Messages */}
-              <div className="flex-1 overflow-y-auto scrollbar p-4 space-y-4 min-h-0">
-                {messages.length === 0 && !loading && (
+              <div className="flex-1 overflow-y-auto scrollbar p-2 space-y-2 min-h-0">
+                <div className="max-w-none lg:mx-auto lg:max-w-6xl xl:max-w-7xl space-y-2">
+                  {messages.length === 0 && !loading && (
                   <div className="flex items-center justify-center h-full">
                     <View
                       box="round"
@@ -2333,7 +2335,7 @@ function OpenCodeChatTUI() {
                   >
                     <View
                       box="round"
-                      className={`max-w-full sm:max-w-2xl p-3 ${
+                      className={`max-w-full sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl p-2 ${
                         message.type === "user"
                           ? message.error
                             ? "bg-theme-error/10 border-theme-error text-theme-error"
@@ -2352,7 +2354,7 @@ function OpenCodeChatTUI() {
                             />
                           ))}
                           {message.metadata && (
-                            <div className="text-xs opacity-60 mt-2 flex gap-4 flex-wrap">
+                            <div className="text-xs opacity-60 mt-1.5 flex gap-3 flex-wrap">
                               {message.metadata.agent && (
                                 <span>Agent: {message.metadata.agent}</span>
                               )}
@@ -2374,7 +2376,7 @@ function OpenCodeChatTUI() {
                           )}
                         </div>
                       ) : (
-                        <div className="space-y-2">
+                        <div className="space-y-4">
                           <Pre
                             size="small"
                             className="break-words whitespace-pre-wrap overflow-wrap-anywhere"
@@ -2395,7 +2397,7 @@ function OpenCodeChatTUI() {
                     </View>
                   </div>
                 ))}
-                {loading && (
+                {loading && !isStreaming && (
                   <div className="flex justify-start">
                     <View
                       box="round"
@@ -2418,7 +2420,8 @@ function OpenCodeChatTUI() {
                     </View>
                   </div>
                 )}
-                <div ref={messagesEndRef} />
+                  <div ref={messagesEndRef} />
+                </div>
               </div>
 
               <Separator />

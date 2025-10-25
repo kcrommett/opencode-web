@@ -258,6 +258,8 @@ export function useOpenCode() {
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [sseConnectionState, setSseConnectionState] =
     useState<SSEConnectionState | null>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const streamingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [customCommands, setCustomCommands] = useState<
     Array<{ name: string; description: string; template: string }>
   >([]);
@@ -789,6 +791,15 @@ export function useOpenCode() {
             return;
           }
 
+          // Reset streaming state when message is updated (completed)
+          setIsStreaming(false);
+          
+          // Clear streaming timeout
+          if (streamingTimeoutRef.current) {
+            clearTimeout(streamingTimeoutRef.current);
+            streamingTimeoutRef.current = null;
+          }
+
           setMessages((prevMessages) => {
             const existingIndex = prevMessages.findIndex(
               (m) => m.id === messageInfo.id,
@@ -925,8 +936,41 @@ export function useOpenCode() {
             return;
           }
 
-          setMessages((prevMessages) =>
-            prevMessages.map((msg) => {
+          // Set streaming state when we receive message parts
+          setIsStreaming(true);
+          
+          // Clear existing timeout
+          if (streamingTimeoutRef.current) {
+            clearTimeout(streamingTimeoutRef.current);
+          }
+          
+          // Set timeout to reset streaming state if no parts received for 3 seconds
+          streamingTimeoutRef.current = setTimeout(() => {
+            setIsStreaming(false);
+          }, 3000);
+
+          setMessages((prevMessages) => {
+            // Check if message exists, if not create a placeholder
+            const existingMessageIndex = prevMessages.findIndex(
+              (msg) => msg.id === targetMessageId,
+            );
+            
+            if (existingMessageIndex === -1) {
+              // Create placeholder message for incoming parts
+              const newMessage: Message = {
+                id: targetMessageId,
+                type: "assistant", // Assume assistant for incoming parts
+                content: "",
+                parts: [],
+                timestamp: new Date(),
+                optimistic: false,
+              };
+              
+              debugLog("[SSE] Created placeholder message for parts:", targetMessageId);
+              return [...prevMessages, newMessage];
+            }
+
+            return prevMessages.map((msg) => {
               if (msg.id !== targetMessageId) return msg;
 
               const parts = msg.parts || [];
@@ -1012,8 +1056,8 @@ export function useOpenCode() {
                 error: false,
                 errorMessage: undefined,
               };
-            }),
-          );
+            });
+          });
           break;
         }
 
@@ -1118,6 +1162,12 @@ export function useOpenCode() {
       debugLog("[SSE] Cleaning up event subscription");
       openCodeService.unsubscribeFromEvents();
       setSseConnectionState(null);
+      
+      // Clear streaming timeout
+      if (streamingTimeoutRef.current) {
+        clearTimeout(streamingTimeoutRef.current);
+        streamingTimeoutRef.current = null;
+      }
     };
   }, [
     isConnected,
@@ -1340,6 +1390,13 @@ export function useOpenCode() {
 
       try {
         setLoading(true);
+        setIsStreaming(false);
+        
+        // Clear any existing streaming timeout
+        if (streamingTimeoutRef.current) {
+          clearTimeout(streamingTimeoutRef.current);
+          streamingTimeoutRef.current = null;
+        }
 
         // Check for file references and expand them
         let expandedContent = content;
@@ -2443,6 +2500,7 @@ export function useOpenCode() {
     loadCurrentPath,
     providersData,
     isConnected,
+    isStreaming,
     isHydrated,
     customCommands,
     openHelp,

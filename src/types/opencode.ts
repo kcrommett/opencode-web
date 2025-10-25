@@ -51,7 +51,7 @@ export interface Agent {
 }
 
 export interface AgentConfig {
-  model?: {
+  model?: string | {
     providerID: string;
     modelID: string;
   };
