@@ -2332,8 +2332,8 @@ function OpenCodeChatTUI() {
               data-dialog-anchor="chat"
             >
               {/* Chat Messages */}
-              <div className="flex-1 overflow-y-auto scrollbar p-2 space-y-2 min-h-0">
-                <div className="max-w-none lg:mx-auto lg:max-w-6xl xl:max-w-7xl space-y-2 h-full">
+              <div className="flex-1 overflow-y-auto scrollbar p-2 pb-4 space-y-2 min-h-0">
+                <div className="max-w-none lg:mx-auto lg:max-w-6xl xl:max-w-7xl space-y-2">
                   {messages.length === 0 && !loading && (
                   <div className="flex items-center justify-center h-full">
                     <View
@@ -2487,10 +2487,10 @@ function OpenCodeChatTUI() {
               {/* Input Area */}
               <View
                 box="square"
-                className="p-2 sm:p-4 space-y-3 bg-theme-background-alt"
+                className="px-2 sm:px-3 py-1 space-y-1.5 bg-theme-background-alt"
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-center gap-2 text-xs text-theme-foreground flex-wrap">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-sm text-theme-foreground flex-wrap">
                     <span className="font-medium">Model:</span>
                     <button
                       onClick={() => setShowModelPicker(true)}
@@ -2545,12 +2545,13 @@ function OpenCodeChatTUI() {
                   </div>
                   <button
                     onClick={() => setShowAgentPicker(true)}
-                    className="appearance-none cursor-pointer hover:opacity-80 transition-opacity"
+                    className="appearance-none cursor-pointer hover:opacity-80 transition-opacity h-auto"
                     style={{
                       background: "none",
                       border: "none",
                       padding: 0,
                       margin: 0,
+                      height: "auto",
                     }}
                   >
                     <Badge
@@ -2563,7 +2564,7 @@ function OpenCodeChatTUI() {
                     </Badge>
                   </button>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-3 items-stretch">
+                <div className="flex flex-col sm:flex-row gap-2 items-stretch">
                   <div className="flex-1 relative w-full">
                     {showCommandPicker && (
                       <CommandPicker

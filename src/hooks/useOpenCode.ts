@@ -407,6 +407,17 @@ export function useOpenCode() {
   useEffect(() => {
     if (!isHydrated) return;
 
+    if (manualModelSelectionRef.current) return;
+
+    const agentModel = resolveModelPreference(
+      getAgentModel(config, currentAgent),
+      models,
+    );
+    if (agentModel) {
+      setSelectedModel(agentModel);
+      return;
+    }
+
     const sessionId = currentSession?.id;
     const sessionModel =
       sessionId && sessionModelMap[sessionId]
@@ -414,21 +425,7 @@ export function useOpenCode() {
         : null;
 
     if (sessionModel) {
-      if (!modelsMatch(sessionModel, selectedModel)) {
-        manualModelSelectionRef.current = false;
-        setSelectedModel(sessionModel);
-      }
-      return;
-    }
-
-    if (manualModelSelectionRef.current) return;
-
-    const agentModel = resolveModelPreference(
-      getAgentModel(config, currentAgent),
-      models,
-    );
-    if (agentModel && !modelsMatch(agentModel, selectedModel)) {
-      setSelectedModel(agentModel);
+      setSelectedModel(sessionModel);
       return;
     }
 
@@ -436,24 +433,18 @@ export function useOpenCode() {
       getDefaultModel(config),
       models,
     );
-    if (
-      configDefaultModel &&
-      !modelsMatch(configDefaultModel, selectedModel)
-    ) {
+    if (configDefaultModel) {
       setSelectedModel(configDefaultModel);
       return;
     }
 
-    if (!selectedModel) {
-      setSelectedModel(FALLBACK_MODEL);
-    }
+    setSelectedModel(FALLBACK_MODEL);
   }, [
     config,
     currentAgent,
     currentSession?.id,
     isHydrated,
     models,
-    selectedModel,
     sessionModelMap,
   ]);
 
@@ -2443,7 +2434,16 @@ export function useOpenCode() {
 
   const selectAgent = useCallback((agent: Agent) => {
     setCurrentAgent(agent);
-  }, []);
+    manualModelSelectionRef.current = false;
+    
+    const agentModel = resolveModelPreference(
+      getAgentModel(config, agent),
+      modelsRef.current,
+    );
+    if (agentModel) {
+      setSelectedModel(agentModel);
+    }
+  }, [config]);
 
   useEffect(() => {
     loadProjects();
