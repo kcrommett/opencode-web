@@ -2092,8 +2092,8 @@ export function useOpenCode() {
   }, []);
 
   // Config and path
-  const loadConfig = useCallback(async () => {
-    if (loadedConfig) return;
+  const loadConfig = useCallback(async ({ force }: { force?: boolean } = {}) => {
+    if (loadedConfig && !force) return config ?? null;
     try {
       setConfigLoading(true);
       const response = await openCodeService.getConfig();
@@ -2109,7 +2109,7 @@ export function useOpenCode() {
     } finally {
       setConfigLoading(false);
     }
-  }, [loadedConfig]);
+  }, [loadedConfig, config]);
 
   const loadCommands = useCallback(async () => {
     try {

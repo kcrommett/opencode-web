@@ -4,7 +4,7 @@ import type { OpencodeConfig } from "@/types/opencode";
 
 export function useConfigUpdate(
   config: OpencodeConfig | null,
-  loadConfig: () => Promise<OpencodeConfig | null>,
+  loadConfig: (options?: { force?: boolean }) => Promise<OpencodeConfig | null>,
 ) {
   const [updating, setUpdating] = useState(false);
 
@@ -15,7 +15,7 @@ export function useConfigUpdate(
     try {
       setUpdating(true);
       await openCodeService.updateConfig({ [field]: value });
-      await loadConfig();
+      await loadConfig({ force: true });
       return true;
     } catch (error) {
       if (process.env.NODE_ENV !== "production") {
