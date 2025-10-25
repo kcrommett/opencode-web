@@ -1065,18 +1065,6 @@ function OpenCodeChatTUI() {
           setMessages((prev) => [...prev, errorMsg]);
         }
         break;
-      case "exit":
-        setMessages([]);
-        setInput("");
-        setActiveTab("workspace");
-        const exitMsg = {
-          id: `assistant-${Date.now()}`,
-          type: "assistant" as const,
-          content: "Messages cleared. Use /new to start a new session.",
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, exitMsg]);
-        break;
       default:
         const unknownMessage = {
           id: `assistant-${Date.now()}`,
