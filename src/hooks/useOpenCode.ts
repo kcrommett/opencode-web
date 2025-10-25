@@ -1305,10 +1305,10 @@ export function useOpenCode() {
               worktree: project.worktree,
               vcs: project.vcs,
               createdAt: project.time?.created
-                ? new Date(project.time.created * 1000)
+                ? new Date(project.time.created)
                 : undefined,
               updatedAt: project.time?.updated
-                ? new Date(project.time.updated * 1000)
+                ? new Date(project.time.updated)
                 : undefined,
             }));
             const mergedProjects = new Map<string, Project>();
@@ -1522,10 +1522,10 @@ export function useOpenCode() {
           worktree: project.worktree,
           vcs: project.vcs,
           createdAt: project.time?.created
-            ? new Date(project.time.created * 1000)
+            ? new Date(project.time.created)
             : undefined,
           updatedAt: project.time?.updated
-            ? new Date(project.time.updated * 1000)
+            ? new Date(project.time.updated)
             : undefined,
         }),
       );
