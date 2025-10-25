@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { openCodeService, handleOpencodeError } from "@/lib/opencode-client";
 import { OpencodeEvent, SSEConnectionState } from "@/lib/opencode-events";
-import { getAgentModel } from "@/lib/config";
+import { getAgentModel, getDefaultModel } from "@/lib/config";
 import { parseCommand, ParsedCommand } from "@/lib/commandParser";
 import type {
   Agent,
@@ -170,6 +170,101 @@ interface Model {
   name: string;
 }
 
+const FALLBACK_MODEL: Model = {
+  providerID: "opencode",
+  modelID: "big-pickle",
+  name: "opencode/big-pickle",
+};
+
+type ModelPreference =
+  | Model
+  | { providerID?: string; modelID?: string }
+  | string
+  | null
+  | undefined;
+
+const parseModelPreference = (
+  preference: ModelPreference,
+): { providerID?: string; modelID?: string } | null => {
+  if (!preference) return null;
+
+  if (typeof preference === "string") {
+    const trimmed = preference.trim();
+    if (!trimmed) return null;
+    if (trimmed.includes("/")) {
+      const [providerID, modelID] = trimmed.split("/");
+      if (providerID && modelID) {
+        return { providerID, modelID };
+      }
+      if (modelID) {
+        return { providerID, modelID };
+      }
+    }
+    return { modelID: trimmed };
+  }
+
+  if (typeof preference === "object" && preference !== null) {
+    const candidate = preference as { providerID?: string; modelID?: string };
+    if ("providerID" in preference || "modelID" in preference) {
+      return {
+        providerID: candidate.providerID,
+        modelID: candidate.modelID,
+      };
+    }
+  }
+
+  return null;
+};
+
+const modelsMatch = (a?: Model | null, b?: Model | null): boolean =>
+  Boolean(a && b && a.providerID === b.providerID && a.modelID === b.modelID);
+
+const resolveModelPreference = (
+  preference: ModelPreference,
+  availableModels: Model[],
+): Model | null => {
+  const parsed = parseModelPreference(preference);
+  if (!parsed) return null;
+
+  const providerID = parsed.providerID?.trim() || "";
+  const modelID = parsed.modelID?.trim() || "";
+
+  if (!providerID && !modelID) return null;
+
+  if (modelID) {
+    const exactMatch = availableModels.find((model) => {
+      if (providerID) {
+        return (
+          model.providerID === providerID && model.modelID === modelID
+        );
+      }
+      return model.modelID === modelID;
+    });
+    if (exactMatch) return exactMatch;
+
+    if (!providerID) {
+      const byId = availableModels.find((model) => model.modelID === modelID);
+      if (byId) return byId;
+    }
+
+    const resolvedProvider = providerID || FALLBACK_MODEL.providerID;
+    return {
+      providerID: resolvedProvider,
+      modelID,
+      name: `${resolvedProvider}/${modelID}`,
+    };
+  }
+
+  if (providerID) {
+    const providerModel = availableModels.find(
+      (model) => model.providerID === providerID,
+    );
+    if (providerModel) return providerModel;
+  }
+
+  return FALLBACK_MODEL;
+};
+
 
 
 interface ProvidersData {
@@ -225,6 +320,7 @@ export function useOpenCode() {
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [fileDirectory, setFileDirectory] = useState<string>(".");
   const [models, setModels] = useState<Model[]>([]);
+  const modelsRef = useRef<Model[]>([]);
 
   // Permission and todo state
   const [currentPermission, setCurrentPermission] =
@@ -277,10 +373,76 @@ export function useOpenCode() {
   const loadedCommandsRef = useRef(false);
   const seenMessageIdsRef = useRef<Set<string>>(new Set());
   const currentSessionRef = useRef<Session | null>(null);
+  const manualModelSelectionRef = useRef(false);
 
   useEffect(() => {
     currentSessionRef.current = currentSession;
   }, [currentSession]);
+
+  useEffect(() => {
+    modelsRef.current = models;
+  }, [models]);
+
+  useEffect(() => {
+    manualModelSelectionRef.current = false;
+  }, [currentSession?.id]);
+
+  useEffect(() => {
+    manualModelSelectionRef.current = false;
+  }, [currentAgent?.id]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+
+    const sessionId = currentSession?.id;
+    const sessionModel =
+      sessionId && sessionModelMap[sessionId]
+        ? sessionModelMap[sessionId]
+        : null;
+
+    if (sessionModel) {
+      if (!modelsMatch(sessionModel, selectedModel)) {
+        manualModelSelectionRef.current = false;
+        setSelectedModel(sessionModel);
+      }
+      return;
+    }
+
+    if (manualModelSelectionRef.current) return;
+
+    const agentModel = resolveModelPreference(
+      getAgentModel(config, currentAgent),
+      models,
+    );
+    if (agentModel && !modelsMatch(agentModel, selectedModel)) {
+      setSelectedModel(agentModel);
+      return;
+    }
+
+    const configDefaultModel = resolveModelPreference(
+      getDefaultModel(config),
+      models,
+    );
+    if (
+      configDefaultModel &&
+      !modelsMatch(configDefaultModel, selectedModel)
+    ) {
+      setSelectedModel(configDefaultModel);
+      return;
+    }
+
+    if (!selectedModel) {
+      setSelectedModel(FALLBACK_MODEL);
+    }
+  }, [
+    config,
+    currentAgent,
+    currentSession?.id,
+    isHydrated,
+    models,
+    selectedModel,
+    sessionModelMap,
+  ]);
 
   const normalizeProject = useCallback((project: unknown): Project | null => {
     if (!project || typeof project !== "object") return null;
@@ -636,24 +798,19 @@ export function useOpenCode() {
         const lastAssistantMessage = [...loadedMessages]
           .reverse()
           .find((msg) => msg.type === "assistant" && msg.metadata?.model);
-        if (lastAssistantMessage?.metadata?.model && models.length > 0) {
-          const modelId = lastAssistantMessage.metadata.model;
-          const [providerId, modelName] = modelId.includes("/")
-            ? modelId.split("/")
-            : [modelId, modelId];
-
-          const matchingModel = models.find(
-            (m) =>
-              m.modelID === modelName ||
-              m.modelID === modelId ||
-              (m.providerID === providerId && m.modelID === modelName),
+        if (lastAssistantMessage?.metadata?.model) {
+          const derivedModel = resolveModelPreference(
+            lastAssistantMessage.metadata.model,
+            models,
           );
-
-          if (matchingModel) {
-            setSessionModelMap((prev) => ({
-              ...prev,
-              [sessionId]: matchingModel,
-            }));
+          if (derivedModel) {
+            setSessionModelMap((prev) => {
+              if (modelsMatch(prev[sessionId], derivedModel)) return prev;
+              return {
+                ...prev,
+                [sessionId]: derivedModel,
+              };
+            });
           }
         }
 
@@ -914,6 +1071,28 @@ export function useOpenCode() {
             debugLog("[SSE] Added new message placeholder:", messageInfo.id);
             return newMessages;
           });
+
+          if (
+            eventSessionId &&
+            messageInfo.role !== "user" &&
+            typeof messageInfo.modelID === "string"
+          ) {
+            const resolvedModel = resolveModelPreference(
+              messageInfo.modelID,
+              modelsRef.current,
+            );
+            if (resolvedModel) {
+              setSessionModelMap((prev) => {
+                if (modelsMatch(prev[eventSessionId], resolvedModel)) {
+                  return prev;
+                }
+                return {
+                  ...prev,
+                  [eventSessionId]: resolvedModel,
+                };
+              });
+            }
+          }
           break;
         }
 
@@ -1419,13 +1598,33 @@ export function useOpenCode() {
 
         const effectiveAgent = agent || currentAgent;
         const configModel = getAgentModel(config, effectiveAgent);
+        const explicitModel = resolveModelPreference(
+          providerID && modelID
+            ? { providerID, modelID }
+            : providerID
+              ? { providerID }
+              : modelID
+                ? { modelID }
+                : null,
+          modelsRef.current,
+        );
+        const resolvedConfigModel = resolveModelPreference(
+          configModel,
+          modelsRef.current,
+        );
+        const configDefaultModel = resolveModelPreference(
+          getDefaultModel(config),
+          modelsRef.current,
+        );
+        const activeModel =
+          explicitModel ||
+          selectedModel ||
+          resolvedConfigModel ||
+          configDefaultModel ||
+          FALLBACK_MODEL;
 
-        const effectiveProviderID =
-          providerID || configModel?.providerID || "anthropic";
-        const effectiveModelID =
-          modelID ||
-          configModel?.modelID ||
-          "claude-3-5-sonnet-20241022";
+        const effectiveProviderID = providerID || activeModel.providerID;
+        const effectiveModelID = modelID || activeModel.modelID;
 
         // For now, use non-streaming; implement streaming later
         const response = await openCodeService.sendMessage(
@@ -1488,10 +1687,10 @@ export function useOpenCode() {
         });
 
         // Save the model used for this session
-        if (selectedModel && targetSession) {
+        if (targetSession) {
           setSessionModelMap((prev) => ({
             ...prev,
-            [targetSession.id]: selectedModel,
+            [targetSession.id]: activeModel,
           }));
         }
 
@@ -1629,6 +1828,7 @@ export function useOpenCode() {
 
           // Restore the last used model for this session
           if (sessionModelMap[sessionId]) {
+            manualModelSelectionRef.current = false;
             setSelectedModel(sessionModelMap[sessionId]);
           }
         }
@@ -1986,9 +2186,7 @@ export function useOpenCode() {
           }) => {
             if (process.env.NODE_ENV !== "production")
               console.log("Processing provider:", provider);
-            // Check if provider has models
             if (provider.models && typeof provider.models === "object") {
-              // Handle models as object
               Object.entries(provider.models).forEach(
                 ([modelId, modelData]: [
                   string,
@@ -2004,7 +2202,6 @@ export function useOpenCode() {
                 },
               );
             } else if (provider.models && Array.isArray(provider.models)) {
-              // Handle models as array
               (provider.models as { id: string; name?: string }[]).forEach(
                 (model: { id: string; name?: string }) => {
                   availableModels.push({
@@ -2017,41 +2214,14 @@ export function useOpenCode() {
                 },
               );
             }
-            // Only add if has models, don't treat provider as model
           },
         );
         if (process.env.NODE_ENV !== "production")
           console.log("Available models:", availableModels);
         setModels(availableModels);
         setLoadedModels(true);
-
-        // Try to restore saved model from localStorage
-        const savedModelStr = localStorage.getItem("opencode-selected-model");
-        if (savedModelStr && !selectedModel) {
-          try {
-            const savedModel = JSON.parse(savedModelStr);
-            const matchingModel = availableModels.find(
-              (m) =>
-                m.providerID === savedModel.providerID &&
-                m.modelID === savedModel.modelID,
-            );
-            if (matchingModel) {
-              setSelectedModel(matchingModel);
-            } else if (availableModels.length > 0) {
-              setSelectedModel(availableModels[0]);
-            }
-          } catch {
-            if (availableModels.length > 0) {
-              setSelectedModel(availableModels[0]);
-            }
-          }
-        } else if (availableModels.length > 0 && !selectedModel) {
-          setSelectedModel(availableModels[0]);
-        }
       }
     } catch {
-      // Silently handle errors when server is unavailable
-      // Fallback: Set some dummy models for testing
       const dummyModels: Model[] = [
         {
           providerID: "anthropic",
@@ -2062,34 +2232,22 @@ export function useOpenCode() {
       ];
       setModels(dummyModels);
       setLoadedModels(true);
-
-      // Try to restore saved model
-      const savedModelStr = localStorage.getItem("opencode-selected-model");
-      if (savedModelStr && !selectedModel) {
-        try {
-          const savedModel = JSON.parse(savedModelStr);
-          const matchingModel = dummyModels.find(
-            (m) =>
-              m.providerID === savedModel.providerID &&
-              m.modelID === savedModel.modelID,
-          );
-          if (matchingModel) {
-            setSelectedModel(matchingModel);
-          } else {
-            setSelectedModel(dummyModels[0]);
-          }
-        } catch {
-          setSelectedModel(dummyModels[0]);
-        }
-      } else if (!selectedModel) {
-        setSelectedModel(dummyModels[0]);
-      }
     }
-  }, [selectedModel, loadedModels]);
+  }, [loadedModels]);
 
-  const selectModel = useCallback((model: Model) => {
-    setSelectedModel(model);
-  }, []);
+  const selectModel = useCallback(
+    (model: Model) => {
+      manualModelSelectionRef.current = true;
+      setSelectedModel(model);
+      if (currentSession?.id) {
+        setSessionModelMap((prev) => ({
+          ...prev,
+          [currentSession.id]: model,
+        }));
+      }
+    },
+    [currentSession],
+  );
 
   // Config and path
   const loadConfig = useCallback(async ({ force }: { force?: boolean } = {}) => {

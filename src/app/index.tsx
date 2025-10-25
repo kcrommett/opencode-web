@@ -287,7 +287,6 @@ function OpenCodeChatTUI() {
     document.body.removeChild(link);
   };
 
-  const { currentTheme, changeTheme } = useTheme();
   const {
     currentSession,
     messages,
@@ -348,6 +347,7 @@ function OpenCodeChatTUI() {
     commands,
     executeSlashCommand,
   } = useOpenCodeContext();
+  const { currentTheme, changeTheme } = useTheme(config?.theme);
 
   const customCommandSuggestions = useMemo<Command[]>(() => {
     if (!commands || commands.length === 0) return [];

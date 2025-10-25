@@ -1195,6 +1195,6 @@ export function applyTheme(themeId: string): void {
   localStorage.setItem("opencode-theme", themeId);
 }
 
-export function getStoredTheme(): string {
-  return localStorage.getItem("opencode-theme") || "catppuccin";
+export function getStoredTheme(): string | null {
+  return localStorage.getItem("opencode-theme");
 }
