@@ -338,6 +338,19 @@ export function useOpenCode() {
   const [sessionModelMap, setSessionModelMap] = useState<Record<string, Model>>(
     {},
   );
+  const [recentModels, setRecentModels] = useState<Model[]>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("opencode-recent-models");
+      if (stored) {
+        try {
+          return JSON.parse(stored);
+        } catch {
+          return [];
+        }
+      }
+    }
+    return [];
+  });
 
   useEffect(() => {
     setFileDirectory(".");
@@ -2244,6 +2257,17 @@ export function useOpenCode() {
           [currentSession.id]: model,
         }));
       }
+      
+      setRecentModels((prev) => {
+        const filtered = prev.filter(
+          (m) => !(m.providerID === model.providerID && m.modelID === model.modelID)
+        );
+        const updated = [model, ...filtered].slice(0, 5);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("opencode-recent-models", JSON.stringify(updated));
+        }
+        return updated;
+      });
     },
     [currentSession],
   );
@@ -2643,6 +2667,19 @@ export function useOpenCode() {
     [currentSession, agents, currentAgent, config, sendMessage],
   );
 
+  const cycleRecentModels = useCallback(() => {
+    if (recentModels.length === 0) return;
+    
+    const currentIndex = selectedModel
+      ? recentModels.findIndex(
+          (m) => m.providerID === selectedModel.providerID && m.modelID === selectedModel.modelID
+        )
+      : -1;
+    
+    const nextIndex = (currentIndex + 1) % recentModels.length;
+    selectModel(recentModels[nextIndex]);
+  }, [recentModels, selectedModel, selectModel]);
+
   return {
     currentSession,
     messages,
@@ -2672,6 +2709,8 @@ export function useOpenCode() {
     selectedModel,
     selectModel,
     loadModels,
+    recentModels,
+    cycleRecentModels,
     config,
     configLoading,
     loadConfig,
