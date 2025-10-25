@@ -31,11 +31,17 @@ interface OpenCodeContextType {
   selectModel: ReturnType<typeof useOpenCode>["selectModel"];
   loadModels: ReturnType<typeof useOpenCode>["loadModels"];
   config: ReturnType<typeof useOpenCode>["config"];
+  configLoading: ReturnType<typeof useOpenCode>["configLoading"];
+  loadConfig: ReturnType<typeof useOpenCode>["loadConfig"];
+  commands: ReturnType<typeof useOpenCode>["commands"];
+  commandsLoading: ReturnType<typeof useOpenCode>["commandsLoading"];
+  loadCommands: ReturnType<typeof useOpenCode>["loadCommands"];
   currentPath: ReturnType<typeof useOpenCode>["currentPath"];
   loadCurrentPath: ReturnType<typeof useOpenCode>["loadCurrentPath"];
-  providersData: ReturnType<typeof useOpenCode>["providersData"];
+providersData: ReturnType<typeof useOpenCode>["providersData"];
   isConnected: ReturnType<typeof useOpenCode>["isConnected"];
   sseConnectionState: ReturnType<typeof useOpenCode>["sseConnectionState"];
+  isStreaming: ReturnType<typeof useOpenCode>["isStreaming"];
   isHydrated: ReturnType<typeof useOpenCode>["isHydrated"];
   openHelp: ReturnType<typeof useOpenCode>["openHelp"];
   openSessions: ReturnType<typeof useOpenCode>["openSessions"];
@@ -70,6 +76,8 @@ interface OpenCodeContextType {
   setCurrentSessionTodos: ReturnType<
     typeof useOpenCode
   >["setCurrentSessionTodos"];
+  executeSlashCommand: ReturnType<typeof useOpenCode>["executeSlashCommand"];
+  parseCommand: ReturnType<typeof useOpenCode>["parseCommand"];
 }
 
 const OpenCodeContext = createContext<OpenCodeContextType | undefined>(

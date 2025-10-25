@@ -1,12 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { openCodeService, handleOpencodeError } from "@/lib/opencode-client";
 import { OpencodeEvent, SSEConnectionState } from "@/lib/opencode-events";
+import { getAgentModel } from "@/lib/config";
+import { parseCommand, ParsedCommand } from "@/lib/commandParser";
 import type {
   Agent,
   FileContentData,
   Part,
   PermissionState,
   SessionTodo,
+  OpencodeConfig,
+  Command,
 } from "@/types/opencode";
 
 const isDevEnvironment = process.env.NODE_ENV !== "production";
@@ -166,14 +170,7 @@ interface Model {
   name: string;
 }
 
-interface Config {
-  model?: string;
-  providers?: {
-    id: string;
-    name?: string;
-    models?: { id: string; name?: string }[];
-  }[];
-}
+
 
 interface ProvidersData {
   providers?: {
@@ -218,6 +215,7 @@ interface FileResponse {
 }
 
 export function useOpenCode() {
+  console.log("🔥 useOpenCode hook INITIALIZED");
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
@@ -237,7 +235,10 @@ export function useOpenCode() {
   );
 
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
-  const [config, setConfig] = useState<Config | null>(null);
+  const [config, setConfig] = useState<OpencodeConfig | null>(null);
+  const [configLoading, setConfigLoading] = useState(true);
+  const [commands, setCommands] = useState<Command[]>([]);
+  const [commandsLoading, setCommandsLoading] = useState(false);
   const [currentPath, setCurrentPath] = useState<string>("");
   const [sessionModelMap, setSessionModelMap] = useState<Record<string, Model>>(
     {},
@@ -258,6 +259,8 @@ export function useOpenCode() {
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [sseConnectionState, setSseConnectionState] =
     useState<SSEConnectionState | null>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const streamingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [customCommands, setCustomCommands] = useState<
     Array<{ name: string; description: string; template: string }>
   >([]);
@@ -271,6 +274,7 @@ export function useOpenCode() {
   const loadedAgentsRef = useRef(false);
   const loadedProjectsRef = useRef(false);
   const loadedSessionsRef = useRef(false);
+  const loadedCommandsRef = useRef(false);
   const seenMessageIdsRef = useRef<Set<string>>(new Set());
   const currentSessionRef = useRef<Session | null>(null);
 
@@ -789,6 +793,15 @@ export function useOpenCode() {
             return;
           }
 
+          // Reset streaming state when message is updated (completed)
+          setIsStreaming(false);
+          
+          // Clear streaming timeout
+          if (streamingTimeoutRef.current) {
+            clearTimeout(streamingTimeoutRef.current);
+            streamingTimeoutRef.current = null;
+          }
+
           setMessages((prevMessages) => {
             const existingIndex = prevMessages.findIndex(
               (m) => m.id === messageInfo.id,
@@ -925,8 +938,41 @@ export function useOpenCode() {
             return;
           }
 
-          setMessages((prevMessages) =>
-            prevMessages.map((msg) => {
+          // Set streaming state when we receive message parts
+          setIsStreaming(true);
+          
+          // Clear existing timeout
+          if (streamingTimeoutRef.current) {
+            clearTimeout(streamingTimeoutRef.current);
+          }
+          
+          // Set timeout to reset streaming state if no parts received for 3 seconds
+          streamingTimeoutRef.current = setTimeout(() => {
+            setIsStreaming(false);
+          }, 3000);
+
+          setMessages((prevMessages) => {
+            // Check if message exists, if not create a placeholder
+            const existingMessageIndex = prevMessages.findIndex(
+              (msg) => msg.id === targetMessageId,
+            );
+            
+            if (existingMessageIndex === -1) {
+              // Create placeholder message for incoming parts
+              const newMessage: Message = {
+                id: targetMessageId,
+                type: "assistant", // Assume assistant for incoming parts
+                content: "",
+                parts: [],
+                timestamp: new Date(),
+                optimistic: false,
+              };
+              
+              debugLog("[SSE] Created placeholder message for parts:", targetMessageId);
+              return [...prevMessages, newMessage];
+            }
+
+            return prevMessages.map((msg) => {
               if (msg.id !== targetMessageId) return msg;
 
               const parts = msg.parts || [];
@@ -1012,8 +1058,8 @@ export function useOpenCode() {
                 error: false,
                 errorMessage: undefined,
               };
-            }),
-          );
+            });
+          });
           break;
         }
 
@@ -1118,6 +1164,12 @@ export function useOpenCode() {
       debugLog("[SSE] Cleaning up event subscription");
       openCodeService.unsubscribeFromEvents();
       setSseConnectionState(null);
+      
+      // Clear streaming timeout
+      if (streamingTimeoutRef.current) {
+        clearTimeout(streamingTimeoutRef.current);
+        streamingTimeoutRef.current = null;
+      }
     };
   }, [
     isConnected,
@@ -1340,6 +1392,13 @@ export function useOpenCode() {
 
       try {
         setLoading(true);
+        setIsStreaming(false);
+        
+        // Clear any existing streaming timeout
+        if (streamingTimeoutRef.current) {
+          clearTimeout(streamingTimeoutRef.current);
+          streamingTimeoutRef.current = null;
+        }
 
         // Check for file references and expand them
         let expandedContent = content;
@@ -1358,14 +1417,24 @@ export function useOpenCode() {
           }
         }
 
+        const effectiveAgent = agent || currentAgent;
+        const configModel = getAgentModel(config, effectiveAgent);
+
+        const effectiveProviderID =
+          providerID || configModel?.providerID || "anthropic";
+        const effectiveModelID =
+          modelID ||
+          configModel?.modelID ||
+          "claude-3-5-sonnet-20241022";
+
         // For now, use non-streaming; implement streaming later
         const response = await openCodeService.sendMessage(
           targetSession.id,
           content,
-          providerID,
-          modelID,
+          effectiveProviderID,
+          effectiveModelID,
           currentProject?.worktree,
-          agent,
+          effectiveAgent || undefined,
         );
 
         if (response.error) {
@@ -1438,7 +1507,8 @@ export function useOpenCode() {
         setLoading(false);
       }
     },
-    [currentSession, currentProject, selectedModel],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentSession, currentProject, selectedModel, currentAgent, config],
   );  
 
   const loadProjects = useCallback(async () => {
@@ -2025,15 +2095,83 @@ export function useOpenCode() {
   const loadConfig = useCallback(async () => {
     if (loadedConfig) return;
     try {
+      setConfigLoading(true);
       const response = await openCodeService.getConfig();
-      const configData = response.data as Config | undefined;
+      const configData = response.data as OpencodeConfig | undefined;
       setConfig(configData || null);
       setLoadedConfig(true);
-    } catch {
-      // Silently handle errors when server is unavailable
-      setLoadedConfig(true);
+      return configData || null;
+    } catch (error) {
+      if (process.env.NODE_ENV !== "production") {
+        console.error("Failed to load config:", error);
+      }
+      return null;
+    } finally {
+      setConfigLoading(false);
     }
   }, [loadedConfig]);
+
+  const loadCommands = useCallback(async () => {
+    try {
+      setCommandsLoading(true);
+      const response = await openCodeService.getCommands();
+      console.log("getCommands response:", response);
+      const commandsData = response.data as Record<string, unknown> | undefined;
+      console.log("commandsData:", commandsData);
+
+      if (!commandsData) {
+        console.log("No commands data, setting empty array");
+        setCommands([]);
+        return [];
+      }
+
+       const commandList: Command[] = Object.entries(commandsData).map(
+         ([name, cmd]: [string, unknown]) => {
+           const cmdObj = cmd as Record<string, unknown>;
+           const actualName = (cmdObj as Record<string, unknown> & { name?: string }).name || name;
+           return {
+             name: actualName,
+             description:
+               typeof cmdObj.description === "string"
+                 ? cmdObj.description
+                 : undefined,
+             agent:
+               typeof cmdObj.agent === "string" ? cmdObj.agent : undefined,
+             model:
+               cmdObj.model &&
+               typeof cmdObj.model === "object" &&
+               "providerID" in cmdObj.model &&
+               "modelID" in cmdObj.model
+                 ? {
+                     providerID: String(cmdObj.model.providerID),
+                     modelID: String(cmdObj.model.modelID),
+                   }
+                 : undefined,
+             prompt:
+               typeof cmdObj.prompt === "string" 
+                 ? cmdObj.prompt 
+                 : typeof cmdObj.template === "string"
+                   ? cmdObj.template
+                   : undefined,
+             trigger: Array.isArray(cmdObj.trigger)
+               ? cmdObj.trigger.map(String)
+               : [`/${actualName}`],
+             custom:
+               typeof cmdObj.custom === "boolean" ? cmdObj.custom : true,
+           };
+         },
+       );
+
+      console.log("Parsed command list:", commandList);
+      setCommands(commandList);
+      return commandList;
+    } catch (error) {
+      console.error("Failed to load commands:", error);
+      return [];
+    } finally {
+      setCommandsLoading(false);
+    }
+  }, []);
 
   const loadCurrentPath = useCallback(async () => {
     try {
@@ -2132,6 +2270,18 @@ export function useOpenCode() {
     loadCustomCommands();
     loadAgents();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!isHydrated || loadedCommandsRef.current) return;
+
+    console.log("loadCommands useEffect check:", { isHydrated });
+    console.log("Calling loadCommands...");
+
+    loadedCommandsRef.current = true;
+    loadCommands().catch(() => {
+      loadedCommandsRef.current = false;
+    });
+  }, [isHydrated, loadCommands]);
 
   const currentProjectIdRef = useRef<string | null>(null);
 
@@ -2290,6 +2440,52 @@ export function useOpenCode() {
     [currentProject?.worktree],
   );
 
+  const executeSlashCommand = useCallback(
+    async (parsedCommand: ParsedCommand, sessionId?: string) => {
+      const targetSessionId = sessionId || currentSession?.id;
+      if (!targetSessionId) {
+        throw new Error("No active session");
+      }
+
+      if (!parsedCommand.matchedCommand) {
+        throw new Error(`Unknown command: ${parsedCommand.command}`);
+      }
+
+      const cmd = parsedCommand.matchedCommand;
+
+      let prompt = cmd.prompt;
+
+      if (!prompt) {
+        throw new Error(`Command "${cmd.name}" has no prompt content`);
+      }
+
+      const argsText = parsedCommand.args && parsedCommand.args.length > 0
+        ? parsedCommand.args.join(" ")
+        : "";
+
+      if (argsText) {
+        prompt = prompt.replace(/\$ARGUMENTS/g, argsText);
+      } else {
+        prompt = prompt.replace(/\$ARGUMENTS/g, "");
+      }
+
+      const commandAgent = cmd.agent
+        ? agents.find((a) => a.name === cmd.agent || a.id === cmd.agent)
+        : currentAgent;
+
+      const commandModel = cmd.model || getAgentModel(config, commandAgent || null);
+
+      return sendMessage(
+        prompt,
+        commandModel?.providerID,
+        commandModel?.modelID,
+        currentSession || undefined,
+        commandAgent || currentAgent || undefined,
+      );
+    },
+    [currentSession, agents, currentAgent, config, sendMessage],
+  );
+
   return {
     currentSession,
     messages,
@@ -2320,10 +2516,16 @@ export function useOpenCode() {
     selectModel,
     loadModels,
     config,
+    configLoading,
+    loadConfig,
+    commands,
+    commandsLoading,
+    loadCommands,
     currentPath,
     loadCurrentPath,
     providersData,
     isConnected,
+    isStreaming,
     isHydrated,
     customCommands,
     openHelp,
@@ -2351,6 +2553,8 @@ export function useOpenCode() {
     unshareSession,
     initSession,
     summarizeSession,
+    executeSlashCommand,
+    parseCommand: (input: string) => parseCommand(input, commands),
     sseConnectionState,
     // Permission and todo state
     currentPermission,

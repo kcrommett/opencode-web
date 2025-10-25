@@ -1,19 +1,26 @@
 import { useState, useEffect } from "react";
 import { applyTheme, getStoredTheme, themes } from "@/lib/themes";
 
-export function useTheme() {
+export function useTheme(configTheme?: string) {
   const [currentTheme, setCurrentTheme] = useState<string>("catppuccin");
 
   useEffect(() => {
     const storedTheme = getStoredTheme();
-    setCurrentTheme(storedTheme);
-    applyTheme(storedTheme);
-  }, []);
+    const themeToApply = configTheme || storedTheme;
 
-  const changeTheme = (themeId: string) => {
+    if (themes[themeToApply]) {
+      setCurrentTheme(themeToApply);
+      applyTheme(themeToApply);
+    }
+  }, [configTheme]);
+
+  const changeTheme = (themeId: string, saveToLocalStorage = true) => {
     if (themes[themeId]) {
       applyTheme(themeId);
       setCurrentTheme(themeId);
+      if (saveToLocalStorage) {
+        localStorage.setItem("opencode-theme", themeId);
+      }
     }
   };
 
