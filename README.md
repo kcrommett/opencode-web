@@ -23,7 +23,11 @@ OpenCode Web is a web-based interface for the OpenCode Server API, providing a b
 ### Option 1: Run with bunx (Recommended)
 
 ```bash
+# Latest stable release
 bunx opencode-web@latest
+
+# Dev release (bleeding edge)
+bunx opencode-web@dev
 ```
 
 ### Option 2: Install Globally
