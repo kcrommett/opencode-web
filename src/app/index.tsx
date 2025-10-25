@@ -349,6 +349,17 @@ function OpenCodeChatTUI() {
     executeSlashCommand,
   } = useOpenCodeContext();
 
+  const customCommandSuggestions = useMemo<Command[]>(() => {
+    if (!commands || commands.length === 0) return [];
+
+    return commands.map((cmd) => ({
+      name: cmd.name,
+      description: cmd.description || "Custom command",
+      category: "custom" as const,
+      custom: true,
+    }));
+  }, [commands]);
+
   // Removed automatic session creation to prevent spam
 
   const handleSend = async () => {
@@ -1161,20 +1172,14 @@ function OpenCodeChatTUI() {
     }
     if (e.key === "Tab") {
       e.preventDefault();
-      const customCommandsList: Command[] = commands.map(cmd => ({
-        name: cmd.name,
-        description: cmd.description || "Custom command",
-        category: "custom" as const,
-        custom: true,
-      }));
       if (showCommandPicker && commandSuggestions.length > 0) {
-        const completed = completeCommand(input, customCommandsList);
+        const completed = completeCommand(input, customCommandSuggestions);
         if (completed) {
           setInput(completed + " ");
           setShowCommandPicker(false);
         }
       } else if (input.startsWith("/")) {
-        const completed = completeCommand(input, customCommandsList);
+        const completed = completeCommand(input, customCommandSuggestions);
         if (completed) {
           setInput(completed + " ");
         }
@@ -1218,13 +1223,10 @@ function OpenCodeChatTUI() {
   const handleInputChange = async (value: string) => {
     setInput(value);
     if (value.startsWith("/")) {
-      const customCommandsList: Command[] = commands.map(cmd => ({
-        name: cmd.name,
-        description: cmd.description || "Custom command",
-        category: "custom" as const,
-        custom: true,
-      }));
-      const suggestions = getCommandSuggestions(value, customCommandsList);
+      console.log("Commands from context:", commands);
+      console.log("Custom commands list:", customCommandSuggestions);
+      const suggestions = getCommandSuggestions(value, customCommandSuggestions);
+      console.log("All suggestions:", suggestions);
       setCommandSuggestions(suggestions);
       setShowCommandPicker(suggestions.length > 0);
       setSelectedCommandIndex(0);

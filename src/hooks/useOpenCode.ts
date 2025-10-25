@@ -215,6 +215,7 @@ interface FileResponse {
 }
 
 export function useOpenCode() {
+  console.log("🔥 useOpenCode hook INITIALIZED");
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
@@ -237,7 +238,7 @@ export function useOpenCode() {
   const [config, setConfig] = useState<OpencodeConfig | null>(null);
   const [configLoading, setConfigLoading] = useState(true);
   const [commands, setCommands] = useState<Command[]>([]);
-  const [commandsLoading, setCommandsLoading] = useState(true);
+  const [commandsLoading, setCommandsLoading] = useState(false);
   const [currentPath, setCurrentPath] = useState<string>("");
   const [sessionModelMap, setSessionModelMap] = useState<Record<string, Model>>(
     {},
@@ -273,6 +274,7 @@ export function useOpenCode() {
   const loadedAgentsRef = useRef(false);
   const loadedProjectsRef = useRef(false);
   const loadedSessionsRef = useRef(false);
+  const loadedCommandsRef = useRef(false);
   const seenMessageIdsRef = useRef<Set<string>>(new Set());
   const currentSessionRef = useRef<Session | null>(null);
 
@@ -2113,51 +2115,58 @@ export function useOpenCode() {
     try {
       setCommandsLoading(true);
       const response = await openCodeService.getCommands();
+      console.log("getCommands response:", response);
       const commandsData = response.data as Record<string, unknown> | undefined;
+      console.log("commandsData:", commandsData);
 
       if (!commandsData) {
+        console.log("No commands data, setting empty array");
         setCommands([]);
         return [];
       }
 
-      const commandList: Command[] = Object.entries(commandsData).map(
-        ([name, cmd]: [string, unknown]) => {
-          const cmdObj = cmd as Record<string, unknown>;
-          return {
-            name,
-            description:
-              typeof cmdObj.description === "string"
-                ? cmdObj.description
-                : undefined,
-            agent:
-              typeof cmdObj.agent === "string" ? cmdObj.agent : undefined,
-            model:
-              cmdObj.model &&
-              typeof cmdObj.model === "object" &&
-              "providerID" in cmdObj.model &&
-              "modelID" in cmdObj.model
-                ? {
-                    providerID: String(cmdObj.model.providerID),
-                    modelID: String(cmdObj.model.modelID),
-                  }
-                : undefined,
-            prompt:
-              typeof cmdObj.prompt === "string" ? cmdObj.prompt : undefined,
-            trigger: Array.isArray(cmdObj.trigger)
-              ? cmdObj.trigger.map(String)
-              : [`/${name}`],
-            custom:
-              typeof cmdObj.custom === "boolean" ? cmdObj.custom : true,
-          };
-        },
-      );
+       const commandList: Command[] = Object.entries(commandsData).map(
+         ([name, cmd]: [string, unknown]) => {
+           const cmdObj = cmd as Record<string, unknown>;
+           const actualName = (cmdObj as Record<string, unknown> & { name?: string }).name || name;
+           return {
+             name: actualName,
+             description:
+               typeof cmdObj.description === "string"
+                 ? cmdObj.description
+                 : undefined,
+             agent:
+               typeof cmdObj.agent === "string" ? cmdObj.agent : undefined,
+             model:
+               cmdObj.model &&
+               typeof cmdObj.model === "object" &&
+               "providerID" in cmdObj.model &&
+               "modelID" in cmdObj.model
+                 ? {
+                     providerID: String(cmdObj.model.providerID),
+                     modelID: String(cmdObj.model.modelID),
+                   }
+                 : undefined,
+             prompt:
+               typeof cmdObj.prompt === "string" 
+                 ? cmdObj.prompt 
+                 : typeof cmdObj.template === "string"
+                   ? cmdObj.template
+                   : undefined,
+             trigger: Array.isArray(cmdObj.trigger)
+               ? cmdObj.trigger.map(String)
+               : [`/${actualName}`],
+             custom:
+               typeof cmdObj.custom === "boolean" ? cmdObj.custom : true,
+           };
+         },
+       );
 
+      console.log("Parsed command list:", commandList);
       setCommands(commandList);
       return commandList;
     } catch (error) {
-      if (process.env.NODE_ENV !== "production") {
-        console.error("Failed to load commands:", error);
-      }
+      console.error("Failed to load commands:", error);
       return [];
     } finally {
       setCommandsLoading(false);
@@ -2263,10 +2272,16 @@ export function useOpenCode() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (isHydrated && !commandsLoading && commands.length === 0) {
-      loadCommands();
-    }
-  }, [isHydrated, loadCommands, commandsLoading, commands.length]);
+    if (!isHydrated || loadedCommandsRef.current) return;
+
+    console.log("loadCommands useEffect check:", { isHydrated });
+    console.log("Calling loadCommands...");
+
+    loadedCommandsRef.current = true;
+    loadCommands().catch(() => {
+      loadedCommandsRef.current = false;
+    });
+  }, [isHydrated, loadCommands]);
 
   const currentProjectIdRef = useRef<string | null>(null);
 
@@ -2438,10 +2453,20 @@ export function useOpenCode() {
 
       const cmd = parsedCommand.matchedCommand;
 
-      let prompt = cmd.prompt || parsedCommand.content || "";
+      let prompt = cmd.prompt;
 
-      if (parsedCommand.args && parsedCommand.args.length > 0) {
-        prompt += "\n\n" + parsedCommand.args.join(" ");
+      if (!prompt) {
+        throw new Error(`Command "${cmd.name}" has no prompt content`);
+      }
+
+      const argsText = parsedCommand.args && parsedCommand.args.length > 0
+        ? parsedCommand.args.join(" ")
+        : "";
+
+      if (argsText) {
+        prompt = prompt.replace(/\$ARGUMENTS/g, argsText);
+      } else {
+        prompt = prompt.replace(/\$ARGUMENTS/g, "");
       }
 
       const commandAgent = cmd.agent
