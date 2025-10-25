@@ -44,4 +44,52 @@ export interface Agent {
   name: string;
   mode: string;
   description?: string;
+  model?: {
+    providerID: string;
+    modelID: string;
+  };
+}
+
+export interface AgentConfig {
+  model?: string | {
+    providerID: string;
+    modelID: string;
+  };
+  description?: string;
+  prompt?: string;
+  temperature?: number;
+  topP?: number;
+}
+
+export interface CommandConfig {
+  description?: string;
+  agent?: string;
+  model?: string | { providerID: string; modelID: string };
+  prompt?: string;
+}
+
+export interface Command {
+  name: string;
+  description?: string;
+  agent?: string;
+  model?: {
+    providerID: string;
+    modelID: string;
+  };
+  prompt?: string;
+  trigger?: string[];
+  custom?: boolean;
+}
+
+export interface ProviderConfig {
+  [key: string]: unknown;
+}
+
+export interface OpencodeConfig {
+  theme?: string;
+  model?: string;
+  agent?: Record<string, AgentConfig>;
+  command?: Record<string, CommandConfig>;
+  provider?: Record<string, ProviderConfig>;
+  [key: string]: unknown;
 }
