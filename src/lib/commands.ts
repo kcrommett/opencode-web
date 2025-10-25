@@ -34,7 +34,6 @@ export const COMMANDS: Command[] = [
     category: "other",
   },
   { name: "editor", description: "Open editor", category: "other" },
-  { name: "exit", description: "Exit application", category: "other" },
 ];
 
 export function getCommandSuggestions(input: string, customCommands: Command[] = []): Command[] {

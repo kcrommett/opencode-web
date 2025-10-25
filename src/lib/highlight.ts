@@ -22,6 +22,7 @@ import markdown from "highlight.js/lib/languages/markdown";
 import css from "highlight.js/lib/languages/css";
 import scss from "highlight.js/lib/languages/scss";
 import plaintext from "highlight.js/lib/languages/plaintext";
+import lisp from "highlight.js/lib/languages/lisp";
 
 hljs.registerLanguage("javascript", javascript);
 hljs.registerLanguage("typescript", typescript);
@@ -45,6 +46,7 @@ hljs.registerLanguage("markdown", markdown);
 hljs.registerLanguage("css", css);
 hljs.registerLanguage("scss", scss);
 hljs.registerLanguage("plaintext", plaintext);
+hljs.registerLanguage("lisp", lisp);
 
 const EXTENSION_MAP: Record<string, string> = {
   js: "javascript",
@@ -102,6 +104,9 @@ const EXTENSION_MAP: Record<string, string> = {
   env: "bash",
   gitignore: "plaintext",
   dockerignore: "plaintext",
+  el: "lisp",
+  lisp: "lisp",
+  cl: "lisp",
 };
 
 export function detectLanguage(filePath: string): string {

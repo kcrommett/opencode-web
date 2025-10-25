@@ -252,6 +252,15 @@ function OpenCodeChatTUI() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const modelSearchInputRef = useRef<HTMLInputElement>(null);
   const fileSearchInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("opencode-sidebar-width");
+      return stored ? parseInt(stored, 10) : 320;
+    }
+    return 320;
+  });
+  const [isResizing, setIsResizing] = useState(false);
 
   const selectedFileName = selectedFile?.split("/").pop() ?? null;
   const fileTextContent = fileContent?.text ?? null;
@@ -314,6 +323,7 @@ function OpenCodeChatTUI() {
     models,
     selectedModel,
     selectModel,
+    recentModels,
     openHelp,
     openThemes,
     isConnected,
@@ -416,6 +426,56 @@ function OpenCodeChatTUI() {
       console.error("Failed to send message:", err);
     }
   };
+
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  };
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = e.clientX;
+      if (newWidth >= 200 && newWidth <= 600) {
+        setSidebarWidth(newWidth);
+        localStorage.setItem("opencode-sidebar-width", newWidth.toString());
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizing]);
+
+  useEffect(() => {
+    if (!showModelPicker && !showAgentPicker && !showSessionPicker && textareaRef.current) {
+      const timer = setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [showModelPicker, showAgentPicker, showSessionPicker]);
+
+  useEffect(() => {
+    if (textareaRef.current && isHydrated) {
+      textareaRef.current.focus();
+    }
+  }, [isHydrated, currentSession?.id]);
+
+  useEffect(() => {
+    if (!loading && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [loading]);
 
   const handleShellCommand = async (command: string) => {
     if (!currentSession) {
@@ -1065,18 +1125,6 @@ function OpenCodeChatTUI() {
           setMessages((prev) => [...prev, errorMsg]);
         }
         break;
-      case "exit":
-        setMessages([]);
-        setInput("");
-        setActiveTab("workspace");
-        const exitMsg = {
-          id: `assistant-${Date.now()}`,
-          type: "assistant" as const,
-          content: "Messages cleared. Use /new to start a new session.",
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, exitMsg]);
-        break;
       default:
         const unknownMessage = {
           id: `assistant-${Date.now()}`,
@@ -1658,8 +1706,16 @@ function OpenCodeChatTUI() {
         {/* Desktop Sidebar - hidden on mobile */}
         <View
           box="square"
-          className="hidden lg:flex lg:w-80 flex-col p-4 bg-theme-background-alt"
+          className="hidden lg:flex flex-col p-4 bg-theme-background-alt relative"
+          style={{ width: `${sidebarWidth}px` }}
         >
+          <div
+            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-theme-primary transition-colors z-10"
+            onMouseDown={handleResizeStart}
+            style={{
+              backgroundColor: isResizing ? "var(--theme-primary)" : "transparent",
+            }}
+          />
           <div className="flex-1 overflow-hidden">
             {activeTab === "workspace" && (
               <div className="h-full flex flex-col overflow-hidden">
@@ -2518,6 +2574,7 @@ function OpenCodeChatTUI() {
                       />
                     )}
                     <Textarea
+                      ref={textareaRef}
                       value={input}
                       onChange={(e) => handleInputChange(e.target.value)}
                       onKeyDown={handleKeyDown}
@@ -3163,19 +3220,26 @@ function OpenCodeChatTUI() {
                 value={modelSearchQuery}
                 onChange={(e) => setModelSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
+                  const totalItems = !modelSearchQuery.trim() && recentModels.length > 0
+                    ? recentModels.length + filteredModels.length
+                    : filteredModels.length;
+                  
                   if (e.key === "ArrowDown") {
                     e.preventDefault();
                     setSelectedModelIndex((prev) =>
-                      prev < filteredModels.length - 1 ? prev + 1 : prev,
+                      prev < totalItems - 1 ? prev + 1 : prev,
                     );
                   } else if (e.key === "ArrowUp") {
                     e.preventDefault();
                     setSelectedModelIndex((prev) =>
                       prev > 0 ? prev - 1 : prev,
                     );
-                  } else if (e.key === "Enter" && filteredModels.length > 0) {
+                  } else if (e.key === "Enter" && totalItems > 0) {
                     e.preventDefault();
-                    selectModel(filteredModels[selectedModelIndex]);
+                    const allModels = !modelSearchQuery.trim() && recentModels.length > 0
+                      ? [...recentModels, ...filteredModels]
+                      : filteredModels;
+                    selectModel(allModels[selectedModelIndex]);
                     setShowModelPicker(false);
                     setModelSearchQuery("");
                     setSelectedModelIndex(0);
@@ -3194,43 +3258,96 @@ function OpenCodeChatTUI() {
                   No models found
                 </div>
               ) : (
-                filteredModels.map((model, index) => {
-                  const isSelected = index === selectedModelIndex;
-                  return (
-                    <div
-                      key={`${model.providerID}/${model.modelID}`}
-                      className={`p-3 rounded cursor-pointer transition-colors ${
-                        isSelected
-                          ? "bg-theme-primary/20 border border-theme-primary text-theme-foreground"
-                          : "bg-theme-background-alt text-theme-foreground"
-                      }`}
-                      onClick={() => {
-                        selectModel(model);
-                        setShowModelPicker(false);
-                        setModelSearchQuery("");
-                        setSelectedModelIndex(0);
-                      }}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="font-medium">{model.name}</div>
-                          <div className="text-xs opacity-70">
-                            {model.providerID}/{model.modelID}
-                          </div>
-                        </div>
-                        {isSelected && (
-                          <Badge
-                            variant="background2"
-                            cap="round"
-                            className="text-xs"
-                          >
-                            ↵
-                          </Badge>
-                        )}
+                <>
+                  {!modelSearchQuery.trim() && recentModels.length > 0 && (
+                    <>
+                      <div className="text-xs font-bold uppercase mb-2 opacity-60">
+                        Recent Models
                       </div>
-                    </div>
-                  );
-                })
+                      {recentModels.map((model, index) => {
+                        const isSelected = index === selectedModelIndex;
+                        return (
+                          <div
+                            key={`recent-${model.providerID}/${model.modelID}`}
+                            className={`p-3 rounded cursor-pointer transition-colors ${
+                              isSelected
+                                ? "bg-theme-primary/20 border border-theme-primary text-theme-foreground"
+                                : "bg-theme-background-alt text-theme-foreground"
+                            }`}
+                            onClick={() => {
+                              selectModel(model);
+                              setShowModelPicker(false);
+                              setModelSearchQuery("");
+                              setSelectedModelIndex(0);
+                            }}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="font-medium">{model.name}</div>
+                                <div className="text-xs opacity-70">
+                                  {model.providerID}/{model.modelID}
+                                </div>
+                              </div>
+                              {isSelected && (
+                                <Badge
+                                  variant="background2"
+                                  cap="round"
+                                  className="text-xs"
+                                >
+                                  ↵
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <Separator className="my-4" />
+                      <div className="text-xs font-bold uppercase mb-2 opacity-60">
+                        All Models
+                      </div>
+                    </>
+                  )}
+                  {filteredModels.map((model, index) => {
+                    const adjustedIndex = !modelSearchQuery.trim() && recentModels.length > 0 
+                      ? index + recentModels.length 
+                      : index;
+                    const isSelected = adjustedIndex === selectedModelIndex;
+                    return (
+                      <div
+                        key={`${model.providerID}/${model.modelID}`}
+                        className={`p-3 rounded cursor-pointer transition-colors ${
+                          isSelected
+                            ? "bg-theme-primary/20 border border-theme-primary text-theme-foreground"
+                            : "bg-theme-background-alt text-theme-foreground"
+                        }`}
+                        onClick={() => {
+                          selectModel(model);
+                          setShowModelPicker(false);
+                          setModelSearchQuery("");
+                          setSelectedModelIndex(0);
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="font-medium">{model.name}</div>
+                            <div className="text-xs opacity-70">
+                              {model.providerID}/{model.modelID}
+                            </div>
+                          </div>
+                          {isSelected && (
+                            <Badge
+                              variant="background2"
+                              cap="round"
+                              className="text-xs"
+                            >
+                              ↵
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
               )}
             </div>
             <Separator className="mt-4 mb-4" />

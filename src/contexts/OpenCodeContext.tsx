@@ -30,6 +30,8 @@ interface OpenCodeContextType {
   selectedModel: ReturnType<typeof useOpenCode>["selectedModel"];
   selectModel: ReturnType<typeof useOpenCode>["selectModel"];
   loadModels: ReturnType<typeof useOpenCode>["loadModels"];
+  recentModels: ReturnType<typeof useOpenCode>["recentModels"];
+  cycleRecentModels: ReturnType<typeof useOpenCode>["cycleRecentModels"];
   config: ReturnType<typeof useOpenCode>["config"];
   configLoading: ReturnType<typeof useOpenCode>["configLoading"];
   loadConfig: ReturnType<typeof useOpenCode>["loadConfig"];
