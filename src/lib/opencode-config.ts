@@ -41,17 +41,7 @@ export function getOpencodeServerUrl(): string {
     }
   }
 
-  if (process.env.NODE_ENV !== "production") {
-    console.log(
-      "[opencode-config] getOpencodeServerUrl() resolved:",
-      resolveServerUrlFromEnv(),
-    );
-    console.log("[opencode-config] Environment variables:", {
-      OPENCODE_SERVER_URL: process.env.OPENCODE_SERVER_URL,
-      VITE_OPENCODE_SERVER_URL: process.env.VITE_OPENCODE_SERVER_URL,
-      isBrowser,
-    });
-  }
+
 
   return resolveServerUrlFromEnv();
 }

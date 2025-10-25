@@ -310,7 +310,6 @@ interface FileResponse {
 }
 
 export function useOpenCode() {
-  console.log("🔥 useOpenCode hook INITIALIZED");
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
