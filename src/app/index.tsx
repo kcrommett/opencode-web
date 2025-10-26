@@ -2837,7 +2837,7 @@ function OpenCodeChatTUI() {
                   <div className="flex-1 relative w-full">
                     {messageQueue.length > 0 && (
                       <div className="flex items-center gap-2 px-3 py-2 mb-2 bg-theme-background-alt rounded-md border border-theme-warning">
-                        <Badge variant="warning" cap="round">
+                        <Badge variant="foreground1" cap="round">
                           {messageQueue.length} message
                           {messageQueue.length > 1 ? "s" : ""} queued
                         </Badge>
