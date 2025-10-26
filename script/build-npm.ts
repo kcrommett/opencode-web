@@ -23,11 +23,13 @@ const bump = process.env.OPENCODE_BUMP as
   | "minor"
   | "patch"
   | undefined;
-if (!bump) throw new Error("OPENCODE_BUMP not set");
 const currentPkg = JSON.parse(readFileSync("package.json", "utf8")) as {
   version: string;
 };
-const TARGET_VERSION = bumpVersion(currentPkg.version, bump);
+// If OPENCODE_BUMP is not set, use the current version (for --skip-bump)
+const TARGET_VERSION = bump
+  ? bumpVersion(currentPkg.version, bump)
+  : currentPkg.version;
 
 const Script = {
   get version() {

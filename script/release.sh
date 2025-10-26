@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: script/release.sh [--bump patch|minor|major] [--no-publish] [--otp CODE] [--tag NAME] [--no-tag] [--dev]
+Usage: script/release.sh [--bump patch|minor|major] [--skip-bump] [--no-publish] [--otp CODE] [--tag NAME] [--no-tag] [--dev]
 
 Automates the OpenCode Web release flow:
   1. Aligns local package versions with the latest published version on npm
@@ -16,12 +16,14 @@ Automates the OpenCode Web release flow:
 
 Options:
   --dev           Publish to npm with 'dev' tag instead of 'latest', and push to dev branch
+  --skip-bump     Skip version increment, use current repo version (useful for promoting dev to master)
 
 Examples:
   script/release.sh                       # patch bump, publish, push to master
   script/release.sh --bump minor --no-publish
   script/release.sh --bump patch --otp 123456
   script/release.sh --dev                 # patch bump, publish to @dev tag, push to dev branch
+  script/release.sh --skip-bump           # use current version, publish to latest, push to master
 EOF
 }
 
@@ -93,6 +95,7 @@ set_package_version() {
 }
 
 BUMP="patch"
+SKIP_BUMP=0
 PUBLISH=1
 OTP=""
 TAG_NAME=""
@@ -107,6 +110,10 @@ while [[ $# -gt 0 ]]; do
     -b|--bump)
       BUMP=${2:-}
       shift 2
+      ;;
+    --skip-bump)
+      SKIP_BUMP=1
+      shift
       ;;
     --no-publish)
       PUBLISH=0
@@ -140,14 +147,16 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-case "$BUMP" in
-  major|minor|patch) ;;
-  *)
-    echo "Invalid bump type: $BUMP" >&2
-    usage
-    exit 1
-    ;;
-esac
+if [[ $SKIP_BUMP -eq 0 ]]; then
+  case "$BUMP" in
+    major|minor|patch) ;;
+    *)
+      echo "Invalid bump type: $BUMP" >&2
+      usage
+      exit 1
+      ;;
+  esac
+fi
 
 require_command bun
 require_command npm
@@ -181,15 +190,30 @@ if [[ $cmp -lt 0 ]]; then
   CURRENT_VERSION=$PUBLISHED_VERSION
 fi
 
-NEXT_VERSION=$(increment_version "$CURRENT_VERSION" "$BUMP")
-echo "Target release version: $NEXT_VERSION"
+if [[ $SKIP_BUMP -eq 1 ]]; then
+  NEXT_VERSION=$CURRENT_VERSION
+  echo "Target release version: $NEXT_VERSION (skipping bump)"
+  
+  # Verify the version exists on npm (either on latest or dev tag)
+  if ! npm view "opencode-web@$NEXT_VERSION" version >/dev/null 2>&1; then
+    echo "ERROR: Version $NEXT_VERSION does not exist on npm. Cannot use --skip-bump with unpublished version." >&2
+    echo "       Use --bump instead to create a new version." >&2
+    exit 1
+  fi
+  
+  # Don't set OPENCODE_BUMP when skipping bump
+  unset OPENCODE_BUMP
+else
+  NEXT_VERSION=$(increment_version "$CURRENT_VERSION" "$BUMP")
+  echo "Target release version: $NEXT_VERSION"
 
-if npm view "opencode-web@$NEXT_VERSION" version >/dev/null 2>&1; then
-  echo "ERROR: Version $NEXT_VERSION already exists on npm. Choose a larger bump or verify the registry state." >&2
-  exit 1
+  if npm view "opencode-web@$NEXT_VERSION" version >/dev/null 2>&1; then
+    echo "ERROR: Version $NEXT_VERSION already exists on npm. Choose a larger bump or verify the registry state." >&2
+    exit 1
+  fi
+
+  export OPENCODE_BUMP=$BUMP
 fi
-
-export OPENCODE_BUMP=$BUMP
 echo "Building npm package via Bun..."
 bun ./script/build-npm.ts >/dev/null
 
