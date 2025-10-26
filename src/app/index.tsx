@@ -13,13 +13,18 @@ import {
   HamburgerMenu,
   InstallPrompt,
   PWAReloadPrompt,
+  Checkbox,
 } from "@/app/_components/ui";
 import { CommandPicker } from "@/app/_components/ui/command-picker";
 import { AgentPicker } from "@/app/_components/ui/agent-picker";
 import { SessionPicker } from "@/app/_components/ui/session-picker";
 import { PermissionModal } from "@/app/_components/ui/permission-modal";
 import { MessagePart } from "@/app/_components/message";
-import type { FileContentData } from "@/types/opencode";
+import type {
+  FileContentData,
+  MentionSuggestion,
+  Agent,
+} from "@/types/opencode";
 import { FileIcon } from "@/app/_components/files/file-icon";
 import { useOpenCodeContext } from "@/contexts/OpenCodeContext";
 import { openCodeService } from "@/lib/opencode-client";
@@ -37,6 +42,7 @@ import {
   isImageFile,
   addLineNumbers,
 } from "@/lib/highlight";
+import { useIsMobile } from "@/lib/breakpoints";
 import "highlight.js/styles/github-dark.css";
 
 type ProjectItem = {
@@ -92,28 +98,30 @@ function ProjectSelector({
   }, [isOpen]);
 
   const selectedLabel = currentProject?.worktree || placeholder;
-  const buttonStyles: React.CSSProperties = {
-    backgroundColor: currentProject
-      ? "var(--theme-primary)"
-      : "var(--theme-background)",
-    color: currentProject
-      ? "var(--theme-background)"
-      : "var(--theme-foreground)",
-    border: "1px solid var(--theme-primary)",
-  };
+  const hasProject = !!currentProject;
 
   return (
     <div className="relative" ref={containerRef}>
       <Button
         box="square"
-        className={`w-full flex items-center justify-between gap-2 text-sm ${buttonClassName}`}
+        className={`w-full flex items-center justify-between gap-2 text-sm ${buttonClassName} ${
+          hasProject ? "[&]:!bg-[var(--theme-primary)] [&]:!text-[var(--theme-background)]" : "[&]:!bg-[var(--theme-background)] [&]:!text-[var(--theme-foreground)]"
+        }`}
         onClick={() => setIsOpen((prev) => !prev)}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        style={buttonStyles}
+        style={{
+          borderColor: "var(--theme-primary)",
+          borderWidth: "1px",
+          borderStyle: "solid",
+        }}
       >
-        <span className="truncate">{selectedLabel}</span>
-        <span className="text-xs opacity-70">{isOpen ? "▲" : "▼"}</span>
+        <span className="truncate">
+          {selectedLabel}
+        </span>
+        <span className="text-xs opacity-70">
+          {isOpen ? "▲" : "▼"}
+        </span>
       </Button>
       {isOpen && (
         <div
@@ -200,6 +208,224 @@ function coerceToDate(value?: Date | string | number | null) {
   return null;
 }
 
+function ThemePickerDialog({
+  currentTheme,
+  onThemeChange,
+  onClose,
+}: {
+  currentTheme: string;
+  onThemeChange: (themeId: string) => void;
+  onClose: () => void;
+}) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [previewTheme, setPreviewTheme] = useState(currentTheme);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const selectedItemRef = useRef<HTMLDivElement>(null);
+  const listContainerRef = useRef<HTMLDivElement>(null);
+
+  // Filter themes based on search query
+  const filteredThemes = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return themeList;
+    return themeList.filter(
+      (theme) =>
+        theme.name.toLowerCase().includes(query) ||
+        theme.id.toLowerCase().includes(query)
+    );
+  }, [searchQuery]);
+
+  // Initialize: focus search input and scroll to current theme
+  useEffect(() => {
+    // Auto-focus search input
+    searchInputRef.current?.focus();
+
+    // Find current theme index and scroll to it
+    const currentIndex = filteredThemes.findIndex(
+      (theme) => theme.id === currentTheme
+    );
+    if (currentIndex !== -1) {
+      setSelectedIndex(currentIndex);
+      // Scroll to current theme after a brief delay to ensure DOM is ready
+      setTimeout(() => {
+        selectedItemRef.current?.scrollIntoView({
+          block: "center",
+          behavior: "smooth",
+        });
+      }, 100);
+    }
+  }, []);
+
+  // Update selected index when filtered themes change
+  useEffect(() => {
+    // Keep selection within bounds
+    if (selectedIndex >= filteredThemes.length) {
+      setSelectedIndex(Math.max(0, filteredThemes.length - 1));
+    }
+    // Reset to current theme when search is cleared
+    if (!searchQuery && filteredThemes.length > 0) {
+      const currentIndex = filteredThemes.findIndex(
+        (theme) => theme.id === currentTheme
+      );
+      if (currentIndex !== -1) {
+        setSelectedIndex(currentIndex);
+      }
+    }
+  }, [filteredThemes, searchQuery, currentTheme]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedIndex((prev) => {
+          // Circular navigation: wrap to start if at the end
+          const newIndex = prev + 1 >= filteredThemes.length ? 0 : prev + 1;
+          // Preview theme immediately
+          setPreviewTheme(filteredThemes[newIndex].id);
+          onThemeChange(filteredThemes[newIndex].id);
+          return newIndex;
+        });
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedIndex((prev) => {
+          // Circular navigation: wrap to end if at the start
+          const newIndex = prev - 1 < 0 ? filteredThemes.length - 1 : prev - 1;
+          // Preview theme immediately
+          setPreviewTheme(filteredThemes[newIndex].id);
+          onThemeChange(filteredThemes[newIndex].id);
+          return newIndex;
+        });
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        if (filteredThemes[selectedIndex]) {
+          onThemeChange(filteredThemes[selectedIndex].id);
+          onClose();
+        }
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        // Restore original theme if user cancels
+        onThemeChange(currentTheme);
+        onClose();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [filteredThemes, selectedIndex, onThemeChange, onClose, currentTheme]);
+
+  // Scroll selected item into view
+  useEffect(() => {
+    selectedItemRef.current?.scrollIntoView({
+      block: "nearest",
+      behavior: "smooth",
+    });
+  }, [selectedIndex]);
+
+  return (
+    <Dialog open={true} onClose={onClose}>
+      <View
+        box="square"
+        className="p-6 max-w-md w-full max-h-[80vh] overflow-hidden bg-theme-background text-theme-foreground"
+      >
+        <h2 className="text-lg font-bold mb-4">Select Theme</h2>
+        <Separator className="mb-4" />
+
+        {/* Search Input */}
+        <input
+          ref={searchInputRef}
+          type="text"
+          is-="input"
+          placeholder="Search themes..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full mb-4"
+        />
+
+        {/* Theme List */}
+        <div
+          ref={listContainerRef}
+          className="max-h-96 overflow-y-auto scrollbar space-y-2 mb-4"
+        >
+          {filteredThemes.length === 0 ? (
+            <div className="text-center py-8 text-theme-muted">
+              No themes found matching "{searchQuery}"
+            </div>
+          ) : (
+            filteredThemes.map((theme, index) => (
+              <div
+                key={theme.id}
+                ref={index === selectedIndex ? selectedItemRef : null}
+                className={`p-3 rounded cursor-pointer transition-colors border ${
+                  index === selectedIndex
+                    ? "bg-theme-primary/20 border-theme-primary text-theme-foreground ring-2 ring-theme-primary/50"
+                    : currentTheme === theme.id
+                      ? "border-theme-primary/50 bg-theme-background-alt"
+                      : "border-theme-border bg-theme-background-alt hover:bg-opacity-50"
+                }`}
+                onClick={() => {
+                  setSelectedIndex(index);
+                  onThemeChange(theme.id);
+                  onClose();
+                }}
+                onMouseEnter={() => {
+                  setSelectedIndex(index);
+                  onThemeChange(theme.id);
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium">{theme.name}</div>
+                    <div className="text-xs opacity-70 mt-1">{theme.id}</div>
+                  </div>
+                  <div className="flex gap-1">
+                    {Object.entries(theme.colors)
+                      .slice(0, 5)
+                      .map(([key, color]) => (
+                        <div
+                          key={key}
+                          className="w-4 h-4 rounded"
+                          style={{ backgroundColor: color }}
+                          title={key}
+                        />
+                      ))}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <Separator className="mb-4" />
+
+        {/* Footer with instructions */}
+        <div className="text-xs text-theme-muted mb-3">
+          <div className="flex gap-4">
+            <span>↑↓ Navigate</span>
+            <span>Enter Confirm</span>
+            <span>Esc Cancel</span>
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <Button
+            variant="background2"
+            box="round"
+            onClick={() => {
+              // Restore original theme on close
+              onThemeChange(currentTheme);
+              onClose();
+            }}
+            size="small"
+          >
+            Close
+          </Button>
+        </div>
+      </View>
+    </Dialog>
+  );
+}
+
 export const Route = createFileRoute("/")({
   component: OpenCodeChatTUI,
 });
@@ -218,6 +444,10 @@ function OpenCodeChatTUI() {
     setShowNewSessionForm(false);
     setNewSessionTitle("");
   };
+  const [sidebarEditMode, setSidebarEditMode] = useState(false);
+  const [selectedSidebarSessionIds, setSelectedSidebarSessionIds] = useState<
+    Set<string>
+  >(new Set());
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("opencode-active-tab") || "workspace";
@@ -235,13 +465,14 @@ function OpenCodeChatTUI() {
   });
   const [fileContent, setFileContent] = useState<FileContentData | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [fileSuggestions, setFileSuggestions] = useState<string[]>([]);
-  const [showFileSuggestions, setShowFileSuggestions] = useState(false);
+  const [mentionSuggestions, setMentionSuggestions] = useState<
+    MentionSuggestion[]
+  >([]);
+  const [showMentionSuggestions, setShowMentionSuggestions] = useState(false);
   const [commandSuggestions, setCommandSuggestions] = useState<Command[]>([]);
   const [showCommandPicker, setShowCommandPicker] = useState(false);
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
-  const [selectedFileSuggestionIndex, setSelectedFileSuggestionIndex] =
-    useState(0);
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
   const [showAgentPicker, setShowAgentPicker] = useState(false);
   const [showSessionPicker, setShowSessionPicker] = useState(false);
   const [selectedModelIndex, setSelectedModelIndex] = useState(0);
@@ -249,10 +480,18 @@ function OpenCodeChatTUI() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [configData, setConfigData] = useState<string | null>(null);
+  const [deleteDialogState, setDeleteDialogState] = useState<{
+    open: boolean;
+    sessionId?: string;
+    sessionTitle?: string;
+  }>({ open: false });
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const modelSearchInputRef = useRef<HTMLInputElement>(null);
   const fileSearchInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("opencode-sidebar-width");
@@ -261,6 +500,7 @@ function OpenCodeChatTUI() {
     return 320;
   });
   const [isResizing, setIsResizing] = useState(false);
+  const isMobile = useIsMobile();
 
   const selectedFileName = selectedFile?.split("/").pop() ?? null;
   const fileTextContent = fileContent?.text ?? null;
@@ -309,7 +549,7 @@ function OpenCodeChatTUI() {
     loadMessages,
     switchSession,
     deleteSession,
-    clearAllSessions,
+    clearAllSessions: _clearAllSessions,
     // New features
     projects,
     currentProject,
@@ -338,6 +578,7 @@ function OpenCodeChatTUI() {
     showModelPicker,
     setShowModelPicker,
     agents,
+    subagents,
     currentAgent,
     selectAgent,
     extractTextFromParts,
@@ -348,6 +589,9 @@ function OpenCodeChatTUI() {
     unshareSession,
     initSession,
     summarizeSession,
+    abortSession,
+    currentSessionBusy,
+    abortInFlight,
     currentPermission,
     setCurrentPermission,
     shouldBlurEditor,
@@ -356,6 +600,13 @@ function OpenCodeChatTUI() {
     config,
     commands,
     executeSlashCommand,
+    sessionUsage,
+    messageQueue,
+    addToQueue,
+    removeFromQueue,
+    clearQueue,
+    processNextInQueue: _processNextInQueue,
+    isProcessingQueue: _isProcessingQueue,
   } = useOpenCodeContext();
   const { currentTheme, changeTheme } = useTheme(config?.theme);
 
@@ -373,7 +624,7 @@ function OpenCodeChatTUI() {
   // Removed automatic session creation to prevent spam
 
   const handleSend = async () => {
-    if (!input.trim() || loading) return;
+    if (!input.trim()) return;
 
     const messageText = input;
     setInput("");
@@ -387,11 +638,35 @@ function OpenCodeChatTUI() {
       }
 
       const parsed = parseCommand(messageText, commands);
+
+      // Handle commands immediately (don't queue)
       if (parsed.type === "slash") {
         await handleCommand(messageText);
+        return;
       } else if (parsed.type === "shell") {
         await handleShellCommand(parsed.command || "");
+        return;
+      }
+
+      // Check if agent is currently busy
+      const isBusy = loading || isStreaming || currentSessionBusy;
+
+      if (isBusy) {
+        // ADD TO QUEUE instead of blocking
+        const queuedMessage = {
+          id: `queued-${Date.now()}`,
+          type: "user" as const,
+          content: messageText,
+          timestamp: new Date(),
+          queued: true,
+          optimistic: true,
+        };
+        addToQueue(queuedMessage);
+
+        // Show visual feedback
+        setMessages((prev) => [...prev, queuedMessage]);
       } else {
+        // Process immediately
         const pendingId = `user-${Date.now()}`;
         setMessages((prev) => [
           ...prev,
@@ -409,7 +684,7 @@ function OpenCodeChatTUI() {
             messageText,
             selectedModel?.providerID,
             selectedModel?.modelID,
-            session, // Pass the session we just created or the existing one
+            session,
             currentAgent ?? undefined,
           );
         } catch (error) {
@@ -420,10 +695,35 @@ function OpenCodeChatTUI() {
           );
           throw error;
         }
-        await loadSessions(); // Refresh session metadata after sending message
       }
+
+      await loadSessions();
     } catch (err) {
       console.error("Failed to send message:", err);
+    }
+  };
+
+  const handleAbort = async () => {
+    if (!currentSession?.id || abortInFlight) return;
+
+    try {
+      await abortSession(currentSession.id);
+
+      const successMsg = {
+        id: `assistant-${Date.now()}`,
+        type: "assistant" as const,
+        content: "Agent stopped by user.",
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, successMsg]);
+    } catch (error) {
+      const errorMsg = {
+        id: `assistant-${Date.now()}`,
+        type: "assistant" as const,
+        content: `Failed to stop agent: ${error instanceof Error ? error.message : "Unknown error"}`,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMsg]);
     }
   };
 
@@ -457,7 +757,12 @@ function OpenCodeChatTUI() {
   }, [isResizing]);
 
   useEffect(() => {
-    if (!showModelPicker && !showAgentPicker && !showSessionPicker && textareaRef.current) {
+    if (
+      !showModelPicker &&
+      !showAgentPicker &&
+      !showSessionPicker &&
+      textareaRef.current
+    ) {
       const timer = setTimeout(() => {
         textareaRef.current?.focus();
       }, 100);
@@ -1176,27 +1481,88 @@ function OpenCodeChatTUI() {
     }
   };
 
-  const handleDeleteSession = async (
-    sessionId: string,
-    event: React.MouseEvent,
-  ) => {
-    event.stopPropagation();
-    if (confirm("Are you sure you want to delete this session?")) {
-      try {
-        await deleteSession(sessionId);
-      } catch (err) {
-        console.error("Failed to delete session:", err);
-      }
+  const confirmDelete = async () => {
+    if (!deleteDialogState.sessionId) return;
+
+    try {
+      await deleteSession(deleteDialogState.sessionId);
+    } catch (err) {
+      console.error("Failed to delete session:", err);
+    } finally {
+      setDeleteDialogState({ open: false });
     }
   };
 
-  const handleClearSessions = async () => {
-    if (confirm("Are you sure you want to delete all sessions?")) {
+  const handleBulkDeleteClick = (sessionIds: string[]) => {
+    setBulkDeleteIds(sessionIds);
+    setBulkDeleteDialogOpen(true);
+  };
+
+  const confirmBulkDelete = async () => {
+    const results = await Promise.allSettled(
+      bulkDeleteIds.map((id) => deleteSession(id)),
+    );
+
+    const failures = results.filter((r) => r.status === "rejected");
+
+    if (failures.length > 0) {
+      console.error(`Failed to delete ${failures.length} sessions`);
+    }
+
+    await loadSessions();
+
+    setBulkDeleteDialogOpen(false);
+    setBulkDeleteIds([]);
+  };
+
+  const handleSidebarEditToggle = () => {
+    if (sidebarEditMode) {
+      // Exiting edit mode - clear selection
+      setSelectedSidebarSessionIds(new Set());
+    }
+    setSidebarEditMode(!sidebarEditMode);
+  };
+
+  const handleSidebarSessionToggle = (sessionId: string) => {
+    setSelectedSidebarSessionIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(sessionId)) {
+        next.delete(sessionId);
+      } else {
+        next.add(sessionId);
+      }
+      return next;
+    });
+  };
+
+  const handleSidebarSelectAll = () => {
+    const projectSessions = sessions.filter(
+      (session) =>
+        session.projectID === currentProject?.id ||
+        session.directory === currentProject?.worktree,
+    );
+    setSelectedSidebarSessionIds(new Set(projectSessions.map((s) => s.id)));
+  };
+
+  const handleSidebarBulkDelete = async () => {
+    const count = selectedSidebarSessionIds.size;
+    if (count === 0) return;
+
+    if (
+      confirm(
+        `Are you sure you want to delete ${count} session${count > 1 ? "s" : ""}?`,
+      )
+    ) {
       try {
-        await clearAllSessions();
+        const deletePromises = Array.from(selectedSidebarSessionIds).map((id) =>
+          deleteSession(id),
+        );
+        await Promise.allSettled(deletePromises);
         await loadSessions();
+        setSelectedSidebarSessionIds(new Set());
+        setSidebarEditMode(false);
       } catch (err) {
-        console.error("Failed to clear sessions:", err);
+        console.error("Failed to delete sessions:", err);
       }
     }
   };
@@ -1206,14 +1572,8 @@ function OpenCodeChatTUI() {
       e.preventDefault();
       if (showCommandPicker && commandSuggestions.length > 0) {
         handleCommandSelect(commandSuggestions[selectedCommandIndex]);
-      } else if (showFileSuggestions && fileSuggestions.length > 0) {
-        setInput(
-          input.replace(
-            /@\w*$/,
-            `@${fileSuggestions[selectedFileSuggestionIndex]} `,
-          ),
-        );
-        setShowFileSuggestions(false);
+      } else if (showMentionSuggestions && mentionSuggestions.length > 0) {
+        handleMentionSelect(mentionSuggestions[selectedMentionIndex]);
       } else {
         handleSend();
       }
@@ -1241,10 +1601,10 @@ function OpenCodeChatTUI() {
         setSelectedCommandIndex((prev) =>
           prev < commandSuggestions.length - 1 ? prev + 1 : prev,
         );
-      } else if (showFileSuggestions) {
+      } else if (showMentionSuggestions) {
         e.preventDefault();
-        setSelectedFileSuggestionIndex((prev) =>
-          prev < fileSuggestions.length - 1 ? prev + 1 : prev,
+        setSelectedMentionIndex((prev) =>
+          prev < mentionSuggestions.length - 1 ? prev + 1 : prev,
         );
       }
     }
@@ -1252,20 +1612,62 @@ function OpenCodeChatTUI() {
       if (showCommandPicker) {
         e.preventDefault();
         setSelectedCommandIndex((prev) => (prev > 0 ? prev - 1 : prev));
-      } else if (showFileSuggestions) {
+      } else if (showMentionSuggestions) {
         e.preventDefault();
-        setSelectedFileSuggestionIndex((prev) => (prev > 0 ? prev - 1 : prev));
+        setSelectedMentionIndex((prev) => (prev > 0 ? prev - 1 : prev));
       }
     }
     if (e.key === "Escape") {
       if (showCommandPicker) {
         e.preventDefault();
         setShowCommandPicker(false);
-      } else if (showFileSuggestions) {
+      } else if (showMentionSuggestions) {
         e.preventDefault();
-        setShowFileSuggestions(false);
+        setShowMentionSuggestions(false);
+      } else if (currentSessionBusy && !isMobile) {
+        // On desktop, ESC aborts the running agent
+        e.preventDefault();
+        handleAbort();
       }
     }
+  };
+
+  const searchAgents = (
+    query: string,
+    agents: Agent[],
+  ): MentionSuggestion[] => {
+    const lowerQuery = query.toLowerCase();
+    return agents
+      .filter((agent: Agent) => {
+        const nameMatch = agent.name?.toLowerCase().includes(lowerQuery);
+        const descMatch = agent.description?.toLowerCase().includes(lowerQuery);
+        return nameMatch || descMatch;
+      })
+      .map((agent: Agent) => ({
+        type: "agent" as const,
+        name: agent.name,
+        description: agent.description,
+        label: `${agent.name} (agent)`,
+      }))
+      .slice(0, 5);
+  };
+
+  const handleMentionSelect = (suggestion: MentionSuggestion) => {
+    const currentValue = input || "";
+    const beforeAt = currentValue.substring(0, currentValue.lastIndexOf("@"));
+
+    if (suggestion.type === "agent") {
+      // Insert @agent-name with trailing space
+      const newValue = `${beforeAt}@${suggestion.name} `;
+      setInput(newValue);
+    } else {
+      // Insert @file/path with trailing space
+      const newValue = `${beforeAt}@${suggestion.path} `;
+      setInput(newValue);
+    }
+
+    setShowMentionSuggestions(false);
+    inputRef.current?.focus();
   };
 
   const handleInputChange = async (value: string) => {
@@ -1273,7 +1675,10 @@ function OpenCodeChatTUI() {
     if (value.startsWith("/")) {
       console.log("Commands from context:", commands);
       console.log("Custom commands list:", customCommandSuggestions);
-      const suggestions = getCommandSuggestions(value, customCommandSuggestions);
+      const suggestions = getCommandSuggestions(
+        value,
+        customCommandSuggestions,
+      );
       console.log("All suggestions:", suggestions);
       setCommandSuggestions(suggestions);
       setShowCommandPicker(suggestions.length > 0);
@@ -1284,19 +1689,26 @@ function OpenCodeChatTUI() {
 
     if (value.includes("@")) {
       const query = value.split("@").pop() || "";
-      if (query.length > 0) {
-        try {
-          const suggestions = await searchFiles(query);
-          setFileSuggestions(suggestions.slice(0, 5));
-          setShowFileSuggestions(true);
-        } catch (error) {
-          console.error("Failed to search files:", error);
-        }
-      } else {
-        setShowFileSuggestions(false);
+      try {
+        // Parallel fetch: agents first, then files (matching TUI order)
+        const [agentResults, fileResults] = await Promise.all([
+          Promise.resolve(searchAgents(query, subagents)),
+          searchFiles(query).then((files) =>
+            files
+              .slice(0, 5)
+              .map((f) => ({ type: "file" as const, path: f, label: f })),
+          ),
+        ]);
+
+        // Agents first in combined list
+        const combined = [...agentResults, ...fileResults];
+        setMentionSuggestions(combined);
+        setShowMentionSuggestions(true);
+      } catch (error) {
+        console.error("Failed to search mentions:", error);
       }
     } else {
-      setShowFileSuggestions(false);
+      setShowMentionSuggestions(false);
     }
   };
 
@@ -1445,17 +1857,8 @@ function OpenCodeChatTUI() {
   }, [models, modelSearchQuery]);
 
   const sessionTokenStats = useMemo(() => {
-    const totalTokens = messages.reduce((sum, msg) => {
-      if (msg.metadata?.tokens) {
-        return (
-          sum +
-          msg.metadata.tokens.input +
-          msg.metadata.tokens.output +
-          msg.metadata.tokens.reasoning
-        );
-      }
-      return sum;
-    }, 0);
+    // Read from session-scoped cache instead of reducing messages
+    const totalTokens = sessionUsage?.totalTokens || 0;
 
     const contextWindow = 200000;
     const contextPercentage =
@@ -1465,8 +1868,18 @@ function OpenCodeChatTUI() {
       totalTokens,
       contextPercentage,
       contextWindow,
+      // Optionally expose breakdown for future UI enhancements
+      breakdown: sessionUsage
+        ? {
+            input: sessionUsage.input,
+            output: sessionUsage.output,
+            reasoning: sessionUsage.reasoning,
+            cacheRead: sessionUsage.cacheRead,
+            cacheWrite: sessionUsage.cacheWrite,
+          }
+        : null,
     };
-  }, [messages]);
+  }, [sessionUsage]);
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
@@ -1593,30 +2006,34 @@ function OpenCodeChatTUI() {
       }}
     >
       {/* Top Bar */}
-      <div className="px-4 py-2 flex items-center justify-between bg-theme-background-alt flex-shrink-0">
+      <div className="px-2 sm:px-4 py-2 flex items-center justify-between bg-theme-background-alt flex-shrink-0 gap-2">
         {isConnected === false && (
           <div className="absolute top-0 left-0 right-0 px-2 py-1 text-center text-xs bg-theme-error text-theme-background z-50">
             Disconnected from OpenCode server
           </div>
         )}
-        <div className="flex items-start sm:items-center gap-2 lg:gap-4">
+        <div className="flex items-center gap-1 sm:gap-2 lg:gap-4 flex-1 min-w-0">
           <HamburgerMenu
             isOpen={isMobileSidebarOpen}
             onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
           />
-          <div className="flex flex-col items-center gap-1 text-center sm:flex-row sm:items-center sm:gap-2 sm:text-left">
-            <Badge variant="foreground1" cap="round">
+          <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+            <Badge
+              variant="foreground1"
+              cap="round"
+              className="whitespace-nowrap"
+            >
               opencode web
             </Badge>
             {isConnected !== null && (
-              <div className="flex items-center gap-2 self-center justify-center order-first sm:order-none sm:self-auto sm:justify-start">
+              <div className="flex items-center gap-1 sm:gap-2">
                 <div
                   className={`connection-indicator ${isConnected ? "connected" : "disconnected"}`}
                 />
                 <Badge
                   variant={isConnected ? "background2" : "foreground0"}
                   cap="round"
-                  className="hidden sm:inline"
+                  className="hidden md:inline whitespace-nowrap"
                 >
                   {isConnected ? "Connected" : "Disconnected"}
                 </Badge>
@@ -1635,7 +2052,7 @@ function OpenCodeChatTUI() {
                           : "foreground0"
                       }
                       cap="round"
-                      className="hidden md:inline text-xs"
+                      className="hidden lg:inline text-xs whitespace-nowrap"
                     >
                       SSE {sseConnectionState.connected ? "Live" : "Off"}
                       {sseConnectionState.reconnecting && "..."}
@@ -1645,7 +2062,7 @@ function OpenCodeChatTUI() {
               </div>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-1 sm:gap-2">
             {["workspace", "files"].map((tab) => (
               <Button
                 key={tab}
@@ -1653,20 +2070,20 @@ function OpenCodeChatTUI() {
                 variant={activeTab === tab ? "foreground0" : undefined}
                 box="square"
                 size="small"
-                className="capitalize"
+                className="capitalize whitespace-nowrap"
               >
                 {tab}
               </Button>
             ))}
           </div>
         </div>
-        <div className="hidden lg:flex items-center gap-2">
+        <div className="hidden md:flex items-center gap-1 sm:gap-2 flex-shrink-0">
           <Button
             variant="foreground0"
             box="round"
             onClick={openHelp}
             size="small"
-            className="border-none"
+            className="border-none whitespace-nowrap"
           >
             Help
           </Button>
@@ -1675,7 +2092,7 @@ function OpenCodeChatTUI() {
             box="round"
             onClick={openThemes}
             size="small"
-            className="border-none"
+            className="border-none whitespace-nowrap"
           >
             Themes
           </Button>
@@ -1692,7 +2109,7 @@ function OpenCodeChatTUI() {
               }
             }}
             size="small"
-            className="border-none"
+            className="border-none whitespace-nowrap"
           >
             Config
           </Button>
@@ -1706,14 +2123,16 @@ function OpenCodeChatTUI() {
         {/* Desktop Sidebar - hidden on mobile */}
         <View
           box="square"
-          className="hidden lg:flex flex-col p-4 bg-theme-background-alt relative"
+          className="hidden md:flex flex-col p-4 bg-theme-background-alt relative"
           style={{ width: `${sidebarWidth}px` }}
         >
           <div
             className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-theme-primary transition-colors z-10"
             onMouseDown={handleResizeStart}
             style={{
-              backgroundColor: isResizing ? "var(--theme-primary)" : "transparent",
+              backgroundColor: isResizing
+                ? "var(--theme-primary)"
+                : "transparent",
             }}
           />
           <div className="flex-1 overflow-hidden">
@@ -1784,13 +2203,14 @@ function OpenCodeChatTUI() {
                     <div className="flex justify-between items-center">
                       <h3 className="text-sm font-medium">Sessions</h3>
                       <div className="flex gap-2">
-                        <Button
-                          variant="foreground0"
-                          box="round"
-                          onClick={handleClearSessions}
-                          size="small"
-                        >
-                          Clear
+                         <Button
+                           variant="foreground1"
+                           box="round"
+                           onClick={handleSidebarEditToggle}
+                           size="small"
+                           disabled={!currentProject}
+                         >
+                          {sidebarEditMode ? "Done" : "Edit"}
                         </Button>
                         <Button
                           variant="foreground0"
@@ -1814,6 +2234,31 @@ function OpenCodeChatTUI() {
                     </div>
                   ) : (
                     <>
+                      {sidebarEditMode && (
+                        <>
+                          <div className="flex items-center justify-between gap-2 px-2 py-2 bg-theme-background-alt rounded mb-2">
+                             <Button
+                               variant="foreground1"
+                               box="round"
+                               size="small"
+                               onClick={handleSidebarSelectAll}
+                             >
+                              Select All
+                            </Button>
+                             <Button
+                               variant="error"
+                               box="round"
+                               size="small"
+                              onClick={handleSidebarBulkDelete}
+                              disabled={selectedSidebarSessionIds.size === 0}
+                              className="sidebar-delete-button"
+                            >
+                              Delete ({selectedSidebarSessionIds.size})
+                            </Button>
+                          </div>
+                          <Separator className="mb-2" />
+                        </>
+                      )}
                       <div className="flex-1 overflow-y-auto scrollbar space-y-2 min-h-0">
                         {sessions
                           .filter(
@@ -1824,33 +2269,55 @@ function OpenCodeChatTUI() {
                           .map((session) => {
                             const isSelected =
                               currentSession?.id === session.id;
+                            const isChecked = selectedSidebarSessionIds.has(
+                              session.id,
+                            );
                             return (
                               <div
                                 key={session.id}
                                 className="p-2 cursor-pointer transition-colors rounded"
                                 style={{
-                                  backgroundColor: isSelected
-                                    ? "var(--theme-primary)"
-                                    : "var(--theme-background)",
-                                  color: isSelected
-                                    ? "var(--theme-background)"
-                                    : "var(--theme-foreground)",
+                                  backgroundColor:
+                                    !sidebarEditMode && isSelected
+                                      ? "var(--theme-primary)"
+                                      : "var(--theme-background)",
+                                  color:
+                                    !sidebarEditMode && isSelected
+                                      ? "var(--theme-background)"
+                                      : "var(--theme-foreground)",
                                 }}
-                                onClick={() => handleSessionSwitch(session.id)}
+                                onClick={() =>
+                                  sidebarEditMode
+                                    ? handleSidebarSessionToggle(session.id)
+                                    : handleSessionSwitch(session.id)
+                                }
                                 onMouseEnter={(e) => {
-                                  if (!isSelected) {
+                                  if (!isSelected || sidebarEditMode) {
                                     e.currentTarget.style.backgroundColor =
                                       "var(--theme-backgroundAlt)";
                                   }
                                 }}
                                 onMouseLeave={(e) => {
-                                  if (!isSelected) {
+                                  if (!isSelected || sidebarEditMode) {
                                     e.currentTarget.style.backgroundColor =
                                       "var(--theme-background)";
                                   }
                                 }}
                               >
-                                <div className="flex justify-between items-start">
+                                <div className="flex justify-between items-start gap-2">
+                                  {sidebarEditMode && (
+                                    <div
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="mt-1 flex-shrink-0"
+                                    >
+                                      <Checkbox
+                                        checked={isChecked}
+                                        onChange={() =>
+                                          handleSidebarSessionToggle(session.id)
+                                        }
+                                      />
+                                    </div>
+                                  )}
                                   <div className="flex-1 min-w-0">
                                     <div className="font-medium text-sm truncate">
                                       {session.title}
@@ -1876,17 +2343,6 @@ function OpenCodeChatTUI() {
                                       </div>
                                     )}
                                   </div>
-                                  <Button
-                                    variant="foreground0"
-                                    box="round"
-                                    size="small"
-                                    onClick={(e) =>
-                                      handleDeleteSession(session.id, e)
-                                    }
-                                    className="ml-2 flex-shrink-0"
-                                  >
-                                    ×
-                                  </Button>
                                 </div>
                               </div>
                             );
@@ -1908,13 +2364,13 @@ function OpenCodeChatTUI() {
                 <View box="square" className="p-2 mb-2 bg-theme-background-alt">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-medium">Files</h3>
-                    <Button
-                      variant="foreground0"
-                      box="round"
-                      size="small"
-                      onClick={() =>
-                        void handleDirectoryOpen(fileDirectory || ".")
-                      }
+                     <Button
+                       variant="foreground1"
+                       box="round"
+                       size="small"
+                       onClick={() =>
+                         void handleDirectoryOpen(fileDirectory || ".")
+                       }
                     >
                       Refresh
                     </Button>
@@ -1966,22 +2422,22 @@ function OpenCodeChatTUI() {
                   </div>
                   <div className="flex gap-1 flex-shrink-0">
                     {fileSearchQuery && (
-                      <Button
-                        variant="foreground0"
-                        box="round"
-                        size="small"
-                        onClick={() => setFileSearchQuery("")}
+                       <Button
+                         variant="foreground1"
+                         box="round"
+                         size="small"
+                         onClick={() => setFileSearchQuery("")}
                       >
                         Clear
                       </Button>
                     )}
-                    <Button
-                      variant="foreground0"
-                      box="round"
-                      size="small"
-                      disabled={
-                        fileDirectory === "." || breadcrumbParts.length === 0
-                      }
+                     <Button
+                       variant="foreground1"
+                       box="round"
+                       size="small"
+                       disabled={
+                         fileDirectory === "." || breadcrumbParts.length === 0
+                       }
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -2335,149 +2791,164 @@ function OpenCodeChatTUI() {
               <div className="flex-1 overflow-y-auto scrollbar p-2 pb-4 space-y-2 min-h-0 flex flex-col">
                 <div className="max-w-none lg:mx-auto lg:max-w-6xl xl:max-w-7xl space-y-2 flex-1 flex flex-col">
                   {messages.length === 0 && !loading && (
-                  <div className="flex items-center justify-center flex-1">
-                    <View
-                      box="round"
-                      className="max-w-4xl w-full p-6 text-center bg-theme-background-alt"
-                    >
-                      {currentProject && !currentSession ? (
-                        <img
-                          src="data:image/svg+xml,%3csvg%20width='234'%20height='42'%20viewBox='0%200%20234%2042'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M18%2030H6V18H18V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M18%2012H6V30H18V12ZM24%2036H0V6H24V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M48%2030H36V18H48V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M36%2030H48V12H36V30ZM54%2036H36V42H30V6H54V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M84%2024V30H66V24H84Z'%20fill='%234B4646'/%3e%3cpath%20d='M84%2024H66V30H84V36H60V6H84V24ZM66%2018H78V12H66V18Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M108%2036H96V18H108V36Z'%20fill='%234B4646'/%3e%3cpath%20d='M108%2012H96V36H90V6H108V12ZM114%2036H108V12H114V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M144%2030H126V18H144V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M144%2012H126V30H144V36H120V6H144V12Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M168%2030H156V18H168V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M168%2012H156V30H168V12ZM174%2036H150V6H174V36Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M198%2030H186V18H198V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M198%2012H186V30H198V12ZM204%2036H180V6H198V0H204V36Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M234%2024V30H216V24H234Z'%20fill='%234B4646'/%3e%3cpath%20d='M216%2012V18H228V12H216ZM234%2024H216V30H234V36H210V6H234V24Z'%20fill='%23F1ECEC'/%3e%3c/svg%3e"
-                          alt="OpenCode logo dark"
-                          className="mx-auto mb-4 h-24 w-auto"
-                        />
-                      ) : (
-                        <>
+                    <div className="flex items-center justify-center flex-1">
+                      <View
+                        box="round"
+                        className="max-w-4xl w-full p-6 text-center bg-theme-background-alt"
+                      >
+                        {currentProject && !currentSession ? (
                           <img
                             src="data:image/svg+xml,%3csvg%20width='234'%20height='42'%20viewBox='0%200%20234%2042'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M18%2030H6V18H18V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M18%2012H6V30H18V12ZM24%2036H0V6H24V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M48%2030H36V18H48V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M36%2030H48V12H36V30ZM54%2036H36V42H30V6H54V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M84%2024V30H66V24H84Z'%20fill='%234B4646'/%3e%3cpath%20d='M84%2024H66V30H84V36H60V6H84V24ZM66%2018H78V12H66V18Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M108%2036H96V18H108V36Z'%20fill='%234B4646'/%3e%3cpath%20d='M108%2012H96V36H90V6H108V12ZM114%2036H108V12H114V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M144%2030H126V18H144V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M144%2012H126V30H144V36H120V6H144V12Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M168%2030H156V18H168V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M168%2012H156V30H168V12ZM174%2036H150V6H174V36Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M198%2030H186V18H198V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M198%2012H186V30H198V12ZM204%2036H180V6H198V0H204V36Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M234%2024V30H216V24H234Z'%20fill='%234B4646'/%3e%3cpath%20d='M216%2012V18H228V12H216ZM234%2024H216V30H234V36H210V6H234V24Z'%20fill='%23F1ECEC'/%3e%3c/svg%3e"
                             alt="OpenCode logo dark"
-                            className="mx-auto mb-4 h-16 w-auto"
+                            className="mx-auto mb-4 h-24 w-auto"
                           />
-                          <Pre
-                            size="small"
-                            className="break-words whitespace-pre-wrap overflow-wrap-anywhere mb-4 text-theme-foreground opacity-80"
-                          >
-                            {!currentProject
-                              ? "Select a project from the sidebar to get started, or create a new session to begin."
-                              : "Send a message to start a new session. Use @ to reference files, / for commands, and Tab to switch agents."}
-                          </Pre>
-                        </>
-                      )}
-                      <div className="flex gap-2 justify-center flex-wrap">
-                        {!currentProject && (
-                          <Badge
-                            variant="foreground0"
-                            cap="round"
-                            className="text-xs"
-                          >
-                            Step 1: Select a project →
-                          </Badge>
-                        )}
-                        {currentProject && !currentSession && (
-                          <Badge
-                            variant="foreground0"
-                            cap="round"
-                            className="text-xs"
-                          >
-                            Step 2: Create or select a session →
-                          </Badge>
-                        )}
-                      </div>
-                    </View>
-                  </div>
-                )}
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}
-                  >
-                    <View
-                      box="round"
-                      className={`max-w-full sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl p-2 ${
-                        message.type === "user"
-                          ? message.error
-                            ? "bg-theme-error/10 border-theme-error text-theme-error"
-                            : "bg-theme-primary/20 border-theme-primary text-theme-foreground"
-                          : "bg-theme-background-alt text-theme-foreground"
-                      }`}
-                    >
-                      {message.parts && message.parts.length > 0 ? (
-                        <div className="space-y-2">
-                          {message.parts.map((part, idx) => (
-                            <MessagePart
-                              key={`${message.id}-part-${idx}`}
-                              part={part}
-                              messageRole={message.type}
-                              showDetails={true}
+                        ) : (
+                          <>
+                            <img
+                              src="data:image/svg+xml,%3csvg%20width='234'%20height='42'%20viewBox='0%200%20234%2042'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M18%2030H6V18H18V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M18%2012H6V30H18V12ZM24%2036H0V6H24V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M48%2030H36V18H48V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M36%2030H48V12H36V30ZM54%2036H36V42H30V6H54V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M84%2024V30H66V24H84Z'%20fill='%234B4646'/%3e%3cpath%20d='M84%2024H66V30H84V36H60V6H84V24ZM66%2018H78V12H66V18Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M108%2036H96V18H108V36Z'%20fill='%234B4646'/%3e%3cpath%20d='M108%2012H96V36H90V6H108V12ZM114%2036H108V12H114V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M144%2030H126V18H144V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M144%2012H126V30H144V36H120V6H144V12Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M168%2030H156V18H168V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M168%2012H156V30H168V12ZM174%2036H150V6H174V36Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M198%2030H186V18H198V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M198%2012H186V30H198V12ZM204%2036H180V6H198V0H204V36Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M234%2024V30H216V24H234Z'%20fill='%234B4646'/%3e%3cpath%20d='M216%2012V18H228V12H216ZM234%2024H216V30H234V36H210V6H234V24Z'%20fill='%23F1ECEC'/%3e%3c/svg%3e"
+                              alt="OpenCode logo dark"
+                              className="mx-auto mb-4 h-16 w-auto"
                             />
-                          ))}
-                          {message.metadata && (
-                            <div className="text-xs opacity-60 mt-1.5 flex gap-3 flex-wrap">
-                              {message.metadata.agent && (
-                                <span>Agent: {message.metadata.agent}</span>
-                              )}
-                              {message.metadata.tokens && (
-                                <span>
-                                  Tokens:{" "}
-                                  {message.metadata.tokens.input +
-                                    message.metadata.tokens.output}
-                                  {message.metadata.tokens.reasoning > 0 &&
-                                    ` (+${message.metadata.tokens.reasoning} reasoning)`}
-                                </span>
-                              )}
-                              {message.metadata.cost && (
-                                <span>
-                                  Cost: ${message.metadata.cost.toFixed(4)}
-                                </span>
-                              )}
-                            </div>
+                            <Pre
+                              size="small"
+                              className="break-words whitespace-pre-wrap overflow-wrap-anywhere mb-4 text-theme-foreground opacity-80"
+                            >
+                              {!currentProject
+                                ? "Select a project from the sidebar to get started, or create a new session to begin."
+                                : "Send a message to start a new session. Use @ to reference files, / for commands, and Tab to switch agents."}
+                            </Pre>
+                          </>
+                        )}
+                        <div className="flex gap-2 justify-center flex-wrap">
+                          {!currentProject && (
+                            <Badge
+                              variant="foreground0"
+                              cap="round"
+                              className="text-xs"
+                            >
+                              Step 1: Select a project →
+                            </Badge>
+                          )}
+                          {currentProject && !currentSession && (
+                            <Badge
+                              variant="foreground0"
+                              cap="round"
+                              className="text-xs"
+                            >
+                              Step 2: Create or select a session →
+                            </Badge>
                           )}
                         </div>
-                      ) : (
-                        <div className="space-y-4">
-                          <Pre
-                            size="small"
-                            className="break-words whitespace-pre-wrap overflow-wrap-anywhere"
-                          >
-                            {message.content}
-                          </Pre>
-                          {message.optimistic && (
-                            <div className="text-xs opacity-60">Sending…</div>
-                          )}
-                          {message.error && (
-                            <div className="text-xs text-theme-error">
-                              {message.errorMessage ||
-                                "Send failed. Please retry."}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </View>
-                  </div>
-                ))}
-                {loading && !isStreaming && (
-                  <div className="flex justify-start">
-                    <View
-                      box="round"
-                      className="max-w-xs p-3 bg-theme-background-alt"
+                      </View>
+                    </div>
+                  )}
+                  {messages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}
                     >
-                      <Pre size="small" className="text-theme-foreground">
-                        <div className="flex space-x-1">
-                          <div className="w-2 h-2 rounded-full animate-bounce bg-theme-primary" />
-                          <div className="w-2 h-2 rounded-full animate-bounce [animation-delay:0.1s] bg-theme-primary" />
-                          <div className="w-2 h-2 rounded-full animate-bounce [animation-delay:0.2s] bg-theme-primary" />
-                        </div>
-                      </Pre>
-                      <Badge
-                        variant="foreground0"
-                        cap="round"
-                        className="mt-2 text-xs"
+                      <View
+                        box="round"
+                        className={`max-w-full sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl p-2 ${
+                          message.type === "user"
+                            ? message.error
+                              ? "bg-theme-error/10 border-theme-error text-theme-error"
+                              : "bg-theme-primary/20 border-theme-primary text-theme-foreground"
+                            : "bg-theme-background-alt text-theme-foreground"
+                        }`}
                       >
-                        OpenCode
-                      </Badge>
-                    </View>
-                  </div>
-                )}
+                        {message.parts && message.parts.length > 0 ? (
+                          <div className="space-y-2">
+                            {message.parts.map((part, idx) => (
+                              <MessagePart
+                                key={`${message.id}-part-${idx}`}
+                                part={part}
+                                messageRole={message.type}
+                                showDetails={true}
+                              />
+                            ))}
+                            {message.metadata && (
+                              <div className="text-xs opacity-60 mt-1.5 flex gap-3 flex-wrap">
+                                {message.metadata.agent && (
+                                  <span>Agent: {message.metadata.agent}</span>
+                                )}
+                                {message.metadata.tokens && (
+                                  <span>
+                                    Tokens:{" "}
+                                    {message.metadata.tokens.input +
+                                      message.metadata.tokens.output}
+                                    {message.metadata.tokens.reasoning > 0 &&
+                                      ` (+${message.metadata.tokens.reasoning} reasoning)`}
+                                  </span>
+                                )}
+                                {message.metadata.cost && (
+                                  <span>
+                                    Cost: ${message.metadata.cost.toFixed(4)}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            <Pre
+                              size="small"
+                              className="break-words whitespace-pre-wrap overflow-wrap-anywhere"
+                            >
+                              {message.content}
+                            </Pre>
+                            {message.queued && (
+                              <div className="flex items-center gap-2 text-xs text-theme-warning">
+                                <div className="w-2 h-2 rounded-full bg-theme-warning animate-pulse" />
+                                <span>
+                                  Queued (Position: {message.queuePosition})
+                                </span>
+                                <button
+                                  onClick={() => removeFromQueue(message.id)}
+                                  className="ml-2 px-2 py-0.5 rounded bg-theme-background hover:bg-theme-background-alt border border-theme-border text-theme-foreground"
+                                  title="Cancel queued message"
+                                >
+                                  ✕ Cancel
+                                </button>
+                              </div>
+                            )}
+                            {message.optimistic && !message.queued && (
+                              <div className="text-xs opacity-60">Sending…</div>
+                            )}
+                            {message.error && (
+                              <div className="text-xs text-theme-error">
+                                {message.errorMessage ||
+                                  "Send failed. Please retry."}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </View>
+                    </div>
+                  ))}
+                  {loading && !isStreaming && (
+                    <div className="flex justify-start">
+                      <View
+                        box="round"
+                        className="max-w-xs p-3 bg-theme-background-alt"
+                      >
+                        <Pre size="small" className="text-theme-foreground">
+                          <div className="flex space-x-1">
+                            <div className="w-2 h-2 rounded-full animate-bounce bg-theme-primary" />
+                            <div className="w-2 h-2 rounded-full animate-bounce [animation-delay:0.1s] bg-theme-primary" />
+                            <div className="w-2 h-2 rounded-full animate-bounce [animation-delay:0.2s] bg-theme-primary" />
+                          </div>
+                        </Pre>
+                        <Badge
+                          variant="foreground0"
+                          cap="round"
+                          className="mt-2 text-xs"
+                        >
+                          OpenCode
+                        </Badge>
+                      </View>
+                    </div>
+                  )}
                   <div ref={messagesEndRef} />
                 </div>
               </div>
@@ -2526,6 +2997,19 @@ function OpenCodeChatTUI() {
                     >
                       {currentSession?.title || "No session"}
                     </button>
+                    {currentSessionBusy && (
+                      <>
+                        <span className="text-theme-muted">•</span>
+                        <Badge
+                          variant="foreground0"
+                          cap="round"
+                          className="flex items-center gap-1 animate-pulse"
+                        >
+                          <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
+                          Agent running {!isMobile && "(ESC to stop)"}
+                        </Badge>
+                      </>
+                    )}
                     {sessionTokenStats.totalTokens > 0 && (
                       <>
                         <span className="text-theme-muted">•</span>
@@ -2569,8 +3053,23 @@ function OpenCodeChatTUI() {
                     </Badge>
                   </button>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-2 items-stretch">
+                <div className="flex flex-col sm:flex-row sm:items-stretch gap-2">
                   <div className="flex-1 relative w-full">
+                    {messageQueue.length > 0 && (
+                      <div className="flex items-center gap-2 px-3 py-2 mb-2 bg-theme-background-alt rounded-md border border-theme-warning">
+                        <Badge variant="foreground1" cap="round">
+                          {messageQueue.length} message
+                          {messageQueue.length > 1 ? "s" : ""} queued
+                        </Badge>
+                        <button
+                          onClick={clearQueue}
+                          className="px-2 py-1 text-xs rounded bg-theme-background hover:bg-theme-background-alt border border-theme-border text-theme-foreground"
+                          title="Clear queue"
+                        >
+                          Clear Queue
+                        </button>
+                      </div>
+                    )}
                     {showCommandPicker && (
                       <CommandPicker
                         commands={commandSuggestions}
@@ -2584,81 +3083,106 @@ function OpenCodeChatTUI() {
                       value={input}
                       onChange={(e) => handleInputChange(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      placeholder="Type your message, Tab to switch agent, /models to select model..."
+                      placeholder={
+                        currentSessionBusy && !isMobile
+                          ? "Agent running... Press ESC to stop, or type to queue a message"
+                          : "Type your message, Tab to switch agent, / for commands, @ to mention files, Shift+Enter for new line, Enter to send"
+                      }
                       rows={2}
                       size="large"
                       className="w-full bg-theme-background text-theme-foreground border-theme-primary resize-none"
                     />
-                    {showFileSuggestions && fileSuggestions.length > 0 && (
-                      <div
-                        className="absolute bottom-full left-0 right-0 mb-1 max-h-48 overflow-y-auto scrollbar z-10 shadow-lg rounded border"
+                    {showMentionSuggestions &&
+                      mentionSuggestions.length > 0 && (
+                        <div
+                          className="absolute bottom-full left-0 right-0 mb-1 max-h-48 overflow-y-auto scrollbar z-10 shadow-lg rounded border"
+                          style={{
+                            backgroundColor: "var(--theme-backgroundAlt)",
+                            borderColor: "var(--theme-primary)",
+                            borderWidth: "1px",
+                          }}
+                        >
+                          {mentionSuggestions.map((suggestion, index) => {
+                            const isSelected = index === selectedMentionIndex;
+                            return (
+                              <div
+                                key={suggestion.label}
+                                className={`p-2 cursor-pointer transition-colors text-sm ${suggestion.type === "agent" ? "agent-suggestion" : ""}`}
+                                style={{
+                                  backgroundColor: isSelected
+                                    ? "var(--theme-primary)"
+                                    : "transparent",
+                                  color: isSelected
+                                    ? "var(--theme-background)"
+                                    : "var(--theme-foreground)",
+                                }}
+                                onClick={() => handleMentionSelect(suggestion)}
+                                onMouseEnter={(e) => {
+                                  if (!isSelected) {
+                                    e.currentTarget.style.backgroundColor =
+                                      "var(--theme-backgroundAlt)";
+                                    e.currentTarget.style.opacity = "0.8";
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (!isSelected) {
+                                    e.currentTarget.style.backgroundColor =
+                                      "transparent";
+                                    e.currentTarget.style.opacity = "1";
+                                  }
+                                }}
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex-1 truncate">
+                                    <span className="suggestion-name">
+                                      {suggestion.label}
+                                    </span>
+                                    {suggestion.type === "agent" &&
+                                      suggestion.description && (
+                                        <span
+                                          className="suggestion-desc block text-xs"
+                                          style={{ opacity: 0.6 }}
+                                        >
+                                          {suggestion.description}
+                                        </span>
+                                      )}
+                                  </div>
+                                  {isSelected && (
+                                    <Badge
+                                      variant="background2"
+                                      cap="round"
+                                      className="text-xs"
+                                    >
+                                      ↵
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                  </div>
+                  {currentSessionBusy && isMobile && (
+                    <div className="relative w-full">
+                      <Button
+                        variant="foreground0"
+                        box="square"
+                        size="large"
+                        onClick={handleAbort}
+                        disabled={abortInFlight}
+                        className="w-full text-white disabled:opacity-50"
                         style={{
-                          backgroundColor: "var(--theme-backgroundAlt)",
-                          borderColor: "var(--theme-primary)",
-                          borderWidth: "1px",
+                          backgroundColor: "var(--theme-error)",
+                          opacity: abortInFlight ? 0.7 : 1,
                         }}
                       >
-                        {fileSuggestions.map((file, index) => {
-                          const isSelected =
-                            index === selectedFileSuggestionIndex;
-                          return (
-                            <div
-                              key={index}
-                              className="p-2 cursor-pointer transition-colors text-sm"
-                              style={{
-                                backgroundColor: isSelected
-                                  ? "var(--theme-primary)"
-                                  : "transparent",
-                                color: isSelected
-                                  ? "var(--theme-background)"
-                                  : "var(--theme-foreground)",
-                              }}
-                              onClick={() => {
-                                setInput(input.replace(/@\w*$/, `@${file} `));
-                                setShowFileSuggestions(false);
-                              }}
-                              onMouseEnter={(e) => {
-                                if (!isSelected) {
-                                  e.currentTarget.style.backgroundColor =
-                                    "var(--theme-backgroundAlt)";
-                                  e.currentTarget.style.opacity = "0.8";
-                                }
-                              }}
-                              onMouseLeave={(e) => {
-                                if (!isSelected) {
-                                  e.currentTarget.style.backgroundColor =
-                                    "transparent";
-                                  e.currentTarget.style.opacity = "1";
-                                }
-                              }}
-                            >
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex-1 truncate">{file}</div>
-                                {isSelected && (
-                                  <Badge
-                                    variant="background2"
-                                    cap="round"
-                                    className="text-xs"
-                                  >
-                                    ↵
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                  <Button
-                    variant="foreground0"
-                    box="square"
-                    onClick={handleSend}
-                    disabled={!input.trim()}
-                    className="px-6 w-full sm:w-auto h-full"
-                  >
-                    Send
-                  </Button>
+                        {abortInFlight
+                          ? "Stopping..."
+                          : "Stop Agent (ESC on desktop)"}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </View>
             </div>
@@ -2721,15 +3245,15 @@ function OpenCodeChatTUI() {
                           Copy
                         </Button>
                       )}
-                      <Button
-                        variant="foreground0"
-                        box="round"
-                        onClick={() => {
-                          setSelectedFile(null);
-                          setFileContent(null);
-                          setFileError(null);
-                        }}
-                        size="small"
+                       <Button
+                         variant="background2"
+                         box="round"
+                         onClick={() => {
+                           setSelectedFile(null);
+                           setFileContent(null);
+                           setFileError(null);
+                         }}
+                         size="small"
                       >
                         Close
                       </Button>
@@ -2898,12 +3422,12 @@ function OpenCodeChatTUI() {
                 value={newSessionTitle}
                 onChange={(e) => setNewSessionTitle(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && newSessionTitle.trim()) {
+                  if (e.key === "Enter") {
                     e.preventDefault();
                     void handleCreateSession();
                   }
                 }}
-                placeholder="Session title..."
+                placeholder="Session title (optional)..."
                 size="small"
                 className="bg-theme-background text-theme-foreground border-theme-primary"
                 autoFocus
@@ -2922,7 +3446,7 @@ function OpenCodeChatTUI() {
                   box="round"
                   size="small"
                   onClick={() => void handleCreateSession()}
-                  disabled={!newSessionTitle.trim() || loading}
+                  disabled={loading}
                 >
                   Create Session
                 </Button>
@@ -2941,11 +3465,11 @@ function OpenCodeChatTUI() {
           >
             <div className="flex justify-between items-center mb-4 flex-shrink-0">
               <h2 className="text-lg font-bold">OpenCode Commands</h2>
-              <Button
-                variant="foreground0"
-                box="round"
-                onClick={() => setShowHelp(false)}
-                size="small"
+               <Button
+                 variant="background2"
+                 box="round"
+                 onClick={() => setShowHelp(false)}
+                 size="small"
               >
                 Close
               </Button>
@@ -3080,61 +3604,11 @@ function OpenCodeChatTUI() {
 
       {/* Themes Dialog */}
       {showThemes && (
-        <Dialog open={showThemes} onClose={() => setShowThemes(false)}>
-          <View
-            box="square"
-            className="p-6 max-w-md w-full max-h-[80vh] overflow-hidden bg-theme-background text-theme-foreground"
-          >
-            <h2 className="text-lg font-bold mb-4">Select Theme</h2>
-            <Separator className="mb-4" />
-            <div className="max-h-96 overflow-y-auto scrollbar space-y-2 mb-4">
-              {themeList.map((theme) => (
-                <div
-                  key={theme.id}
-                  className={`p-3 rounded cursor-pointer transition-colors border border-theme-border ${
-                    currentTheme === theme.id
-                      ? "bg-theme-primary/20 border-theme-primary text-theme-foreground"
-                      : "bg-theme-background-alt hover:bg-opacity-50"
-                  }`}
-                  onClick={() => {
-                    changeTheme(theme.id);
-                    setShowThemes(false);
-                  }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium">{theme.name}</div>
-                      <div className="text-xs opacity-70 mt-1">{theme.id}</div>
-                    </div>
-                    <div className="flex gap-1">
-                      {Object.entries(theme.colors)
-                        .slice(0, 5)
-                        .map(([key, color]) => (
-                          <div
-                            key={key}
-                            className="w-4 h-4 rounded"
-                            style={{ backgroundColor: color }}
-                            title={key}
-                          />
-                        ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <Separator className="mb-4" />
-            <div className="flex justify-end">
-              <Button
-                variant="foreground0"
-                box="round"
-                onClick={() => setShowThemes(false)}
-                size="small"
-              >
-                Close
-              </Button>
-            </div>
-          </View>
-        </Dialog>
+        <ThemePickerDialog
+          currentTheme={currentTheme}
+          onThemeChange={changeTheme}
+          onClose={() => setShowThemes(false)}
+        />
       )}
 
       {/* Config Dialog */}
@@ -3153,11 +3627,11 @@ function OpenCodeChatTUI() {
             </div>
             <Separator className="mb-4" />
             <div className="flex justify-end">
-              <Button
-                variant="foreground0"
-                box="round"
-                onClick={() => setShowConfig(false)}
-                size="small"
+               <Button
+                 variant="background2"
+                 box="round"
+                 onClick={() => setShowConfig(false)}
+                 size="small"
               >
                 Close
               </Button>
@@ -3226,10 +3700,11 @@ function OpenCodeChatTUI() {
                 value={modelSearchQuery}
                 onChange={(e) => setModelSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
-                  const totalItems = !modelSearchQuery.trim() && recentModels.length > 0
-                    ? recentModels.length + filteredModels.length
-                    : filteredModels.length;
-                  
+                  const totalItems =
+                    !modelSearchQuery.trim() && recentModels.length > 0
+                      ? recentModels.length + filteredModels.length
+                      : filteredModels.length;
+
                   if (e.key === "ArrowDown") {
                     e.preventDefault();
                     setSelectedModelIndex((prev) =>
@@ -3242,9 +3717,10 @@ function OpenCodeChatTUI() {
                     );
                   } else if (e.key === "Enter" && totalItems > 0) {
                     e.preventDefault();
-                    const allModels = !modelSearchQuery.trim() && recentModels.length > 0
-                      ? [...recentModels, ...filteredModels]
-                      : filteredModels;
+                    const allModels =
+                      !modelSearchQuery.trim() && recentModels.length > 0
+                        ? [...recentModels, ...filteredModels]
+                        : filteredModels;
                     selectModel(allModels[selectedModelIndex]);
                     setShowModelPicker(false);
                     setModelSearchQuery("");
@@ -3314,9 +3790,10 @@ function OpenCodeChatTUI() {
                     </>
                   )}
                   {filteredModels.map((model, index) => {
-                    const adjustedIndex = !modelSearchQuery.trim() && recentModels.length > 0 
-                      ? index + recentModels.length 
-                      : index;
+                    const adjustedIndex =
+                      !modelSearchQuery.trim() && recentModels.length > 0
+                        ? index + recentModels.length
+                        : index;
                     const isSelected = adjustedIndex === selectedModelIndex;
                     return (
                       <div
@@ -3361,15 +3838,15 @@ function OpenCodeChatTUI() {
               <div className="text-xs opacity-70">
                 Use ↑↓ arrows to navigate, Enter to select
               </div>
-              <Button
-                variant="foreground0"
-                box="round"
-                onClick={() => {
-                  setShowModelPicker(false);
-                  setModelSearchQuery("");
-                  setSelectedModelIndex(0);
-                }}
-                size="small"
+               <Button
+                 variant="background2"
+                 box="round"
+                 onClick={() => {
+                   setShowModelPicker(false);
+                   setModelSearchQuery("");
+                   setSelectedModelIndex(0);
+                 }}
+                 size="small"
               >
                 Cancel
               </Button>
@@ -3399,9 +3876,95 @@ function OpenCodeChatTUI() {
           )}
           currentSession={currentSession}
           onSelect={switchSession}
-          onDelete={deleteSession}
+          onBulkDelete={handleBulkDeleteClick}
           onClose={() => setShowSessionPicker(false)}
         />
+      )}
+
+      {/* Delete Session Confirmation Dialog */}
+      {deleteDialogState.open && (
+        <Dialog
+          open={deleteDialogState.open}
+          onClose={() => setDeleteDialogState({ open: false })}
+        >
+          <View
+            className="p-6 rounded border max-w-md"
+            style={{
+              backgroundColor: "var(--theme-background)",
+              borderColor: "var(--theme-border)",
+            }}
+          >
+            <h3 className="text-lg font-bold mb-3">Delete Session</h3>
+            <p className="mb-4 text-sm opacity-90">
+              Are you sure you want to delete "{deleteDialogState.sessionTitle}
+              "? This action cannot be undone.
+            </p>
+            <div className="flex gap-2 justify-end">
+               <Button
+                 variant="background2"
+                 box="round"
+                 size="small"
+                 onClick={() => setDeleteDialogState({ open: false })}
+               >
+                Cancel
+              </Button>
+              <Button
+                 variant="error"
+                 box="round"
+                 size="small"
+                 onClick={confirmDelete}
+                 className="delete-button-confirm"
+              >
+                Delete
+              </Button>
+            </div>
+          </View>
+        </Dialog>
+      )}
+
+      {/* Bulk Delete Confirmation Dialog */}
+      {bulkDeleteDialogOpen && (
+        <Dialog
+          open={bulkDeleteDialogOpen}
+          onClose={() => setBulkDeleteDialogOpen(false)}
+        >
+          <View
+            className="p-6 rounded border max-w-md"
+            style={{
+              backgroundColor: "var(--theme-background)",
+              borderColor: "var(--theme-border)",
+            }}
+          >
+            <h3 className="text-lg font-bold mb-3">
+              Delete {bulkDeleteIds.length} Session
+              {bulkDeleteIds.length > 1 ? "s" : ""}
+            </h3>
+            <p className="mb-4 text-sm opacity-90">
+              Are you sure you want to delete {bulkDeleteIds.length} selected
+              session{bulkDeleteIds.length > 1 ? "s" : ""}? This action cannot
+              be undone.
+            </p>
+            <div className="flex gap-2 justify-end">
+               <Button
+                 variant="background2"
+                 box="round"
+                 size="small"
+                 onClick={() => setBulkDeleteDialogOpen(false)}
+               >
+                Cancel
+              </Button>
+              <Button
+                 variant="error"
+                 box="round"
+                 size="small"
+                 onClick={confirmBulkDelete}
+                 className="delete-button-confirm"
+              >
+                Delete All
+              </Button>
+            </div>
+          </View>
+        </Dialog>
       )}
 
       {/* Permission Modal */}

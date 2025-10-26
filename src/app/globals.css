@@ -144,128 +144,205 @@ body {
   height: 100%;
 }
 
-/* Button Enhancements - Override WebTUI defaults */
+/*
+  ============================================================
+  BUTTON STYLES - WebTUI Integration
+  ============================================================
+  These styles work WITH WebTUI's button system rather than
+  fighting against it. We use CSS variables to hook into
+  WebTUI's theming while maintaining custom appearance.
+  
+  Button Hierarchy:
+  - foreground0: Primary CTAs (highest prominence)
+  - foreground1: Secondary actions (medium prominence)
+  - foreground2: Tertiary actions (low prominence)
+  - background2: Close/dismiss (subtle)
+  - background3: Ultra-subtle controls
+  - success/warning/error: Semantic status variants
+*/
+
+/* Base button styles - let WebTUI handle defaults where possible */
 button[is-="button"],
 [is-="button"] {
-  padding: 0.5rem 1rem !important;
-  transition: all 0.2s ease !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  font-weight: 500 !important;
-  line-height: 1 !important;
-  height: auto !important;
-  border-radius: 4px !important;
-  color: var(--theme-primary) !important;
-  box-sizing: border-box !important;
-  --button-primary: var(--theme-primary) !important;
-  --button-secondary: var(--theme-background) !important;
-  background-color: transparent !important;
-  background-image: none !important;
-  border: 1px solid var(--theme-primary) !important;
-}
-
-/* Disable ALL WebTUI pseudo-elements for buttons - all states */
-button[is-="button"]:before,
-button[is-="button"]:after,
-[is-="button"]:before,
-[is-="button"]:after,
-button[is-="button"]:hover:before,
-button[is-="button"]:hover:after,
-[is-="button"]:hover:before,
-[is-="button"]:hover:after,
-button[is-="button"]:focus:before,
-button[is-="button"]:focus:after,
-[is-="button"]:focus:before,
-[is-="button"]:focus:after,
-button[is-="button"]:active:before,
-button[is-="button"]:active:after,
-[is-="button"]:active:before,
-[is-="button"]:active:after,
-button[is-="button"]:disabled:before,
-button[is-="button"]:disabled:after,
-[is-="button"]:disabled:before,
-[is-="button"]:disabled:after {
-  content: none !important;
-  display: none !important;
-  border: none !important;
-  visibility: hidden !important;
+  /* Layout and structure */
+  padding: 0.5rem 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: auto;
+  box-sizing: border-box;
+  
+  /* Typography */
+  font-weight: 500;
+  line-height: 1;
+  
+  /* Visual enhancements */
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  
+  /* Default appearance - subtle border */
+  background-color: transparent;
+  color: var(--foreground1);
+  border: 1px solid var(--foreground2);
 }
 
 button[is-="button"]:hover:not(:disabled),
 [is-="button"]:hover:not(:disabled) {
-  --button-primary: var(--theme-primaryHover) !important;
+  border-color: var(--foreground1);
+  background-color: var(--background1);
 }
 
 button[is-="button"]:focus,
 [is-="button"]:focus {
-  font-weight: 500 !important;
-  text-decoration: none !important;
-  outline: 1px solid var(--theme-primary) !important;
-  outline-offset: 0 !important;
+  outline: 2px solid var(--foreground0);
+  outline-offset: 2px;
 }
 
 button[is-="button"]:disabled,
 [is-="button"]:disabled {
-  opacity: 0.5 !important;
-  cursor: not-allowed !important;
-  text-decoration: none !important;
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
+/* ============================================================
+   Button Variant System
+   ============================================================ */
+
+/* PRIMARY CTA - foreground0: Highest prominence, filled button */
 button[is-="button"][variant-="foreground0"],
 [is-="button"][variant-="foreground0"] {
-  --button-primary: var(--theme-background) !important;
-  --button-secondary: var(--theme-primary) !important;
-  background-color: var(--theme-primary) !important;
-  background-image: none !important;
-  color: var(--theme-background) !important;
-  border: 1px solid var(--theme-primary) !important;
+  background-color: var(--foreground0);
+  color: var(--background0);
+  border-color: var(--foreground0);
 }
 
 button[is-="button"][variant-="foreground0"]:hover:not(:disabled),
 [is-="button"][variant-="foreground0"]:hover:not(:disabled) {
-  --button-secondary: var(--theme-primaryHover) !important;
-  background-color: var(--theme-primaryHover) !important;
-  border-color: var(--theme-primaryHover) !important;
+  filter: brightness(1.1);
 }
 
-/* Button Status Variants */
+/* SECONDARY ACTION - foreground1: Medium prominence, bordered button */
+button[is-="button"][variant-="foreground1"],
+[is-="button"][variant-="foreground1"] {
+  background-color: transparent;
+  color: var(--foreground1);
+  border-color: var(--foreground1);
+}
+
+button[is-="button"][variant-="foreground1"]:hover:not(:disabled),
+[is-="button"][variant-="foreground1"]:hover:not(:disabled) {
+  background-color: var(--background1);
+  border-color: var(--foreground0);
+}
+
+/* TERTIARY ACTION - foreground2: Low prominence, subtle button */
+button[is-="button"][variant-="foreground2"],
+[is-="button"][variant-="foreground2"] {
+  background-color: transparent;
+  color: var(--foreground2);
+  border-color: transparent;
+}
+
+button[is-="button"][variant-="foreground2"]:hover:not(:disabled),
+[is-="button"][variant-="foreground2"]:hover:not(:disabled) {
+  color: var(--foreground1);
+  background-color: var(--background1);
+}
+
+/* CLOSE/DISMISS - background2: Very subtle, blends with background */
+button[is-="button"][variant-="background2"],
+[is-="button"][variant-="background2"] {
+  background-color: var(--background2);
+  color: var(--foreground2);
+  border-color: transparent;
+}
+
+button[is-="button"][variant-="background2"]:hover:not(:disabled),
+[is-="button"][variant-="background2"]:hover:not(:disabled) {
+  background-color: var(--background3);
+  color: var(--foreground1);
+}
+
+/* ULTRA-SUBTLE - background3: Barely visible, hover reveals */
+button[is-="button"][variant-="background3"],
+[is-="button"][variant-="background3"] {
+  background-color: var(--background3);
+  color: var(--foreground2);
+  border-color: transparent;
+}
+
+button[is-="button"][variant-="background3"]:hover:not(:disabled),
+[is-="button"][variant-="background3"]:hover:not(:disabled) {
+  background-color: var(--background2);
+  color: var(--foreground1);
+}
+
+/* ============================================================
+   Semantic Status Variants
+   ============================================================ */
+
+/* SUCCESS: Positive actions */
 button[is-="button"][variant-="success"],
 [is-="button"][variant-="success"] {
-  --button-primary: var(--theme-success) !important;
-  --button-secondary: var(--theme-background) !important;
-  color: var(--theme-success) !important;
+  background-color: var(--theme-success);
+  color: var(--background0);
+  border-color: var(--theme-success);
 }
 
+button[is-="button"][variant-="success"]:hover:not(:disabled),
+[is-="button"][variant-="success"]:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+/* WARNING: Caution actions */
 button[is-="button"][variant-="warning"],
 [is-="button"][variant-="warning"] {
-  --button-primary: var(--theme-warning) !important;
-  --button-secondary: var(--theme-background) !important;
-  color: var(--theme-warning) !important;
+  background-color: var(--theme-warning);
+  color: var(--background0);
+  border-color: var(--theme-warning);
 }
 
+button[is-="button"][variant-="warning"]:hover:not(:disabled),
+[is-="button"][variant-="warning"]:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+/* ERROR: Destructive actions */
 button[is-="button"][variant-="error"],
 [is-="button"][variant-="error"] {
-  --button-primary: var(--theme-error) !important;
-  --button-secondary: var(--theme-background) !important;
-  color: var(--theme-error) !important;
+  background-color: var(--theme-error);
+  color: var(--background0);
+  border-color: var(--theme-error);
 }
 
+button[is-="button"][variant-="error"]:hover:not(:disabled),
+[is-="button"][variant-="error"]:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+/* ============================================================
+   Button Sizes
+   ============================================================ */
+
 [is-="button"][size-="small"] {
-  padding: 0.5rem 0.875rem !important;
+  padding: 0.5rem 0.875rem;
   min-height: 44px;
   min-width: 44px;
   font-size: 0.875rem;
-  height: auto !important;
 }
 
 @media (min-width: 1024px) {
   [is-="button"][size-="small"] {
-    padding: 0.25rem 0.75rem !important;
+    padding: 0.25rem 0.75rem;
     font-size: 0.875rem;
     min-height: unset;
     min-width: unset;
   }
+}
+
+[is-="button"][size-="large"] {
+  padding: 0.625rem 1.25rem;
+  font-size: 1rem;
 }
 
 /* Input Enhancements - Override WebTUI defaults */
@@ -318,11 +395,12 @@ textarea[is-="textarea"]::placeholder,
   opacity: 0.7 !important;
 }
 
-[is-="button"][size-="large"] {
-  padding: 0.625rem 1.25rem !important;
-  font-size: 1rem;
-  height: auto !important;
-}
+/* ============================================================
+   Box Button Styles (WebTUI box- attribute)
+   ============================================================
+   Let WebTUI handle box styling naturally. Only override
+   if specific visual conflicts emerge.
+   ============================================================ */
 
 /* Box buttons - override WebTUI box styling */
 button[is-="button"][box-],
@@ -845,4 +923,41 @@ pre.whitespace-pre-wrap {
   padding: 0.5rem 0.5rem !important;
   background-color: transparent !important;
   background-image: none !important;
+}
+
+/* Agent mention suggestion styling */
+.agent-suggestion {
+  border-left: 2px solid var(--theme-primary);
+}
+
+.suggestion-desc {
+  font-size: 0.875rem;
+  opacity: 0.6;
+}
+
+/* Session deletion button styling */
+.delete-button-neutral {
+  color: var(--theme-foreground);
+  opacity: 0.6;
+  transition: opacity 0.2s, color 0.2s, background-color 0.2s;
+}
+
+.delete-button-neutral:hover {
+  opacity: 1;
+  color: var(--theme-error, #ef4444);
+  background-color: color-mix(in srgb, var(--theme-error, #ef4444) 10%, transparent);
+}
+
+.delete-button-bulk:hover {
+  color: var(--theme-error, #ef4444);
+  background-color: color-mix(in srgb, var(--theme-error, #ef4444) 10%, transparent);
+}
+
+.delete-button-confirm {
+  background-color: var(--theme-error, #ef4444);
+  color: white;
+}
+
+.delete-button-confirm:hover {
+  background-color: color-mix(in srgb, var(--theme-error, #ef4444) 90%, black);
 }

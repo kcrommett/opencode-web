@@ -15,7 +15,7 @@ export const MobileSidebar: React.FC<MobileSidebarProps> = ({
     <>
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
           onClick={onClose}
           style={{ touchAction: "none" }}
         />
@@ -23,7 +23,7 @@ export const MobileSidebar: React.FC<MobileSidebarProps> = ({
 
       <div
         className={`
-          fixed inset-y-0 left-0 z-50 w-80 max-w-[85vw] transform transition-transform duration-300 lg:hidden
+          fixed inset-y-0 left-0 z-50 w-80 max-w-[85vw] transform transition-transform duration-300 md:hidden
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
         `}
         style={{ backgroundColor: "var(--theme-backgroundAlt)" }}

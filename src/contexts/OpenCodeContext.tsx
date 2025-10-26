@@ -70,6 +70,10 @@ providersData: ReturnType<typeof useOpenCode>["providersData"];
   unshareSession: ReturnType<typeof useOpenCode>["unshareSession"];
   initSession: ReturnType<typeof useOpenCode>["initSession"];
   summarizeSession: ReturnType<typeof useOpenCode>["summarizeSession"];
+  abortSession: ReturnType<typeof useOpenCode>["abortSession"];
+  currentSessionBusy: ReturnType<typeof useOpenCode>["currentSessionBusy"];
+  abortInFlight: ReturnType<typeof useOpenCode>["abortInFlight"];
+  sessionActivity: ReturnType<typeof useOpenCode>["sessionActivity"];
   currentPermission: ReturnType<typeof useOpenCode>["currentPermission"];
   setCurrentPermission: ReturnType<typeof useOpenCode>["setCurrentPermission"];
   shouldBlurEditor: ReturnType<typeof useOpenCode>["shouldBlurEditor"];
@@ -80,6 +84,14 @@ providersData: ReturnType<typeof useOpenCode>["providersData"];
   >["setCurrentSessionTodos"];
   executeSlashCommand: ReturnType<typeof useOpenCode>["executeSlashCommand"];
   parseCommand: ReturnType<typeof useOpenCode>["parseCommand"];
+  subagents: ReturnType<typeof useOpenCode>["subagents"];
+  sessionUsage: ReturnType<typeof useOpenCode>["sessionUsage"];
+  messageQueue: ReturnType<typeof useOpenCode>["messageQueue"];
+  addToQueue: ReturnType<typeof useOpenCode>["addToQueue"];
+  removeFromQueue: ReturnType<typeof useOpenCode>["removeFromQueue"];
+  clearQueue: ReturnType<typeof useOpenCode>["clearQueue"];
+  processNextInQueue: ReturnType<typeof useOpenCode>["processNextInQueue"];
+  isProcessingQueue: ReturnType<typeof useOpenCode>["isProcessingQueue"];
 }
 
 const OpenCodeContext = createContext<OpenCodeContextType | undefined>(

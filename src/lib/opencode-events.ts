@@ -99,6 +99,10 @@ interface MessageUpdatedEvent {
         input: number;
         output: number;
         reasoning: number;
+        cache?: {
+          read: number;
+          write: number;
+        };
       };
       cost?: number;
       modelID?: string;

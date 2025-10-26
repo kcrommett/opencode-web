@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { openCodeService, handleOpencodeError } from "@/lib/opencode-client";
 import { OpencodeEvent, SSEConnectionState } from "@/lib/opencode-events";
 import { getAgentModel, getDefaultModel } from "@/lib/config";
@@ -11,9 +11,15 @@ import type {
   SessionTodo,
   OpencodeConfig,
   Command,
+  SessionUsageTotals,
 } from "@/types/opencode";
 
 const isDevEnvironment = process.env.NODE_ENV !== "production";
+
+// Debug logging utility
+const debugLog = (...args: unknown[]) => {
+  if (process.env.NODE_ENV !== "production") console.log(...args);
+};
 
 const BASE64_ENCODING = "base64";
 const TEXT_LIKE_MIME_SNIPPETS = [
@@ -118,6 +124,8 @@ interface Message {
   optimistic?: boolean;
   error?: boolean;
   errorMessage?: string;
+  queued?: boolean; // Indicates message is in queue
+  queuePosition?: number; // Position in queue (1-based)
 }
 
 interface OpenCodeMessage {
@@ -352,6 +360,10 @@ export function useOpenCode() {
     }
     return [];
   });
+  const [sessionActivity, setSessionActivity] = useState<
+    Record<string, { running: boolean; lastUpdated: number }>
+  >({});
+  const [abortInFlight, setAbortInFlight] = useState(false);
 
   useEffect(() => {
     setFileDirectory(".");
@@ -370,10 +382,17 @@ export function useOpenCode() {
     useState<SSEConnectionState | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const streamingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [messageQueue, setMessageQueue] = useState<Message[]>([]);
+  const messageQueueRef = useRef<Message[]>([]);
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
   const [customCommands, setCustomCommands] = useState<
     Array<{ name: string; description: string; template: string }>
   >([]);
+  const [sessionUsage, setSessionUsage] = useState<
+    Map<string, SessionUsageTotals>
+  >(new Map());
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [subagents, setSubagents] = useState<Agent[]>([]);
   const [currentAgent, setCurrentAgent] = useState<Agent | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
 
@@ -403,6 +422,11 @@ export function useOpenCode() {
   useEffect(() => {
     manualModelSelectionRef.current = false;
   }, [currentAgent?.id]);
+
+  const currentSessionBusy = useMemo(() => {
+    if (!currentSession?.id) return false;
+    return sessionActivity[currentSession.id]?.running ?? false;
+  }, [currentSession?.id, sessionActivity]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -447,6 +471,64 @@ export function useOpenCode() {
     models,
     sessionModelMap,
   ]);
+
+  const markSessionRunning = useCallback((sessionId: string) => {
+    setSessionActivity((prev) => ({
+      ...prev,
+      [sessionId]: { running: true, lastUpdated: Date.now() },
+    }));
+  }, []);
+
+  const markSessionIdle = useCallback((sessionId: string) => {
+    setSessionActivity((prev) => ({
+      ...prev,
+      [sessionId]: { running: false, lastUpdated: Date.now() },
+    }));
+  }, []);
+
+  const cleanupSessionActivity = useCallback((sessionId: string) => {
+    setSessionActivity((prev) => {
+      const next = { ...prev };
+      delete next[sessionId];
+      return next;
+    });
+  }, []);
+
+  // Queue management functions
+  const addToQueue = useCallback((message: Message) => {
+    setMessageQueue((prev: Message[]) => {
+      const newQueue = [...prev, { ...message, queued: true }];
+      // Update queue positions
+      return newQueue.map((msg: Message, idx: number) => ({
+        ...msg,
+        queuePosition: idx + 1,
+      }));
+    });
+  }, []);
+
+  const removeFromQueue = useCallback((messageId: string) => {
+    setMessageQueue((prev: Message[]) => {
+      const filtered = prev.filter((msg: Message) => msg.id !== messageId);
+      // Re-index queue positions
+      return filtered.map((msg: Message, idx: number) => ({
+        ...msg,
+        queuePosition: idx + 1,
+      }));
+    });
+    // Also remove from messages display
+    setMessages((prev: Message[]) => prev.filter((msg) => msg.id !== messageId));
+  }, []);
+
+  const clearQueue = useCallback(() => {
+    // Remove all queued messages from the queue
+    const queuedIds = messageQueue.map((msg) => msg.id);
+    setMessageQueue([]);
+    // Also remove queued messages from messages display
+    setMessages((prev: Message[]) => prev.filter((msg) => !queuedIds.includes(msg.id)));
+  }, [messageQueue]);
+
+  // Placeholder - will be properly defined after sendMessage
+  const processNextInQueueRef = useRef<(() => Promise<void>) | null>(null);
 
   const normalizeProject = useCallback((project: unknown): Project | null => {
     if (!project || typeof project !== "object") return null;
@@ -833,10 +915,6 @@ export function useOpenCode() {
   useEffect(() => {
     if (!isConnected || !currentSessionId || !isHydrated) return;
 
-    const debugLog = (...args: unknown[]) => {
-      if (process.env.NODE_ENV !== "production") console.log(...args);
-    };
-
     const getEventSessionId = (event: OpencodeEvent): string | undefined => {
       const maybeSessionId = (event.properties as { sessionID?: unknown })
         .sessionID;
@@ -899,10 +977,19 @@ export function useOpenCode() {
 
         case "session.deleted": {
           const sessionInfo = event.properties.info;
+          if (sessionInfo?.id) {
+            cleanupSessionActivity(sessionInfo.id);
+          }
           if (sessionInfo && activeSession?.id === sessionInfo.id) {
             setCurrentSession(null);
             setMessages([]);
             seenMessageIdsRef.current.clear();
+            // Clear session usage for deleted session
+            setSessionUsage((prev) => {
+              const next = new Map(prev);
+              next.delete(sessionInfo.id);
+              return next;
+            });
             showToast("Session was deleted", "info");
           }
           break;
@@ -916,8 +1003,16 @@ export function useOpenCode() {
         }
 
         case "session.idle": {
-          debugLog("[SSE] Session became idle");
           const sessionId = event.properties.sessionID;
+          debugLog("[SSE] session.idle event received!", {
+            sessionId,
+            activeSessionId: activeSession?.id,
+            event: event.properties,
+          });
+          if (sessionId) {
+            markSessionIdle(sessionId);
+            debugLog("[SSE] Session idle:", sessionId);
+          }
           if (sessionId && sessionId === activeSession?.id) {
             loadMessages(sessionId).catch((error) => {
               console.error(
@@ -925,6 +1020,25 @@ export function useOpenCode() {
                 error,
               );
             });
+
+            // PROCESS NEXT QUEUED MESSAGE
+            debugLog("[SSE] Queue check:", {
+              queueLength: messageQueueRef.current.length,
+              hasProcessFunc: !!processNextInQueueRef.current,
+              queue: messageQueueRef.current,
+              activeSessionId: activeSession?.id,
+              eventSessionId: sessionId,
+            });
+            
+            if (messageQueueRef.current.length > 0 && processNextInQueueRef.current) {
+              debugLog("[SSE] Processing next queued message after idle");
+              processNextInQueueRef.current();
+            } else {
+              debugLog("[SSE] Not processing queue because:", {
+                noMessages: messageQueueRef.current.length === 0,
+                noProcessFunc: !processNextInQueueRef.current,
+              });
+            }
           }
           break;
         }
@@ -935,6 +1049,9 @@ export function useOpenCode() {
             showToast(error.message, "error");
           }
           const sessionId = event.properties.sessionID;
+          if (sessionId) {
+            markSessionIdle(sessionId);
+          }
           if (sessionId && sessionId === activeSession?.id) {
             loadMessages(sessionId).catch((loadError) => {
               console.error(
@@ -1075,6 +1192,52 @@ export function useOpenCode() {
             debugLog("[SSE] Added new message placeholder:", messageInfo.id);
             return newMessages;
           });
+
+          // Update session usage totals for assistant messages with tokens
+          if (
+            messageInfo.tokens &&
+            messageInfo.role === "assistant" &&
+            eventSessionId
+          ) {
+            setSessionUsage((prev) => {
+              const current = prev.get(eventSessionId) || {
+                input: 0,
+                output: 0,
+                reasoning: 0,
+                cacheRead: 0,
+                cacheWrite: 0,
+                totalTokens: 0,
+              };
+
+              // Skip if we've already counted this message
+              if (messageInfo.id === current.lastMessageId) {
+                return prev;
+              }
+
+              const tokens = messageInfo.tokens;
+              if (!tokens) return prev;
+              const newTotals: SessionUsageTotals = {
+                input: current.input + (tokens.input || 0),
+                output: current.output + (tokens.output || 0),
+                reasoning: current.reasoning + (tokens.reasoning || 0),
+                cacheRead: current.cacheRead + (tokens.cache?.read || 0),
+                cacheWrite: current.cacheWrite + (tokens.cache?.write || 0),
+                totalTokens: 0,
+                lastMessageId: messageInfo.id,
+              };
+
+              newTotals.totalTokens =
+                newTotals.input +
+                newTotals.output +
+                newTotals.reasoning +
+                newTotals.cacheRead +
+                newTotals.cacheWrite;
+
+              const next = new Map(prev);
+              next.set(eventSessionId, newTotals);
+              return next;
+            });
+          }
 
           if (
             eventSessionId &&
@@ -1354,6 +1517,7 @@ export function useOpenCode() {
         streamingTimeoutRef.current = null;
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     isConnected,
     currentSessionId,
@@ -1361,6 +1525,8 @@ export function useOpenCode() {
     currentWorktree,
     showToast,
     loadMessages,
+    // processNextInQueueRef.current is used but doesn't need to be in deps (ref pattern)
+    // messageQueue.length is accessed via the ref, not directly
   ]);
 
   // Save current session to localStorage when it changes
@@ -1426,6 +1592,14 @@ export function useOpenCode() {
       localStorage.removeItem("opencode-current-project");
     }
   }, [currentProject, isHydrated]);
+
+  // Clear queue when switching sessions
+  useEffect(() => {
+    if (currentSession?.id) {
+      setMessageQueue([]);
+      setIsProcessingQueue(false);
+    }
+  }, [currentSession?.id]);
 
   const createSession = useCallback(
     async ({
@@ -1573,6 +1747,8 @@ export function useOpenCode() {
         throw new Error("No active session");
       }
 
+      markSessionRunning(targetSession.id);
+
       try {
         setLoading(true);
         setIsStreaming(false);
@@ -1705,14 +1881,142 @@ export function useOpenCode() {
         };
       } catch (error) {
         console.error("Failed to send message:", error);
+        markSessionIdle(targetSession.id);
         throw new Error(handleOpencodeError(error));
       } finally {
         setLoading(false);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentSession, currentProject, selectedModel, currentAgent, config],
-  );  
+    [
+      currentSession,
+      currentProject,
+      selectedModel,
+      currentAgent,
+      config,
+      markSessionRunning,
+      markSessionIdle,
+    ],
+  );
+
+  // Process next queued message
+  const processNextInQueue = useCallback(async () => {
+    debugLog("[Queue] processNextInQueue called", {
+      queueLength: messageQueue.length,
+      isProcessingQueue,
+      loading,
+      isStreaming,
+    });
+    
+    if (
+      messageQueue.length === 0 ||
+      isProcessingQueue ||
+      loading ||
+      isStreaming
+    ) {
+      debugLog("[Queue] Early return because:", {
+        emptyQueue: messageQueue.length === 0,
+        alreadyProcessing: isProcessingQueue,
+        currentlyLoading: loading,
+        currentlyStreaming: isStreaming,
+      });
+      return;
+    }
+
+    const nextMessage = messageQueue[0];
+    if (!nextMessage) {
+      debugLog("[Queue] No next message found");
+      return;
+    }
+
+    debugLog("[Queue] Processing message:", nextMessage);
+    setIsProcessingQueue(true);
+
+    try {
+      // Remove from queue
+      setMessageQueue((prev: Message[]) =>
+        prev.slice(1).map((msg: Message, idx: number) => ({
+          ...msg,
+          queuePosition: idx + 1,
+        })),
+      );
+
+      // Remove queued message from messages display and add as optimistic
+      setMessages((prev: Message[]) => {
+        const filtered = prev.filter((msg) => msg.id !== nextMessage.id);
+        return [
+          ...filtered,
+          {
+            ...nextMessage,
+            queued: false,
+            queuePosition: undefined,
+            optimistic: true,
+          },
+        ];
+      });
+
+      // Send the queued message
+      await sendMessage(
+        nextMessage.content,
+        selectedModel?.providerID,
+        selectedModel?.modelID,
+        currentSession ?? undefined,
+        currentAgent ?? undefined,
+      );
+    } catch (error) {
+      console.error("[Queue] Failed to process queued message:", error);
+      // Re-add to front of queue on error
+      setMessageQueue((prev: Message[]) => [nextMessage, ...prev]);
+    } finally {
+      setIsProcessingQueue(false);
+    }
+  }, [
+    messageQueue,
+    isProcessingQueue,
+    loading,
+    isStreaming,
+    sendMessage,
+    selectedModel,
+    currentSession,
+    currentAgent,
+  ]);
+
+  // Update the refs
+  useEffect(() => {
+    processNextInQueueRef.current = processNextInQueue;
+    debugLog("[Queue] Updated processNextInQueueRef", {
+      hasFunction: !!processNextInQueueRef.current,
+    });
+  }, [processNextInQueue]);
+
+  useEffect(() => {
+    messageQueueRef.current = messageQueue;
+    debugLog("[Queue] Updated messageQueueRef", {
+      queueLength: messageQueueRef.current.length,
+      queue: messageQueueRef.current,
+    });
+  }, [messageQueue]);
+
+  // ALTERNATIVE QUEUE PROCESSING TRIGGER: Monitor when session becomes idle
+  useEffect(() => {
+    // Only process queue when session transitions from busy to idle
+    const isBusy = loading || isStreaming || currentSessionBusy;
+    const hasQueuedMessages = messageQueue.length > 0;
+    
+    debugLog("[Queue] Session busy state changed:", {
+      isBusy,
+      loading,
+      isStreaming,
+      currentSessionBusy,
+      hasQueuedMessages,
+      queueLength: messageQueue.length,
+    });
+
+    if (!isBusy && hasQueuedMessages && !isProcessingQueue) {
+      debugLog("[Queue] Session is now idle and queue has messages, processing next...");
+      processNextInQueue();
+    }
+  }, [loading, isStreaming, currentSessionBusy, messageQueue.length, isProcessingQueue, processNextInQueue]);
 
   const loadProjects = useCallback(async () => {
     if (loadedProjectsRef.current) return;
@@ -1851,10 +2155,19 @@ export function useOpenCode() {
           currentProject?.worktree,
         );
         setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+        // Clear session usage for deleted session
+        setSessionUsage((prev) => {
+          const next = new Map(prev);
+          next.delete(sessionId);
+          return next;
+        });
         if (currentSession?.id === sessionId) {
           setCurrentSession(null);
           setMessages([]);
           seenMessageIdsRef.current.clear();
+          // Clear queue when deleting current session
+          setMessageQueue([]);
+          setIsProcessingQueue(false);
         }
       } catch (error) {
         console.error("Failed to delete session:", error);
@@ -1877,6 +2190,11 @@ export function useOpenCode() {
       setCurrentSession(null);
       setMessages([]);
       seenMessageIdsRef.current.clear();
+      // Clear all session usage
+      setSessionUsage(new Map());
+      // Clear queue
+      setMessageQueue([]);
+      setIsProcessingQueue(false);
     } catch (error) {
       console.error("Failed to clear sessions:", error);
     }
@@ -2395,6 +2713,12 @@ export function useOpenCode() {
         (agent) => agent.mode === "primary" || agent.mode === "all" || !agent.mode
       );
       setAgents(agentsArray);
+      
+      const subagentsArray = allAgents.filter(
+        (agent) => agent.mode === "subagent" || agent.mode === "all"
+      );
+      setSubagents(subagentsArray);
+      
       loadedAgentsRef.current = true;
 
       // Try to restore saved agent from localStorage
@@ -2499,6 +2823,7 @@ export function useOpenCode() {
 
   const runShell = useCallback(
     async (sessionId: string, command: string, args: string[] = []) => {
+      markSessionRunning(sessionId);
       try {
         const response = await openCodeService.runShell(
           sessionId,
@@ -2509,10 +2834,11 @@ export function useOpenCode() {
         return response;
       } catch (error) {
         console.error("Failed to run shell command:", error);
+        markSessionIdle(sessionId);
         throw error;
       }
     },
-    [currentProject?.worktree],
+    [currentProject?.worktree, markSessionRunning, markSessionIdle],
   );
 
   const revertMessage = useCallback(
@@ -2587,6 +2913,7 @@ export function useOpenCode() {
       providerID: string,
       modelID: string,
     ) => {
+      markSessionRunning(sessionId);
       try {
         const response = await openCodeService.initSession(
           sessionId,
@@ -2598,14 +2925,16 @@ export function useOpenCode() {
         return response.data;
       } catch (error) {
         console.error("Failed to init session:", error);
+        markSessionIdle(sessionId);
         throw error;
       }
     },
-    [currentProject?.worktree],
+    [currentProject?.worktree, markSessionRunning, markSessionIdle],
   );
 
   const summarizeSession = useCallback(
     async (sessionId: string, providerID: string, modelID: string) => {
+      markSessionRunning(sessionId);
       try {
         const response = await openCodeService.summarizeSession(
           sessionId,
@@ -2616,7 +2945,32 @@ export function useOpenCode() {
         return response.data;
       } catch (error) {
         console.error("Failed to summarize session:", error);
+        markSessionIdle(sessionId);
         throw error;
+      }
+    },
+    [currentProject?.worktree, markSessionRunning, markSessionIdle],
+  );
+
+  const abortSession = useCallback(
+    async (sessionId: string) => {
+      try {
+        setAbortInFlight(true);
+        const response = await openCodeService.abortSession(
+          sessionId,
+          currentProject?.worktree,
+        );
+
+        if (process.env.NODE_ENV !== "production") {
+          console.log("[Abort] Session abort requested:", sessionId);
+        }
+
+        return response.data;
+      } catch (error) {
+        console.error("Failed to abort session:", error);
+        throw error;
+      } finally {
+        setAbortInFlight(false);
       }
     },
     [currentProject?.worktree],
@@ -2739,6 +3093,7 @@ export function useOpenCode() {
     showModelPicker,
     setShowModelPicker,
     agents,
+    subagents,
     currentAgent,
     selectAgent,
     loadAgents,
@@ -2750,6 +3105,10 @@ export function useOpenCode() {
     unshareSession,
     initSession,
     summarizeSession,
+    abortSession,
+    currentSessionBusy,
+    abortInFlight,
+    sessionActivity,
     executeSlashCommand,
     parseCommand: (input: string) => parseCommand(input, commands),
     sseConnectionState,
@@ -2760,5 +3119,15 @@ export function useOpenCode() {
     setShouldBlurEditor,
     currentSessionTodos,
     setCurrentSessionTodos,
+    sessionUsage: currentSession?.id
+      ? sessionUsage.get(currentSession.id) || null
+      : null,
+    // Message queue
+    messageQueue,
+    addToQueue,
+    removeFromQueue,
+    clearQueue,
+    processNextInQueue,
+    isProcessingQueue,
   };
 }
