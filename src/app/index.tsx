@@ -697,6 +697,16 @@ function OpenCodeChatTUI() {
 
     unregisterFns.push(
       registerShortcut({
+        key: "c",
+        handler: () => setShowConfig(true),
+        requiresLeader: true,
+        description: "Open Config",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
         key: "h",
         handler: () => setShowHelp(true),
         requiresLeader: true,
@@ -763,6 +773,7 @@ function OpenCodeChatTUI() {
     setShowModelPicker,
     setShowAgentPicker,
     setShowThemes,
+    setShowConfig,
     setShowHelp,
     setShowNewSessionForm,
     setShowNewProjectForm,
@@ -773,25 +784,28 @@ function OpenCodeChatTUI() {
   // Handle frame navigation and actions
   useEffect(() => {
     if (selectedFrame === "projects") {
-      // Focus on project selector
-      const projectSelector = document.querySelector('[data-project-selector]');
-      if (projectSelector) {
-        (projectSelector as HTMLElement).focus();
+      // Scroll to projects section - it's in the sidebar
+      const projectsHeading = Array.from(document.querySelectorAll('h3')).find(h => h.textContent === 'Projects');
+      if (projectsHeading) {
+        projectsHeading.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     } else if (selectedFrame === "sessions") {
-      // Focus on sessions list
-      const sessionsList = document.querySelector('[data-sessions-list]');
-      if (sessionsList) {
-        (sessionsList as HTMLElement).focus();
+      // Scroll to sessions section - it's in the sidebar
+      const sessionsHeading = Array.from(document.querySelectorAll('h3')).find(h => h.textContent === 'Sessions');
+      if (sessionsHeading) {
+        sessionsHeading.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     } else if (selectedFrame === "files") {
       // Switch to files tab
       setActiveTab("files");
     } else if (selectedFrame === "workspace") {
-      // Focus on input area
-      if (inputRef.current) {
-        inputRef.current.focus();
-      }
+      // Switch to workspace tab and focus on input area
+      setActiveTab("workspace");
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+        }
+      }, 100);
     }
   }, [selectedFrame]);
 
@@ -2422,6 +2436,7 @@ function OpenCodeChatTUI() {
                       currentProject={currentProject}
                       onSelect={handleProjectSwitch}
                       buttonClassName="!py-2 !px-3"
+                      data-project-selector
                     />
                     {currentProject ? (
                       <div className="text-xs leading-relaxed space-y-1 text-theme-foreground">
@@ -2515,7 +2530,7 @@ function OpenCodeChatTUI() {
                           <Separator className="mb-2" />
                         </>
                       )}
-                      <div className="flex-1 overflow-y-auto scrollbar space-y-2 min-h-0">
+                      <div className="flex-1 overflow-y-auto scrollbar space-y-2 min-h-0" data-sessions-list>
                         {sessions
                           .filter(
                             (session) =>

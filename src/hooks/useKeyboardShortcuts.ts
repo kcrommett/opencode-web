@@ -169,17 +169,11 @@ export function useKeyboardShortcuts() {
 
       // Handle shortcuts when leader is active
       if (keyboardState.leaderActive) {
-        console.log("[Keyboard] Leader active, key pressed:", key);
-        console.log("[Keyboard] Available shortcuts:", shortcuts.length);
-        console.log("[Keyboard] Shortcuts:", shortcuts);
-        
         const matchingShortcut = shortcuts.find(
           (shortcut) =>
             shortcut.key.toLowerCase() === key.toLowerCase() &&
             shortcut.requiresLeader
         );
-
-        console.log("[Keyboard] Matching shortcut found:", matchingShortcut);
 
         if (matchingShortcut) {
           event.preventDefault();
