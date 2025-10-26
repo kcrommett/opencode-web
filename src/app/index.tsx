@@ -1,10 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import {
-  useState,
-  useMemo,
-  useEffect,
-  useRef,
-} from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   Button,
   Input,
@@ -25,7 +20,11 @@ import { AgentPicker } from "@/app/_components/ui/agent-picker";
 import { SessionPicker } from "@/app/_components/ui/session-picker";
 import { PermissionModal } from "@/app/_components/ui/permission-modal";
 import { MessagePart } from "@/app/_components/message";
-import type { FileContentData, MentionSuggestion, Agent } from "@/types/opencode";
+import type {
+  FileContentData,
+  MentionSuggestion,
+  Agent,
+} from "@/types/opencode";
 import { FileIcon } from "@/app/_components/files/file-icon";
 import { useOpenCodeContext } from "@/contexts/OpenCodeContext";
 import { openCodeService } from "@/lib/opencode-client";
@@ -507,7 +506,12 @@ function OpenCodeChatTUI() {
   }, [isResizing]);
 
   useEffect(() => {
-    if (!showModelPicker && !showAgentPicker && !showSessionPicker && textareaRef.current) {
+    if (
+      !showModelPicker &&
+      !showAgentPicker &&
+      !showSessionPicker &&
+      textareaRef.current
+    ) {
       const timer = setTimeout(() => {
         textareaRef.current?.focus();
       }, 100);
@@ -1245,7 +1249,7 @@ function OpenCodeChatTUI() {
 
   const confirmBulkDelete = async () => {
     const results = await Promise.allSettled(
-      bulkDeleteIds.map((id) => deleteSession(id))
+      bulkDeleteIds.map((id) => deleteSession(id)),
     );
 
     const failures = results.filter((r) => r.status === "rejected");
@@ -1299,8 +1303,8 @@ function OpenCodeChatTUI() {
       )
     ) {
       try {
-        const deletePromises = Array.from(selectedSidebarSessionIds).map(
-          (id) => deleteSession(id),
+        const deletePromises = Array.from(selectedSidebarSessionIds).map((id) =>
+          deleteSession(id),
         );
         await Promise.allSettled(deletePromises);
         await loadSessions();
@@ -1420,7 +1424,10 @@ function OpenCodeChatTUI() {
     if (value.startsWith("/")) {
       console.log("Commands from context:", commands);
       console.log("Custom commands list:", customCommandSuggestions);
-      const suggestions = getCommandSuggestions(value, customCommandSuggestions);
+      const suggestions = getCommandSuggestions(
+        value,
+        customCommandSuggestions,
+      );
       console.log("All suggestions:", suggestions);
       setCommandSuggestions(suggestions);
       setShowCommandPicker(suggestions.length > 0);
@@ -1748,30 +1755,34 @@ function OpenCodeChatTUI() {
       }}
     >
       {/* Top Bar */}
-      <div className="px-4 py-2 flex items-center justify-between bg-theme-background-alt flex-shrink-0">
+      <div className="px-2 sm:px-4 py-2 flex items-center justify-between bg-theme-background-alt flex-shrink-0 gap-2">
         {isConnected === false && (
           <div className="absolute top-0 left-0 right-0 px-2 py-1 text-center text-xs bg-theme-error text-theme-background z-50">
             Disconnected from OpenCode server
           </div>
         )}
-        <div className="flex items-start sm:items-center gap-2 lg:gap-4">
+        <div className="flex items-center gap-1 sm:gap-2 lg:gap-4 flex-1 min-w-0">
           <HamburgerMenu
             isOpen={isMobileSidebarOpen}
             onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
           />
-          <div className="flex flex-col items-center gap-1 text-center sm:flex-row sm:items-center sm:gap-2 sm:text-left">
-            <Badge variant="foreground1" cap="round">
+          <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+            <Badge
+              variant="foreground1"
+              cap="round"
+              className="whitespace-nowrap"
+            >
               opencode web
             </Badge>
             {isConnected !== null && (
-              <div className="flex items-center gap-2 self-center justify-center order-first sm:order-none sm:self-auto sm:justify-start">
+              <div className="flex items-center gap-1 sm:gap-2">
                 <div
                   className={`connection-indicator ${isConnected ? "connected" : "disconnected"}`}
                 />
                 <Badge
                   variant={isConnected ? "background2" : "foreground0"}
                   cap="round"
-                  className="hidden sm:inline"
+                  className="hidden md:inline whitespace-nowrap"
                 >
                   {isConnected ? "Connected" : "Disconnected"}
                 </Badge>
@@ -1790,7 +1801,7 @@ function OpenCodeChatTUI() {
                           : "foreground0"
                       }
                       cap="round"
-                      className="hidden md:inline text-xs"
+                      className="hidden lg:inline text-xs whitespace-nowrap"
                     >
                       SSE {sseConnectionState.connected ? "Live" : "Off"}
                       {sseConnectionState.reconnecting && "..."}
@@ -1800,7 +1811,7 @@ function OpenCodeChatTUI() {
               </div>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-1 sm:gap-2">
             {["workspace", "files"].map((tab) => (
               <Button
                 key={tab}
@@ -1808,20 +1819,20 @@ function OpenCodeChatTUI() {
                 variant={activeTab === tab ? "foreground0" : undefined}
                 box="square"
                 size="small"
-                className="capitalize"
+                className="capitalize whitespace-nowrap"
               >
                 {tab}
               </Button>
             ))}
           </div>
         </div>
-        <div className="hidden lg:flex items-center gap-2">
+        <div className="hidden md:flex items-center gap-1 sm:gap-2 flex-shrink-0">
           <Button
             variant="foreground0"
             box="round"
             onClick={openHelp}
             size="small"
-            className="border-none"
+            className="border-none whitespace-nowrap"
           >
             Help
           </Button>
@@ -1830,7 +1841,7 @@ function OpenCodeChatTUI() {
             box="round"
             onClick={openThemes}
             size="small"
-            className="border-none"
+            className="border-none whitespace-nowrap"
           >
             Themes
           </Button>
@@ -1847,7 +1858,7 @@ function OpenCodeChatTUI() {
               }
             }}
             size="small"
-            className="border-none"
+            className="border-none whitespace-nowrap"
           >
             Config
           </Button>
@@ -1861,14 +1872,16 @@ function OpenCodeChatTUI() {
         {/* Desktop Sidebar - hidden on mobile */}
         <View
           box="square"
-          className="hidden lg:flex flex-col p-4 bg-theme-background-alt relative"
+          className="hidden md:flex flex-col p-4 bg-theme-background-alt relative"
           style={{ width: `${sidebarWidth}px` }}
         >
           <div
             className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-theme-primary transition-colors z-10"
             onMouseDown={handleResizeStart}
             style={{
-              backgroundColor: isResizing ? "var(--theme-primary)" : "transparent",
+              backgroundColor: isResizing
+                ? "var(--theme-primary)"
+                : "transparent",
             }}
           />
           <div className="flex-1 overflow-hidden">
@@ -2005,8 +2018,9 @@ function OpenCodeChatTUI() {
                           .map((session) => {
                             const isSelected =
                               currentSession?.id === session.id;
-                            const isChecked =
-                              selectedSidebarSessionIds.has(session.id);
+                            const isChecked = selectedSidebarSessionIds.has(
+                              session.id,
+                            );
                             return (
                               <div
                                 key={session.id}
@@ -2526,149 +2540,149 @@ function OpenCodeChatTUI() {
               <div className="flex-1 overflow-y-auto scrollbar p-2 pb-4 space-y-2 min-h-0 flex flex-col">
                 <div className="max-w-none lg:mx-auto lg:max-w-6xl xl:max-w-7xl space-y-2 flex-1 flex flex-col">
                   {messages.length === 0 && !loading && (
-                  <div className="flex items-center justify-center flex-1">
-                    <View
-                      box="round"
-                      className="max-w-4xl w-full p-6 text-center bg-theme-background-alt"
-                    >
-                      {currentProject && !currentSession ? (
-                        <img
-                          src="data:image/svg+xml,%3csvg%20width='234'%20height='42'%20viewBox='0%200%20234%2042'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M18%2030H6V18H18V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M18%2012H6V30H18V12ZM24%2036H0V6H24V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M48%2030H36V18H48V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M36%2030H48V12H36V30ZM54%2036H36V42H30V6H54V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M84%2024V30H66V24H84Z'%20fill='%234B4646'/%3e%3cpath%20d='M84%2024H66V30H84V36H60V6H84V24ZM66%2018H78V12H66V18Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M108%2036H96V18H108V36Z'%20fill='%234B4646'/%3e%3cpath%20d='M108%2012H96V36H90V6H108V12ZM114%2036H108V12H114V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M144%2030H126V18H144V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M144%2012H126V30H144V36H120V6H144V12Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M168%2030H156V18H168V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M168%2012H156V30H168V12ZM174%2036H150V6H174V36Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M198%2030H186V18H198V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M198%2012H186V30H198V12ZM204%2036H180V6H198V0H204V36Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M234%2024V30H216V24H234Z'%20fill='%234B4646'/%3e%3cpath%20d='M216%2012V18H228V12H216ZM234%2024H216V30H234V36H210V6H234V24Z'%20fill='%23F1ECEC'/%3e%3c/svg%3e"
-                          alt="OpenCode logo dark"
-                          className="mx-auto mb-4 h-24 w-auto"
-                        />
-                      ) : (
-                        <>
+                    <div className="flex items-center justify-center flex-1">
+                      <View
+                        box="round"
+                        className="max-w-4xl w-full p-6 text-center bg-theme-background-alt"
+                      >
+                        {currentProject && !currentSession ? (
                           <img
                             src="data:image/svg+xml,%3csvg%20width='234'%20height='42'%20viewBox='0%200%20234%2042'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M18%2030H6V18H18V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M18%2012H6V30H18V12ZM24%2036H0V6H24V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M48%2030H36V18H48V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M36%2030H48V12H36V30ZM54%2036H36V42H30V6H54V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M84%2024V30H66V24H84Z'%20fill='%234B4646'/%3e%3cpath%20d='M84%2024H66V30H84V36H60V6H84V24ZM66%2018H78V12H66V18Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M108%2036H96V18H108V36Z'%20fill='%234B4646'/%3e%3cpath%20d='M108%2012H96V36H90V6H108V12ZM114%2036H108V12H114V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M144%2030H126V18H144V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M144%2012H126V30H144V36H120V6H144V12Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M168%2030H156V18H168V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M168%2012H156V30H168V12ZM174%2036H150V6H174V36Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M198%2030H186V18H198V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M198%2012H186V30H198V12ZM204%2036H180V6H198V0H204V36Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M234%2024V30H216V24H234Z'%20fill='%234B4646'/%3e%3cpath%20d='M216%2012V18H228V12H216ZM234%2024H216V30H234V36H210V6H234V24Z'%20fill='%23F1ECEC'/%3e%3c/svg%3e"
                             alt="OpenCode logo dark"
-                            className="mx-auto mb-4 h-16 w-auto"
+                            className="mx-auto mb-4 h-24 w-auto"
                           />
-                          <Pre
-                            size="small"
-                            className="break-words whitespace-pre-wrap overflow-wrap-anywhere mb-4 text-theme-foreground opacity-80"
-                          >
-                            {!currentProject
-                              ? "Select a project from the sidebar to get started, or create a new session to begin."
-                              : "Send a message to start a new session. Use @ to reference files, / for commands, and Tab to switch agents."}
-                          </Pre>
-                        </>
-                      )}
-                      <div className="flex gap-2 justify-center flex-wrap">
-                        {!currentProject && (
-                          <Badge
-                            variant="foreground0"
-                            cap="round"
-                            className="text-xs"
-                          >
-                            Step 1: Select a project →
-                          </Badge>
-                        )}
-                        {currentProject && !currentSession && (
-                          <Badge
-                            variant="foreground0"
-                            cap="round"
-                            className="text-xs"
-                          >
-                            Step 2: Create or select a session →
-                          </Badge>
-                        )}
-                      </div>
-                    </View>
-                  </div>
-                )}
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}
-                  >
-                    <View
-                      box="round"
-                      className={`max-w-full sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl p-2 ${
-                        message.type === "user"
-                          ? message.error
-                            ? "bg-theme-error/10 border-theme-error text-theme-error"
-                            : "bg-theme-primary/20 border-theme-primary text-theme-foreground"
-                          : "bg-theme-background-alt text-theme-foreground"
-                      }`}
-                    >
-                      {message.parts && message.parts.length > 0 ? (
-                        <div className="space-y-2">
-                          {message.parts.map((part, idx) => (
-                            <MessagePart
-                              key={`${message.id}-part-${idx}`}
-                              part={part}
-                              messageRole={message.type}
-                              showDetails={true}
+                        ) : (
+                          <>
+                            <img
+                              src="data:image/svg+xml,%3csvg%20width='234'%20height='42'%20viewBox='0%200%20234%2042'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M18%2030H6V18H18V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M18%2012H6V30H18V12ZM24%2036H0V6H24V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M48%2030H36V18H48V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M36%2030H48V12H36V30ZM54%2036H36V42H30V6H54V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M84%2024V30H66V24H84Z'%20fill='%234B4646'/%3e%3cpath%20d='M84%2024H66V30H84V36H60V6H84V24ZM66%2018H78V12H66V18Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M108%2036H96V18H108V36Z'%20fill='%234B4646'/%3e%3cpath%20d='M108%2012H96V36H90V6H108V12ZM114%2036H108V12H114V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M144%2030H126V18H144V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M144%2012H126V30H144V36H120V6H144V12Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M168%2030H156V18H168V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M168%2012H156V30H168V12ZM174%2036H150V6H174V36Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M198%2030H186V18H198V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M198%2012H186V30H198V12ZM204%2036H180V6H198V0H204V36Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M234%2024V30H216V24H234Z'%20fill='%234B4646'/%3e%3cpath%20d='M216%2012V18H228V12H216ZM234%2024H216V30H234V36H210V6H234V24Z'%20fill='%23F1ECEC'/%3e%3c/svg%3e"
+                              alt="OpenCode logo dark"
+                              className="mx-auto mb-4 h-16 w-auto"
                             />
-                          ))}
-                          {message.metadata && (
-                            <div className="text-xs opacity-60 mt-1.5 flex gap-3 flex-wrap">
-                              {message.metadata.agent && (
-                                <span>Agent: {message.metadata.agent}</span>
-                              )}
-                              {message.metadata.tokens && (
-                                <span>
-                                  Tokens:{" "}
-                                  {message.metadata.tokens.input +
-                                    message.metadata.tokens.output}
-                                  {message.metadata.tokens.reasoning > 0 &&
-                                    ` (+${message.metadata.tokens.reasoning} reasoning)`}
-                                </span>
-                              )}
-                              {message.metadata.cost && (
-                                <span>
-                                  Cost: ${message.metadata.cost.toFixed(4)}
-                                </span>
-                              )}
-                            </div>
+                            <Pre
+                              size="small"
+                              className="break-words whitespace-pre-wrap overflow-wrap-anywhere mb-4 text-theme-foreground opacity-80"
+                            >
+                              {!currentProject
+                                ? "Select a project from the sidebar to get started, or create a new session to begin."
+                                : "Send a message to start a new session. Use @ to reference files, / for commands, and Tab to switch agents."}
+                            </Pre>
+                          </>
+                        )}
+                        <div className="flex gap-2 justify-center flex-wrap">
+                          {!currentProject && (
+                            <Badge
+                              variant="foreground0"
+                              cap="round"
+                              className="text-xs"
+                            >
+                              Step 1: Select a project →
+                            </Badge>
+                          )}
+                          {currentProject && !currentSession && (
+                            <Badge
+                              variant="foreground0"
+                              cap="round"
+                              className="text-xs"
+                            >
+                              Step 2: Create or select a session →
+                            </Badge>
                           )}
                         </div>
-                      ) : (
-                        <div className="space-y-4">
-                          <Pre
-                            size="small"
-                            className="break-words whitespace-pre-wrap overflow-wrap-anywhere"
-                          >
-                            {message.content}
-                          </Pre>
-                          {message.optimistic && (
-                            <div className="text-xs opacity-60">Sending…</div>
-                          )}
-                          {message.error && (
-                            <div className="text-xs text-theme-error">
-                              {message.errorMessage ||
-                                "Send failed. Please retry."}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </View>
-                  </div>
-                ))}
-                {loading && !isStreaming && (
-                  <div className="flex justify-start">
-                    <View
-                      box="round"
-                      className="max-w-xs p-3 bg-theme-background-alt"
+                      </View>
+                    </div>
+                  )}
+                  {messages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}
                     >
-                      <Pre size="small" className="text-theme-foreground">
-                        <div className="flex space-x-1">
-                          <div className="w-2 h-2 rounded-full animate-bounce bg-theme-primary" />
-                          <div className="w-2 h-2 rounded-full animate-bounce [animation-delay:0.1s] bg-theme-primary" />
-                          <div className="w-2 h-2 rounded-full animate-bounce [animation-delay:0.2s] bg-theme-primary" />
-                        </div>
-                      </Pre>
-                      <Badge
-                        variant="foreground0"
-                        cap="round"
-                        className="mt-2 text-xs"
+                      <View
+                        box="round"
+                        className={`max-w-full sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl p-2 ${
+                          message.type === "user"
+                            ? message.error
+                              ? "bg-theme-error/10 border-theme-error text-theme-error"
+                              : "bg-theme-primary/20 border-theme-primary text-theme-foreground"
+                            : "bg-theme-background-alt text-theme-foreground"
+                        }`}
                       >
-                        OpenCode
-                      </Badge>
-                    </View>
-                  </div>
-                )}
+                        {message.parts && message.parts.length > 0 ? (
+                          <div className="space-y-2">
+                            {message.parts.map((part, idx) => (
+                              <MessagePart
+                                key={`${message.id}-part-${idx}`}
+                                part={part}
+                                messageRole={message.type}
+                                showDetails={true}
+                              />
+                            ))}
+                            {message.metadata && (
+                              <div className="text-xs opacity-60 mt-1.5 flex gap-3 flex-wrap">
+                                {message.metadata.agent && (
+                                  <span>Agent: {message.metadata.agent}</span>
+                                )}
+                                {message.metadata.tokens && (
+                                  <span>
+                                    Tokens:{" "}
+                                    {message.metadata.tokens.input +
+                                      message.metadata.tokens.output}
+                                    {message.metadata.tokens.reasoning > 0 &&
+                                      ` (+${message.metadata.tokens.reasoning} reasoning)`}
+                                  </span>
+                                )}
+                                {message.metadata.cost && (
+                                  <span>
+                                    Cost: ${message.metadata.cost.toFixed(4)}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            <Pre
+                              size="small"
+                              className="break-words whitespace-pre-wrap overflow-wrap-anywhere"
+                            >
+                              {message.content}
+                            </Pre>
+                            {message.optimistic && (
+                              <div className="text-xs opacity-60">Sending…</div>
+                            )}
+                            {message.error && (
+                              <div className="text-xs text-theme-error">
+                                {message.errorMessage ||
+                                  "Send failed. Please retry."}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </View>
+                    </div>
+                  ))}
+                  {loading && !isStreaming && (
+                    <div className="flex justify-start">
+                      <View
+                        box="round"
+                        className="max-w-xs p-3 bg-theme-background-alt"
+                      >
+                        <Pre size="small" className="text-theme-foreground">
+                          <div className="flex space-x-1">
+                            <div className="w-2 h-2 rounded-full animate-bounce bg-theme-primary" />
+                            <div className="w-2 h-2 rounded-full animate-bounce [animation-delay:0.1s] bg-theme-primary" />
+                            <div className="w-2 h-2 rounded-full animate-bounce [animation-delay:0.2s] bg-theme-primary" />
+                          </div>
+                        </Pre>
+                        <Badge
+                          variant="foreground0"
+                          cap="round"
+                          className="mt-2 text-xs"
+                        >
+                          OpenCode
+                        </Badge>
+                      </View>
+                    </div>
+                  )}
                   <div ref={messagesEndRef} />
                 </div>
               </div>
@@ -2791,81 +2805,82 @@ function OpenCodeChatTUI() {
                       placeholder={
                         currentSessionBusy && !isMobile
                           ? "Agent running... Press ESC to stop, or type to queue a message"
-                          : "Type your message, Tab to switch agent, /models to select model..."
+                          : "Type your message, Tab to switch agent, / for commands, @ to mention files, Shift+Enter for new line, Enter to send"
                       }
                       rows={2}
                       size="large"
                       className="w-full bg-theme-background text-theme-foreground border-theme-primary resize-none"
                     />
-                    {showMentionSuggestions && mentionSuggestions.length > 0 && (
-                      <div
-                        className="absolute bottom-full left-0 right-0 mb-1 max-h-48 overflow-y-auto scrollbar z-10 shadow-lg rounded border"
-                        style={{
-                          backgroundColor: "var(--theme-backgroundAlt)",
-                          borderColor: "var(--theme-primary)",
-                          borderWidth: "1px",
-                        }}
-                      >
-                        {mentionSuggestions.map((suggestion, index) => {
-                          const isSelected = index === selectedMentionIndex;
-                          return (
-                            <div
-                              key={suggestion.label}
-                              className={`p-2 cursor-pointer transition-colors text-sm ${suggestion.type === "agent" ? "agent-suggestion" : ""}`}
-                              style={{
-                                backgroundColor: isSelected
-                                  ? "var(--theme-primary)"
-                                  : "transparent",
-                                color: isSelected
-                                  ? "var(--theme-background)"
-                                  : "var(--theme-foreground)",
-                              }}
-                              onClick={() => handleMentionSelect(suggestion)}
-                              onMouseEnter={(e) => {
-                                if (!isSelected) {
-                                  e.currentTarget.style.backgroundColor =
-                                    "var(--theme-backgroundAlt)";
-                                  e.currentTarget.style.opacity = "0.8";
-                                }
-                              }}
-                              onMouseLeave={(e) => {
-                                if (!isSelected) {
-                                  e.currentTarget.style.backgroundColor =
-                                    "transparent";
-                                  e.currentTarget.style.opacity = "1";
-                                }
-                              }}
-                            >
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex-1 truncate">
-                                  <span className="suggestion-name">
-                                    {suggestion.label}
-                                  </span>
-                                  {suggestion.type === "agent" &&
-                                    suggestion.description && (
-                                      <span
-                                        className="suggestion-desc block text-xs"
-                                        style={{ opacity: 0.6 }}
-                                      >
-                                        {suggestion.description}
-                                      </span>
-                                    )}
+                    {showMentionSuggestions &&
+                      mentionSuggestions.length > 0 && (
+                        <div
+                          className="absolute bottom-full left-0 right-0 mb-1 max-h-48 overflow-y-auto scrollbar z-10 shadow-lg rounded border"
+                          style={{
+                            backgroundColor: "var(--theme-backgroundAlt)",
+                            borderColor: "var(--theme-primary)",
+                            borderWidth: "1px",
+                          }}
+                        >
+                          {mentionSuggestions.map((suggestion, index) => {
+                            const isSelected = index === selectedMentionIndex;
+                            return (
+                              <div
+                                key={suggestion.label}
+                                className={`p-2 cursor-pointer transition-colors text-sm ${suggestion.type === "agent" ? "agent-suggestion" : ""}`}
+                                style={{
+                                  backgroundColor: isSelected
+                                    ? "var(--theme-primary)"
+                                    : "transparent",
+                                  color: isSelected
+                                    ? "var(--theme-background)"
+                                    : "var(--theme-foreground)",
+                                }}
+                                onClick={() => handleMentionSelect(suggestion)}
+                                onMouseEnter={(e) => {
+                                  if (!isSelected) {
+                                    e.currentTarget.style.backgroundColor =
+                                      "var(--theme-backgroundAlt)";
+                                    e.currentTarget.style.opacity = "0.8";
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (!isSelected) {
+                                    e.currentTarget.style.backgroundColor =
+                                      "transparent";
+                                    e.currentTarget.style.opacity = "1";
+                                  }
+                                }}
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex-1 truncate">
+                                    <span className="suggestion-name">
+                                      {suggestion.label}
+                                    </span>
+                                    {suggestion.type === "agent" &&
+                                      suggestion.description && (
+                                        <span
+                                          className="suggestion-desc block text-xs"
+                                          style={{ opacity: 0.6 }}
+                                        >
+                                          {suggestion.description}
+                                        </span>
+                                      )}
+                                  </div>
+                                  {isSelected && (
+                                    <Badge
+                                      variant="background2"
+                                      cap="round"
+                                      className="text-xs"
+                                    >
+                                      ↵
+                                    </Badge>
+                                  )}
                                 </div>
-                                {isSelected && (
-                                  <Badge
-                                    variant="background2"
-                                    cap="round"
-                                    className="text-xs"
-                                  >
-                                    ↵
-                                  </Badge>
-                                )}
                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                            );
+                          })}
+                        </div>
+                      )}
                   </div>
                   {currentSessionBusy && isMobile && (
                     <div className="relative w-full">
@@ -2881,7 +2896,9 @@ function OpenCodeChatTUI() {
                           opacity: abortInFlight ? 0.7 : 1,
                         }}
                       >
-                        {abortInFlight ? "Stopping..." : "Stop Agent (ESC on desktop)"}
+                        {abortInFlight
+                          ? "Stopping..."
+                          : "Stop Agent (ESC on desktop)"}
                       </Button>
                     </div>
                   )}
@@ -3452,10 +3469,11 @@ function OpenCodeChatTUI() {
                 value={modelSearchQuery}
                 onChange={(e) => setModelSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
-                  const totalItems = !modelSearchQuery.trim() && recentModels.length > 0
-                    ? recentModels.length + filteredModels.length
-                    : filteredModels.length;
-                  
+                  const totalItems =
+                    !modelSearchQuery.trim() && recentModels.length > 0
+                      ? recentModels.length + filteredModels.length
+                      : filteredModels.length;
+
                   if (e.key === "ArrowDown") {
                     e.preventDefault();
                     setSelectedModelIndex((prev) =>
@@ -3468,9 +3486,10 @@ function OpenCodeChatTUI() {
                     );
                   } else if (e.key === "Enter" && totalItems > 0) {
                     e.preventDefault();
-                    const allModels = !modelSearchQuery.trim() && recentModels.length > 0
-                      ? [...recentModels, ...filteredModels]
-                      : filteredModels;
+                    const allModels =
+                      !modelSearchQuery.trim() && recentModels.length > 0
+                        ? [...recentModels, ...filteredModels]
+                        : filteredModels;
                     selectModel(allModels[selectedModelIndex]);
                     setShowModelPicker(false);
                     setModelSearchQuery("");
@@ -3540,9 +3559,10 @@ function OpenCodeChatTUI() {
                     </>
                   )}
                   {filteredModels.map((model, index) => {
-                    const adjustedIndex = !modelSearchQuery.trim() && recentModels.length > 0 
-                      ? index + recentModels.length 
-                      : index;
+                    const adjustedIndex =
+                      !modelSearchQuery.trim() && recentModels.length > 0
+                        ? index + recentModels.length
+                        : index;
                     const isSelected = adjustedIndex === selectedModelIndex;
                     return (
                       <div

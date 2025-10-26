@@ -12,7 +12,7 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
   return (
     <button
       onClick={onClick}
-      className="lg:hidden flex flex-col justify-center items-center p-2 transition-opacity"
+      className="md:hidden flex flex-col justify-center items-center p-2 transition-opacity"
       onMouseEnter={(e) => {
         e.currentTarget.style.backgroundColor = "var(--theme-primaryHover)";
         e.currentTarget.style.borderColor = "var(--theme-primaryHover)";
