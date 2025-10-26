@@ -381,6 +381,12 @@ function OpenCodeChatTUI() {
     commands,
     executeSlashCommand,
     sessionUsage,
+    messageQueue,
+    addToQueue,
+    removeFromQueue,
+    clearQueue,
+    processNextInQueue: _processNextInQueue,
+    isProcessingQueue: _isProcessingQueue,
   } = useOpenCodeContext();
   const { currentTheme, changeTheme } = useTheme(config?.theme);
 
@@ -398,7 +404,7 @@ function OpenCodeChatTUI() {
   // Removed automatic session creation to prevent spam
 
   const handleSend = async () => {
-    if (!input.trim() || loading) return;
+    if (!input.trim()) return;
 
     const messageText = input;
     setInput("");
@@ -412,11 +418,35 @@ function OpenCodeChatTUI() {
       }
 
       const parsed = parseCommand(messageText, commands);
+
+      // Handle commands immediately (don't queue)
       if (parsed.type === "slash") {
         await handleCommand(messageText);
+        return;
       } else if (parsed.type === "shell") {
         await handleShellCommand(parsed.command || "");
+        return;
+      }
+
+      // Check if agent is currently busy
+      const isBusy = loading || isStreaming || currentSessionBusy;
+
+      if (isBusy) {
+        // ADD TO QUEUE instead of blocking
+        const queuedMessage = {
+          id: `queued-${Date.now()}`,
+          type: "user" as const,
+          content: messageText,
+          timestamp: new Date(),
+          queued: true,
+          optimistic: true,
+        };
+        addToQueue(queuedMessage);
+
+        // Show visual feedback
+        setMessages((prev) => [...prev, queuedMessage]);
       } else {
+        // Process immediately
         const pendingId = `user-${Date.now()}`;
         setMessages((prev) => [
           ...prev,
@@ -434,7 +464,7 @@ function OpenCodeChatTUI() {
             messageText,
             selectedModel?.providerID,
             selectedModel?.modelID,
-            session, // Pass the session we just created or the existing one
+            session,
             currentAgent ?? undefined,
           );
         } catch (error) {
@@ -445,8 +475,9 @@ function OpenCodeChatTUI() {
           );
           throw error;
         }
-        await loadSessions(); // Refresh session metadata after sending message
       }
+
+      await loadSessions();
     } catch (err) {
       console.error("Failed to send message:", err);
     }
@@ -2646,7 +2677,22 @@ function OpenCodeChatTUI() {
                             >
                               {message.content}
                             </Pre>
-                            {message.optimistic && (
+                            {message.queued && (
+                              <div className="flex items-center gap-2 text-xs text-theme-warning">
+                                <div className="w-2 h-2 rounded-full bg-theme-warning animate-pulse" />
+                                <span>
+                                  Queued (Position: {message.queuePosition})
+                                </span>
+                                <button
+                                  onClick={() => removeFromQueue(message.id)}
+                                  className="ml-2 px-2 py-0.5 rounded bg-theme-background hover:bg-theme-background-alt border border-theme-border text-theme-foreground"
+                                  title="Cancel queued message"
+                                >
+                                  ✕ Cancel
+                                </button>
+                              </div>
+                            )}
+                            {message.optimistic && !message.queued && (
                               <div className="text-xs opacity-60">Sending…</div>
                             )}
                             {message.error && (
@@ -2789,6 +2835,21 @@ function OpenCodeChatTUI() {
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-stretch gap-2">
                   <div className="flex-1 relative w-full">
+                    {messageQueue.length > 0 && (
+                      <div className="flex items-center gap-2 px-3 py-2 mb-2 bg-theme-background-alt rounded-md border border-theme-warning">
+                        <Badge variant="warning" cap="round">
+                          {messageQueue.length} message
+                          {messageQueue.length > 1 ? "s" : ""} queued
+                        </Badge>
+                        <button
+                          onClick={clearQueue}
+                          className="px-2 py-1 text-xs rounded bg-theme-background hover:bg-theme-background-alt border border-theme-border text-theme-foreground"
+                          title="Clear queue"
+                        >
+                          Clear Queue
+                        </button>
+                      </div>
+                    )}
                     {showCommandPicker && (
                       <CommandPicker
                         commands={commandSuggestions}

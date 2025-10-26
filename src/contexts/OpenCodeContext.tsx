@@ -86,6 +86,12 @@ providersData: ReturnType<typeof useOpenCode>["providersData"];
   parseCommand: ReturnType<typeof useOpenCode>["parseCommand"];
   subagents: ReturnType<typeof useOpenCode>["subagents"];
   sessionUsage: ReturnType<typeof useOpenCode>["sessionUsage"];
+  messageQueue: ReturnType<typeof useOpenCode>["messageQueue"];
+  addToQueue: ReturnType<typeof useOpenCode>["addToQueue"];
+  removeFromQueue: ReturnType<typeof useOpenCode>["removeFromQueue"];
+  clearQueue: ReturnType<typeof useOpenCode>["clearQueue"];
+  processNextInQueue: ReturnType<typeof useOpenCode>["processNextInQueue"];
+  isProcessingQueue: ReturnType<typeof useOpenCode>["isProcessingQueue"];
 }
 
 const OpenCodeContext = createContext<OpenCodeContextType | undefined>(
