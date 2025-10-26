@@ -36,27 +36,36 @@ export const MobileSidebar: React.FC<MobileSidebarProps> = ({
             <h2 className="text-lg font-semibold">Menu</h2>
             <button
               onClick={onClose}
-              className="flex items-center justify-center text-2xl transition-opacity"
+              className="flex items-center justify-center rounded-full transition-all"
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor =
-                  "var(--theme-primaryHover)";
-                e.currentTarget.style.borderColor = "var(--theme-primaryHover)";
+                e.currentTarget.style.opacity = "1";
+                e.currentTarget.style.backgroundColor = "var(--theme-backgroundAccent)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--theme-primary)";
-                e.currentTarget.style.borderColor = "var(--theme-primary)";
+                e.currentTarget.style.opacity = "0.7";
+                e.currentTarget.style.backgroundColor = "var(--theme-border)";
               }}
               style={{
-                minWidth: "44px",
-                minHeight: "44px",
-                backgroundColor: "var(--theme-primary)",
-                border: "1px solid var(--theme-primary)",
-                borderRadius: "0",
-                color: "var(--theme-background)",
+                minWidth: "36px",
+                minHeight: "36px",
+                backgroundColor: "var(--theme-border)",
+                opacity: 0.7,
+                color: "var(--theme-foreground)",
               }}
               aria-label="Close menu"
             >
-              X
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 18 18"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M4.5 4.5l9 9M13.5 4.5l-9 9" />
+              </svg>
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-4">{children}</div>

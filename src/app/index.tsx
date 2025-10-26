@@ -18,6 +18,7 @@ import {
 import { CommandPicker } from "@/app/_components/ui/command-picker";
 import { AgentPicker } from "@/app/_components/ui/agent-picker";
 import { SessionPicker } from "@/app/_components/ui/session-picker";
+import { SessionSearchInput } from "@/app/_components/ui/session-search";
 import { PermissionModal } from "@/app/_components/ui/permission-modal";
 import { MessagePart } from "@/app/_components/message";
 import type {
@@ -448,6 +449,10 @@ function OpenCodeChatTUI() {
   const [selectedSidebarSessionIds, setSelectedSidebarSessionIds] = useState<
     Set<string>
   >(new Set());
+  const [mobileEditMode, setMobileEditMode] = useState(false);
+  const [selectedMobileSessionIds, setSelectedMobileSessionIds] = useState<
+    Set<string>
+  >(new Set());
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("opencode-active-tab") || "workspace";
@@ -541,6 +546,11 @@ function OpenCodeChatTUI() {
     messages,
     setMessages,
     sessions,
+    sessionSearchQuery,
+    setSessionSearchQuery,
+    sessionFilters,
+    setSessionFilters,
+    filteredSessions,
     loading,
     isStreaming,
     createSession,
@@ -1536,7 +1546,7 @@ function OpenCodeChatTUI() {
   };
 
   const handleSidebarSelectAll = () => {
-    const projectSessions = sessions.filter(
+    const projectSessions = filteredSessions.filter(
       (session) =>
         session.projectID === currentProject?.id ||
         session.directory === currentProject?.worktree,
@@ -1561,6 +1571,58 @@ function OpenCodeChatTUI() {
         await loadSessions();
         setSelectedSidebarSessionIds(new Set());
         setSidebarEditMode(false);
+      } catch (err) {
+        console.error("Failed to delete sessions:", err);
+      }
+    }
+  };
+
+  // Mobile edit mode handlers
+  const handleMobileEditToggle = () => {
+    if (mobileEditMode) {
+      setSelectedMobileSessionIds(new Set());
+    }
+    setMobileEditMode(!mobileEditMode);
+  };
+
+  const handleMobileSessionToggle = (sessionId: string) => {
+    setSelectedMobileSessionIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(sessionId)) {
+        next.delete(sessionId);
+      } else {
+        next.add(sessionId);
+      }
+      return next;
+    });
+  };
+
+  const handleMobileSelectAll = () => {
+    const projectSessions = filteredSessions.filter(
+      (session) =>
+        session.projectID === currentProject?.id ||
+        session.directory === currentProject?.worktree,
+    );
+    setSelectedMobileSessionIds(new Set(projectSessions.map((s) => s.id)));
+  };
+
+  const handleMobileBulkDelete = async () => {
+    const count = selectedMobileSessionIds.size;
+    if (count === 0) return;
+
+    if (
+      confirm(
+        `Are you sure you want to delete ${count} session${count > 1 ? "s" : ""}?`,
+      )
+    ) {
+      try {
+        const deletePromises = Array.from(selectedMobileSessionIds).map((id) =>
+          deleteSession(id),
+        );
+        await Promise.allSettled(deletePromises);
+        await loadSessions();
+        setSelectedMobileSessionIds(new Set());
+        setMobileEditMode(false);
       } catch (err) {
         console.error("Failed to delete sessions:", err);
       }
@@ -2234,6 +2296,14 @@ function OpenCodeChatTUI() {
                     </div>
                   ) : (
                     <>
+                      {/* Sidebar Search Input */}
+                      <div className="px-2 mb-2">
+                        <SessionSearchInput
+                          value={sessionSearchQuery}
+                          onChange={setSessionSearchQuery}
+                          onClear={() => setSessionSearchQuery("")}
+                        />
+                      </div>
                       {sidebarEditMode && (
                         <>
                           <div className="flex items-center justify-between gap-2 px-2 py-2 bg-theme-background-alt rounded mb-2">
@@ -2260,7 +2330,7 @@ function OpenCodeChatTUI() {
                         </>
                       )}
                       <div className="flex-1 overflow-y-auto scrollbar space-y-2 min-h-0">
-                        {sessions
+                        {filteredSessions
                           .filter(
                             (session) =>
                               session.projectID === currentProject?.id ||
@@ -2608,78 +2678,177 @@ function OpenCodeChatTUI() {
 
               {/* Sessions Section */}
               <div className="flex flex-col flex-1 min-h-0">
-                <div className="flex justify-between items-center mb-2">
+                <div className="flex justify-between items-center mb-2 gap-2">
                   <h3 className="text-sm font-medium">Sessions</h3>
-                  <Button
-                    variant="foreground0"
-                    box="round"
-                    onClick={() => {
-                      setIsMobileSidebarOpen(false);
-                      setNewSessionTitle("");
-                      setShowNewSessionForm(true);
-                    }}
-                    size="small"
-                    disabled={!currentProject}
-                  >
-                    New Session
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="foreground1"
+                      box="round"
+                      onClick={handleMobileEditToggle}
+                      size="small"
+                      disabled={!currentProject}
+                    >
+                      {mobileEditMode ? "Done" : "Edit"}
+                    </Button>
+                    <Button
+                      variant="foreground0"
+                      box="round"
+                      onClick={() => {
+                        setIsMobileSidebarOpen(false);
+                        setNewSessionTitle("");
+                        setShowNewSessionForm(true);
+                      }}
+                      size="small"
+                      disabled={!currentProject}
+                    >
+                      New Session
+                    </Button>
+                  </div>
                 </div>
                 <Separator className="mb-2" />
+                
+                {/* Mobile Search Input */}
+                {currentProject && (
+                  <div className="mb-2">
+                    <SessionSearchInput
+                      value={sessionSearchQuery}
+                      onChange={setSessionSearchQuery}
+                      onClear={() => setSessionSearchQuery("")}
+                    />
+                  </div>
+                )}
+                
                 {!currentProject ? (
                   <div className="flex-1 flex items-center justify-center text-sm text-theme-muted text-center px-4">
                     Select a project, or use New Project to add a git directory
                   </div>
                 ) : (
                   <>
-                    <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
-                      {sessions
-                        .filter(
-                          (session) =>
-                            session.projectID === currentProject?.id ||
-                            session.directory === currentProject?.worktree,
-                        )
-                        .map((session) => {
-                          const isSelected = currentSession?.id === session.id;
-                          return (
-                            <div
-                              key={session.id}
-                              className="p-2 cursor-pointer transition-colors rounded"
-                              style={{
-                                backgroundColor: isSelected
-                                  ? "var(--theme-primary)"
-                                  : "var(--theme-background)",
-                                color: isSelected
-                                  ? "var(--theme-background)"
-                                  : "var(--theme-foreground)",
-                              }}
-                              onClick={() => {
-                                handleSessionSwitch(session.id);
-                                setIsMobileSidebarOpen(false);
-                              }}
-                              onMouseEnter={(e) => {
-                                if (!isSelected) {
-                                  e.currentTarget.style.backgroundColor =
-                                    "var(--theme-backgroundAlt)";
-                                }
-                              }}
-                              onMouseLeave={(e) => {
-                                if (!isSelected) {
-                                  e.currentTarget.style.backgroundColor =
-                                    "var(--theme-background)";
-                                }
-                              }}
+                    {/* Bulk delete controls */}
+                    {mobileEditMode && (
+                      <>
+                        <div className="flex items-center justify-between gap-2 px-2 py-2 bg-theme-background-alt rounded mb-2">
+                          <Button
+                            variant="foreground1"
+                            box="round"
+                            size="small"
+                            onClick={handleMobileSelectAll}
+                          >
+                            Select All
+                          </Button>
+                          <Button
+                            variant="error"
+                            box="round"
+                            size="small"
+                            onClick={handleMobileBulkDelete}
+                            disabled={selectedMobileSessionIds.size === 0}
+                          >
+                            Delete ({selectedMobileSessionIds.size})
+                          </Button>
+                        </div>
+                        <Separator className="mb-2" />
+                      </>
+                    )}
+
+                    {(() => {
+                      const projectSessions = filteredSessions.filter(
+                        (session) =>
+                          session.projectID === currentProject?.id ||
+                          session.directory === currentProject?.worktree,
+                      );
+                      
+                      if (projectSessions.length === 0 && sessionSearchQuery) {
+                        return (
+                          <div className="flex-1 flex flex-col items-center justify-center text-sm text-theme-muted text-center px-4 gap-2">
+                            <div>No sessions found matching "{sessionSearchQuery}"</div>
+                            <Button
+                              variant="foreground1"
+                              box="round"
+                              size="small"
+                              onClick={() => setSessionSearchQuery("")}
                             >
-                              <div className="font-medium text-sm truncate">
-                                {session.title}
+                              Clear search
+                            </Button>
+                          </div>
+                        );
+                      }
+                      
+                      if (projectSessions.length === 0) {
+                        return (
+                          <div className="flex-1 flex items-center justify-center text-sm text-theme-muted text-center px-4">
+                            No sessions yet. Create one above.
+                          </div>
+                        );
+                      }
+                      
+                      return (
+                        <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
+                          {projectSessions.map((session) => {
+                            const isSelected = currentSession?.id === session.id;
+                            const isChecked = selectedMobileSessionIds.has(session.id);
+                            return (
+                              <div
+                                key={session.id}
+                                className={`p-2 cursor-pointer transition-colors rounded ${
+                                  mobileEditMode ? "flex items-start gap-2" : ""
+                                }`}
+                                style={{
+                                  backgroundColor: isSelected && !mobileEditMode
+                                    ? "var(--theme-primary)"
+                                    : "var(--theme-background)",
+                                  color: isSelected && !mobileEditMode
+                                    ? "var(--theme-background)"
+                                    : "var(--theme-foreground)",
+                                }}
+                                onClick={() => {
+                                  if (mobileEditMode) {
+                                    handleMobileSessionToggle(session.id);
+                                  } else {
+                                    handleSessionSwitch(session.id);
+                                    setIsMobileSidebarOpen(false);
+                                  }
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (!isSelected || mobileEditMode) {
+                                    e.currentTarget.style.backgroundColor =
+                                      "var(--theme-backgroundAlt)";
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (!isSelected || mobileEditMode) {
+                                    e.currentTarget.style.backgroundColor =
+                                      "var(--theme-background)";
+                                  }
+                                }}
+                              >
+                                {mobileEditMode && (
+                                  <div
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="mt-1 flex-shrink-0"
+                                  >
+                                    <Checkbox
+                                      checked={isChecked}
+                                      onChange={() =>
+                                        handleMobileSessionToggle(session.id)
+                                      }
+                                    />
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-sm truncate">
+                                    {session.title}
+                                  </div>
+                                  <div className="text-xs opacity-70 truncate">
+                                    {session.createdAt?.toLocaleDateString() ||
+                                      "Unknown"}
+                                  </div>
+                                </div>
                               </div>
-                              <div className="text-xs opacity-70">
-                                {session.createdAt?.toLocaleDateString() ||
-                                  "Unknown"}
-                              </div>
-                            </div>
-                          );
-                        })}
-                    </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </>
                 )}
               </div>
@@ -3869,7 +4038,7 @@ function OpenCodeChatTUI() {
       {/* Session Picker */}
       {showSessionPicker && (
         <SessionPicker
-          sessions={sessions.filter(
+          sessions={filteredSessions.filter(
             (s) =>
               s.projectID === currentProject?.id ||
               s.directory === currentProject?.worktree,
@@ -3878,6 +4047,10 @@ function OpenCodeChatTUI() {
           onSelect={switchSession}
           onBulkDelete={handleBulkDeleteClick}
           onClose={() => setShowSessionPicker(false)}
+          searchQuery={sessionSearchQuery}
+          onSearchChange={setSessionSearchQuery}
+          filters={sessionFilters}
+          onFiltersChange={setSessionFilters}
         />
       )}
 
