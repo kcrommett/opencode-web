@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Badge, Separator, Button, Dialog, View, Checkbox } from "./index";
+import { SessionSearchInput } from "./session-search";
+import { SessionFilters } from "./session-filters";
+import type { SessionFilters as SessionFiltersType } from "@/lib/session-index";
 
 interface Session {
   id: string;
@@ -17,6 +20,10 @@ interface SessionPickerProps {
   onSelect: (sessionId: string) => void;
   onBulkDelete?: (sessionIds: string[]) => void;
   onClose: () => void;
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
+  filters?: SessionFiltersType;
+  onFiltersChange?: (filters: SessionFiltersType) => void;
 }
 
 export const SessionPicker: React.FC<SessionPickerProps> = ({
@@ -25,6 +32,10 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
   onSelect,
   onBulkDelete,
   onClose,
+  searchQuery = "",
+  onSearchChange,
+  filters,
+  onFiltersChange,
 }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -100,6 +111,29 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
 
         <Separator />
 
+        {/* Search Input */}
+        {onSearchChange && (
+          <div className="px-4 pt-3 pb-2">
+            <SessionSearchInput
+              value={searchQuery}
+              onChange={onSearchChange}
+              onClear={() => onSearchChange("")}
+            />
+            {searchQuery && (
+              <div className="text-xs opacity-70 mt-2">
+                {sessions.length} session{sessions.length !== 1 ? "s" : ""} found
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Advanced Filters */}
+        {filters && onFiltersChange && (
+          <div className="px-4 pb-2">
+            <SessionFilters filters={filters} onChange={onFiltersChange} />
+          </div>
+        )}
+
         {isEditMode && (
           <>
             <div
@@ -134,7 +168,23 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
         <div className="px-4 py-2 space-y-2 max-h-96 overflow-y-auto scrollbar">
           {sessions.length === 0 ? (
             <div className="text-center text-sm py-4 opacity-70">
-              No sessions yet. Create one above.
+              {searchQuery ? (
+                <>
+                  <div className="mb-2">No sessions found matching "{searchQuery}"</div>
+                  {onSearchChange && (
+                    <Button
+                      variant="foreground1"
+                      box="round"
+                      size="small"
+                      onClick={() => onSearchChange("")}
+                    >
+                      Clear search
+                    </Button>
+                  )}
+                </>
+              ) : (
+                "No sessions yet. Create one above."
+              )}
             </div>
           ) : (
             sessions.map((session) => {

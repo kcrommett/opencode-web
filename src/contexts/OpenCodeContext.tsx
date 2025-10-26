@@ -7,6 +7,11 @@ interface OpenCodeContextType {
   messages: ReturnType<typeof useOpenCode>["messages"];
   setMessages: ReturnType<typeof useOpenCode>["setMessages"];
   sessions: ReturnType<typeof useOpenCode>["sessions"];
+  sessionSearchQuery: ReturnType<typeof useOpenCode>["sessionSearchQuery"];
+  setSessionSearchQuery: ReturnType<typeof useOpenCode>["setSessionSearchQuery"];
+  sessionFilters: ReturnType<typeof useOpenCode>["sessionFilters"];
+  setSessionFilters: ReturnType<typeof useOpenCode>["setSessionFilters"];
+  filteredSessions: ReturnType<typeof useOpenCode>["filteredSessions"];
   loading: ReturnType<typeof useOpenCode>["loading"];
   createSession: ReturnType<typeof useOpenCode>["createSession"];
   sendMessage: ReturnType<typeof useOpenCode>["sendMessage"];
