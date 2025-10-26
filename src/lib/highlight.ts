@@ -23,6 +23,7 @@ import css from "highlight.js/lib/languages/css";
 import scss from "highlight.js/lib/languages/scss";
 import plaintext from "highlight.js/lib/languages/plaintext";
 import lisp from "highlight.js/lib/languages/lisp";
+import clojure from "highlight.js/lib/languages/clojure";
 
 hljs.registerLanguage("javascript", javascript);
 hljs.registerLanguage("typescript", typescript);
@@ -47,6 +48,7 @@ hljs.registerLanguage("css", css);
 hljs.registerLanguage("scss", scss);
 hljs.registerLanguage("plaintext", plaintext);
 hljs.registerLanguage("lisp", lisp);
+hljs.registerLanguage("clojure", clojure);
 
 const EXTENSION_MAP: Record<string, string> = {
   js: "javascript",
@@ -107,6 +109,10 @@ const EXTENSION_MAP: Record<string, string> = {
   el: "lisp",
   lisp: "lisp",
   cl: "lisp",
+  clj: "clojure",
+  cljs: "clojure",
+  cljc: "clojure",
+  edn: "clojure",
 };
 
 export function detectLanguage(filePath: string): string {

@@ -3,6 +3,7 @@ import { openCodeService, handleOpencodeError } from "@/lib/opencode-client";
 import { OpencodeEvent, SSEConnectionState } from "@/lib/opencode-events";
 import { getAgentModel, getDefaultModel } from "@/lib/config";
 import { parseCommand, ParsedCommand } from "@/lib/commandParser";
+import { shouldDecodeAsText as checkIfText } from "@/lib/mime-utils";
 import { searchSessions, SessionFilters } from "@/lib/session-index";
 import type {
   Agent,
@@ -23,85 +24,19 @@ const debugLog = (...args: unknown[]) => {
 };
 
 const BASE64_ENCODING = "base64";
-const TEXT_LIKE_MIME_SNIPPETS = [
-  "json",
-  "xml",
-  "yaml",
-  "yml",
-  "toml",
-  "csv",
-  "javascript",
-  "typescript",
-  "html",
-  "css",
-  "plain",
-  "markdown",
-  "shell",
-];
-const TEXT_LIKE_EXTENSIONS = new Set([
-  "txt",
-  "text",
-  "md",
-  "markdown",
-  "json",
-  "jsonc",
-  "yaml",
-  "yml",
-  "toml",
-  "xml",
-  "html",
-  "htm",
-  "css",
-  "scss",
-  "sass",
-  "js",
-  "jsx",
-  "ts",
-  "tsx",
-  "cjs",
-  "mjs",
-  "py",
-  "rb",
-  "rs",
-  "go",
-  "java",
-  "c",
-  "cpp",
-  "h",
-  "hpp",
-  "sql",
-  "sh",
-  "bash",
-  "zsh",
-  "env",
-  "lock",
-  "gitignore",
-  "gitattributes",
-]);
 
-const TEXT_LIKE_FILENAMES = new Set([
-  "license",
-  "license.md",
-  "license.txt",
-  "readme",
-  "readme.md",
-  "changelog",
-  "changelog.md",
-  "contributing",
-  "contributing.md",
-  "conduct",
-  "conduct.md",
-  "makefile",
-  "dockerfile",
-  ".gitignore",
-  ".gitattributes",
-  ".editorconfig",
-  "cargo.toml",
-  "package.json",
-  "package-lock.json",
-  "pnpm-lock.yaml",
-  "bun.lock",
-]);
+/**
+ * MIGRATION NOTE (Issue #39):
+ * File type detection has been migrated to the mime-utils module (src/lib/mime-utils.ts).
+ * This migration:
+ * - Fixes detection for Common Lisp (.cl) and Clojure (.clj, .cljs, .cljc) files
+ * - Uses the industry-standard mime-types package for better coverage
+ * - Reduces maintenance burden by centralizing MIME type logic
+ * - Maintains backward compatibility for all existing file types
+ *
+ * Previously hard-coded constants (TEXT_LIKE_MIME_SNIPPETS, TEXT_LIKE_EXTENSIONS, TEXT_LIKE_FILENAMES)
+ * have been replaced with the getMimeType() and shouldDecodeAsText() functions.
+ */
 
 interface Message {
   id: string;
@@ -2316,36 +2251,14 @@ export function useOpenCode() {
     return null;
   }, []);
 
+  /**
+   * Determine if a file should be decoded as text based on MIME type and path.
+   * Now uses the mime-utils module for better file type detection.
+   * @see src/lib/mime-utils.ts
+   */
   const shouldDecodeAsText = useCallback(
     (mimeType: string | null, filePath: string) => {
-      const baseName = filePath.split(/[\\/]/).pop() ?? "";
-      const normalizedBaseName = baseName.toLowerCase();
-      const extension = normalizedBaseName.includes(".")
-        ? (normalizedBaseName.split(".").pop() ?? "")
-        : "";
-      const isTextByExtension = extension
-        ? TEXT_LIKE_EXTENSIONS.has(extension)
-        : false;
-      const isTextByName = TEXT_LIKE_FILENAMES.has(normalizedBaseName);
-
-      if (!mimeType) {
-        return isTextByExtension || isTextByName;
-      }
-
-      const normalized = mimeType.toLowerCase();
-      if (normalized.startsWith("text/")) return true;
-      if (normalized.includes("charset=")) return true;
-      if (
-        TEXT_LIKE_MIME_SNIPPETS.some((snippet) => normalized.includes(snippet))
-      )
-        return true;
-      if (
-        normalized === "application/octet-stream" &&
-        (isTextByExtension || isTextByName)
-      ) {
-        return true;
-      }
-      return isTextByExtension || isTextByName;
+      return checkIfText(mimeType, filePath);
     },
     [],
   );
