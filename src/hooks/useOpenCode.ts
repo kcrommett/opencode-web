@@ -3,6 +3,7 @@ import { openCodeService, handleOpencodeError } from "@/lib/opencode-client";
 import { OpencodeEvent, SSEConnectionState } from "@/lib/opencode-events";
 import { getAgentModel, getDefaultModel } from "@/lib/config";
 import { parseCommand, ParsedCommand } from "@/lib/commandParser";
+import { searchSessions, SessionFilters } from "@/lib/session-index";
 import type {
   Agent,
   FileContentData,
@@ -323,12 +324,34 @@ export function useOpenCode() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [sessions, setSessions] = useState<Session[]>([]);
+  
+  // Session search state
+  const [sessionSearchQuery, setSessionSearchQuery] = useState<string>('');
+  const [sessionFilters, setSessionFilters] = useState<SessionFilters>({
+    sortBy: 'updated',
+    sortOrder: 'desc',
+  });
+  
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [fileDirectory, setFileDirectory] = useState<string>(".");
   const [models, setModels] = useState<Model[]>([]);
   const modelsRef = useRef<Model[]>([]);
+
+  // Computed filtered sessions based on search query and filters
+  const filteredSessions = useMemo(() => {
+    // If no search query and no active filters, return all sessions
+    if (!sessionSearchQuery && !sessionFilters.dateFrom && !sessionFilters.dateTo && !sessionFilters.projectID && !sessionFilters.sortBy) {
+      return sessions;
+    }
+    
+    // Apply search and filters
+    return searchSessions(sessions, {
+      text: sessionSearchQuery,
+      ...sessionFilters,
+    });
+  }, [sessions, sessionSearchQuery, sessionFilters]);
 
   // Permission and todo state
   const [currentPermission, setCurrentPermission] =
@@ -3040,6 +3063,11 @@ export function useOpenCode() {
     messages,
     setMessages,
     sessions,
+    sessionSearchQuery,
+    setSessionSearchQuery,
+    sessionFilters,
+    setSessionFilters,
+    filteredSessions,
     loading,
     createSession,
     sendMessage,
