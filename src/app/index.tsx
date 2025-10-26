@@ -18,6 +18,7 @@ import {
 import { CommandPicker } from "@/app/_components/ui/command-picker";
 import { AgentPicker } from "@/app/_components/ui/agent-picker";
 import { SessionPicker } from "@/app/_components/ui/session-picker";
+import { ProjectPicker } from "@/app/_components/ui/project-picker";
 import { PermissionModal } from "@/app/_components/ui/permission-modal";
 import { MessagePart } from "@/app/_components/message";
 import type {
@@ -478,6 +479,7 @@ function OpenCodeChatTUI() {
   const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
   const [showAgentPicker, setShowAgentPicker] = useState(false);
   const [showSessionPicker, setShowSessionPicker] = useState(false);
+  const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [selectedModelIndex, setSelectedModelIndex] = useState(0);
   const [showDetails, setShowDetails] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -628,9 +630,9 @@ function OpenCodeChatTUI() {
     unregisterFns.push(
       registerShortcut({
         key: "p",
-        handler: () => selectFrame("projects"),
+        handler: () => setShowProjectPicker(true),
         requiresLeader: true,
-        description: "Navigate to Projects",
+        description: "Open Project Picker",
         category: "navigation",
       })
     );
@@ -638,9 +640,9 @@ function OpenCodeChatTUI() {
     unregisterFns.push(
       registerShortcut({
         key: "s",
-        handler: () => selectFrame("sessions"),
+        handler: () => setShowSessionPicker(true),
         requiresLeader: true,
-        description: "Navigate to Sessions",
+        description: "Open Session Picker",
         category: "navigation",
       })
     );
@@ -779,6 +781,8 @@ function OpenCodeChatTUI() {
     setShowNewProjectForm,
     setSidebarEditMode,
     deleteSession,
+    setShowSessionPicker,
+    setShowProjectPicker,
   ]);
 
   // Handle frame navigation and actions
@@ -903,6 +907,12 @@ function OpenCodeChatTUI() {
           timestamp: new Date(),
           queued: true,
           optimistic: true,
+          queueContext: {
+            sessionId: session.id,
+            agentId: currentAgent?.id,
+            providerID: selectedModel?.providerID,
+            modelID: selectedModel?.modelID,
+          },
         };
         addToQueue(queuedMessage);
 
@@ -1004,6 +1014,7 @@ function OpenCodeChatTUI() {
       !showModelPicker &&
       !showAgentPicker &&
       !showSessionPicker &&
+      !showProjectPicker &&
       textareaRef.current
     ) {
       const timer = setTimeout(() => {
@@ -1011,7 +1022,7 @@ function OpenCodeChatTUI() {
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [showModelPicker, showAgentPicker, showSessionPicker]);
+  }, [showModelPicker, showAgentPicker, showSessionPicker, showProjectPicker]);
 
   useEffect(() => {
     if (textareaRef.current && isHydrated) {
@@ -2000,6 +2011,9 @@ function OpenCodeChatTUI() {
     } else if (command.name === "sessions") {
       setInput("");
       setShowSessionPicker(true);
+    } else if (command.name === "project") {
+      setInput("");
+      setShowProjectPicker(true);
     } else if (command.name === "agents") {
       setInput("");
       setShowAgentPicker(true);
@@ -4260,6 +4274,16 @@ function OpenCodeChatTUI() {
           onSelect={switchSession}
           onBulkDelete={handleBulkDeleteClick}
           onClose={() => setShowSessionPicker(false)}
+        />
+      )}
+
+      {/* Project Picker */}
+      {showProjectPicker && (
+        <ProjectPicker
+          projects={projects}
+          currentProject={currentProject}
+          onSelect={handleProjectSwitch}
+          onClose={() => setShowProjectPicker(false)}
         />
       )}
 

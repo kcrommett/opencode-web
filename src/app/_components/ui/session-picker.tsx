@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Badge, Separator, Button, Dialog, View, Checkbox } from "./index";
 
 interface Session {
@@ -28,6 +28,12 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
 }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [highlightedIndex, setHighlightedIndex] = useState(() => {
+    // Initialize with current session's index if it exists
+    const currentIndex = sessions.findIndex((s) => s.id === currentSession?.id);
+    return currentIndex >= 0 ? currentIndex : 0;
+  });
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const toggleSelection = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -63,17 +69,39 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
     clearSelection();
   };
 
+  // Scroll highlighted item into view
+  useEffect(() => {
+    if (itemRefs.current[highlightedIndex]) {
+      itemRefs.current[highlightedIndex]?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }
+  }, [highlightedIndex]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
         onClose();
+      } else if (!isEditMode && e.key === "ArrowDown") {
+        e.preventDefault();
+        setHighlightedIndex((prev) => Math.min(prev + 1, sessions.length - 1));
+      } else if (!isEditMode && e.key === "ArrowUp") {
+        e.preventDefault();
+        setHighlightedIndex((prev) => Math.max(prev - 1, 0));
+      } else if (!isEditMode && e.key === "Enter") {
+        e.preventDefault();
+        if (sessions[highlightedIndex]) {
+          onSelect(sessions[highlightedIndex].id);
+          onClose();
+        }
       }
     };
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  }, [onClose, isEditMode, highlightedIndex, sessions, onSelect]);
 
   return (
     <Dialog open onClose={onClose}>
@@ -137,23 +165,34 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
               No sessions yet. Create one above.
             </div>
           ) : (
-            sessions.map((session) => {
-              const isSelected = currentSession?.id === session.id;
+            sessions.map((session, index) => {
+              const isCurrent = currentSession?.id === session.id;
               const isChecked = selectedIds.has(session.id);
+              const isHighlighted = index === highlightedIndex;
               return (
                 <div
                   key={session.id}
+                  ref={(el) => {
+                    itemRefs.current[index] = el;
+                  }}
                   className={`p-3 rounded transition-colors ${
                     isEditMode ? "flex items-start gap-3" : ""
                   }`}
                   style={{
-                    backgroundColor: isSelected
+                    backgroundColor: isCurrent
                       ? "var(--theme-primary)"
-                      : "var(--theme-backgroundAlt)",
-                    color: isSelected
+                      : isHighlighted && !isEditMode
+                        ? "var(--theme-backgroundAlt)"
+                        : "var(--theme-background)",
+                    color: isCurrent
                       ? "var(--theme-background)"
                       : "var(--theme-foreground)",
+                    outline: isHighlighted && !isCurrent && !isEditMode
+                      ? "2px solid var(--theme-primary)"
+                      : "none",
+                    outlineOffset: "-2px",
                   }}
+                  onMouseEnter={() => !isEditMode && setHighlightedIndex(index)}
                 >
                   {isEditMode && (
                     <Checkbox
@@ -197,7 +236,7 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
                         )}
                       </div>
                       <div className="flex gap-1 flex-shrink-0">
-                        {isSelected && !isEditMode && (
+                        {isCurrent && !isEditMode && (
                           <Badge
                             variant="background2"
                             cap="round"
