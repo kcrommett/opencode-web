@@ -22,6 +22,7 @@ Options:
   -H, --host <hostname>         Host/interface to bind both web UI and OpenCode server (default: 127.0.0.1)
       --external-server <url>   Use an existing OpenCode Server
       --no-bundled-server       Skip launching the bundled OpenCode Server
+  -v, --version                 Show version number
   -h, --help                    Show this help message
 `;
 
@@ -36,6 +37,7 @@ const parseArgs = (argv) => {
     externalServerUrl: undefined,
     disableBundledServer: false,
     showHelp: false,
+    showVersion: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -102,6 +104,12 @@ const parseArgs = (argv) => {
         options.showHelp = true;
         break;
       }
+      case "--version":
+      case "-v": {
+        ensureNoValue(flag);
+        options.showVersion = true;
+        break;
+      }
       case "--": {
         return options;
       }
@@ -151,6 +159,14 @@ try {
 
 if (cliOptions.showHelp) {
   printUsage();
+  process.exit(0);
+}
+
+if (cliOptions.showVersion) {
+  const { readFileSync } = await import("node:fs");
+  const packageJsonPath = join(packageDir, "package.json");
+  const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+  console.log(packageJson.version);
   process.exit(0);
 }
 

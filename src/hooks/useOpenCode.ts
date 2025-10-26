@@ -310,6 +310,7 @@ interface FileResponse {
 }
 
 export function useOpenCode() {
+  console.log("🔥 useOpenCode hook INITIALIZED");
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
@@ -338,6 +339,19 @@ export function useOpenCode() {
   const [sessionModelMap, setSessionModelMap] = useState<Record<string, Model>>(
     {},
   );
+  const [recentModels, setRecentModels] = useState<Model[]>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("opencode-recent-models");
+      if (stored) {
+        try {
+          return JSON.parse(stored);
+        } catch {
+          return [];
+        }
+      }
+    }
+    return [];
+  });
 
   useEffect(() => {
     setFileDirectory(".");
@@ -393,6 +407,17 @@ export function useOpenCode() {
   useEffect(() => {
     if (!isHydrated) return;
 
+    if (manualModelSelectionRef.current) return;
+
+    const agentModel = resolveModelPreference(
+      getAgentModel(config, currentAgent),
+      models,
+    );
+    if (agentModel) {
+      setSelectedModel(agentModel);
+      return;
+    }
+
     const sessionId = currentSession?.id;
     const sessionModel =
       sessionId && sessionModelMap[sessionId]
@@ -400,21 +425,7 @@ export function useOpenCode() {
         : null;
 
     if (sessionModel) {
-      if (!modelsMatch(sessionModel, selectedModel)) {
-        manualModelSelectionRef.current = false;
-        setSelectedModel(sessionModel);
-      }
-      return;
-    }
-
-    if (manualModelSelectionRef.current) return;
-
-    const agentModel = resolveModelPreference(
-      getAgentModel(config, currentAgent),
-      models,
-    );
-    if (agentModel && !modelsMatch(agentModel, selectedModel)) {
-      setSelectedModel(agentModel);
+      setSelectedModel(sessionModel);
       return;
     }
 
@@ -422,24 +433,18 @@ export function useOpenCode() {
       getDefaultModel(config),
       models,
     );
-    if (
-      configDefaultModel &&
-      !modelsMatch(configDefaultModel, selectedModel)
-    ) {
+    if (configDefaultModel) {
       setSelectedModel(configDefaultModel);
       return;
     }
 
-    if (!selectedModel) {
-      setSelectedModel(FALLBACK_MODEL);
-    }
+    setSelectedModel(FALLBACK_MODEL);
   }, [
     config,
     currentAgent,
     currentSession?.id,
     isHydrated,
     models,
-    selectedModel,
     sessionModelMap,
   ]);
 
@@ -2244,6 +2249,17 @@ export function useOpenCode() {
           [currentSession.id]: model,
         }));
       }
+      
+      setRecentModels((prev) => {
+        const filtered = prev.filter(
+          (m) => !(m.providerID === model.providerID && m.modelID === model.modelID)
+        );
+        const updated = [model, ...filtered].slice(0, 5);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("opencode-recent-models", JSON.stringify(updated));
+        }
+        return updated;
+      });
     },
     [currentSession],
   );
@@ -2418,7 +2434,16 @@ export function useOpenCode() {
 
   const selectAgent = useCallback((agent: Agent) => {
     setCurrentAgent(agent);
-  }, []);
+    manualModelSelectionRef.current = false;
+    
+    const agentModel = resolveModelPreference(
+      getAgentModel(config, agent),
+      modelsRef.current,
+    );
+    if (agentModel) {
+      setSelectedModel(agentModel);
+    }
+  }, [config]);
 
   useEffect(() => {
     loadProjects();
@@ -2643,6 +2668,19 @@ export function useOpenCode() {
     [currentSession, agents, currentAgent, config, sendMessage],
   );
 
+  const cycleRecentModels = useCallback(() => {
+    if (recentModels.length === 0) return;
+    
+    const currentIndex = selectedModel
+      ? recentModels.findIndex(
+          (m) => m.providerID === selectedModel.providerID && m.modelID === selectedModel.modelID
+        )
+      : -1;
+    
+    const nextIndex = (currentIndex + 1) % recentModels.length;
+    selectModel(recentModels[nextIndex]);
+  }, [recentModels, selectedModel, selectModel]);
+
   return {
     currentSession,
     messages,
@@ -2672,6 +2710,8 @@ export function useOpenCode() {
     selectedModel,
     selectModel,
     loadModels,
+    recentModels,
+    cycleRecentModels,
     config,
     configLoading,
     loadConfig,

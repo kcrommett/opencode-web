@@ -6,24 +6,23 @@ interface TextareaProps
   className?: string;
 }
 
-export const Textarea: React.FC<TextareaProps> = ({
-  size,
-  className = "",
-  ...props
-}) => {
-  const textareaProps: Record<string, string> = {};
+export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
+  ({ size, className = "", ...props }, ref) => {
+    const textareaProps: Record<string, string> = {};
 
-  if (size) {
-    textareaProps[`data-size`] = size;
+    if (size) {
+      textareaProps[`data-size`] = size;
+    }
+
+    return (
+      <textarea
+        ref={ref}
+        is-="textarea"
+        className={`${className} tap-highlight-none`}
+        style={{ fontSize: "16px", ...props.style }}
+        {...textareaProps}
+        {...props}
+      />
+    );
   }
-
-  return (
-    <textarea
-      is-="textarea"
-      className={`${className} tap-highlight-none`}
-      style={{ fontSize: "16px", ...props.style }}
-      {...textareaProps}
-      {...props}
-    />
-  );
-};
+);
