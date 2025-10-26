@@ -98,28 +98,30 @@ function ProjectSelector({
   }, [isOpen]);
 
   const selectedLabel = currentProject?.worktree || placeholder;
-  const buttonStyles: React.CSSProperties = {
-    backgroundColor: currentProject
-      ? "var(--theme-primary)"
-      : "var(--theme-background)",
-    color: currentProject
-      ? "var(--theme-background)"
-      : "var(--theme-foreground)",
-    border: "1px solid var(--theme-primary)",
-  };
+  const hasProject = !!currentProject;
 
   return (
     <div className="relative" ref={containerRef}>
       <Button
         box="square"
-        className={`w-full flex items-center justify-between gap-2 text-sm ${buttonClassName}`}
+        className={`w-full flex items-center justify-between gap-2 text-sm ${buttonClassName} ${
+          hasProject ? "[&]:!bg-[var(--theme-primary)] [&]:!text-[var(--theme-background)]" : "[&]:!bg-[var(--theme-background)] [&]:!text-[var(--theme-foreground)]"
+        }`}
         onClick={() => setIsOpen((prev) => !prev)}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        style={buttonStyles}
+        style={{
+          borderColor: "var(--theme-primary)",
+          borderWidth: "1px",
+          borderStyle: "solid",
+        }}
       >
-        <span className="truncate">{selectedLabel}</span>
-        <span className="text-xs opacity-70">{isOpen ? "▲" : "▼"}</span>
+        <span className="truncate">
+          {selectedLabel}
+        </span>
+        <span className="text-xs opacity-70">
+          {isOpen ? "▲" : "▼"}
+        </span>
       </Button>
       {isOpen && (
         <div
@@ -277,23 +279,21 @@ function ThemePickerDialog({
       if (e.key === "ArrowDown") {
         e.preventDefault();
         setSelectedIndex((prev) => {
-          const newIndex = Math.min(prev + 1, filteredThemes.length - 1);
-          if (newIndex !== prev) {
-            // Preview theme immediately
-            setPreviewTheme(filteredThemes[newIndex].id);
-            onThemeChange(filteredThemes[newIndex].id);
-          }
+          // Circular navigation: wrap to start if at the end
+          const newIndex = prev + 1 >= filteredThemes.length ? 0 : prev + 1;
+          // Preview theme immediately
+          setPreviewTheme(filteredThemes[newIndex].id);
+          onThemeChange(filteredThemes[newIndex].id);
           return newIndex;
         });
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         setSelectedIndex((prev) => {
-          const newIndex = Math.max(prev - 1, 0);
-          if (newIndex !== prev) {
-            // Preview theme immediately
-            setPreviewTheme(filteredThemes[newIndex].id);
-            onThemeChange(filteredThemes[newIndex].id);
-          }
+          // Circular navigation: wrap to end if at the start
+          const newIndex = prev - 1 < 0 ? filteredThemes.length - 1 : prev - 1;
+          // Preview theme immediately
+          setPreviewTheme(filteredThemes[newIndex].id);
+          onThemeChange(filteredThemes[newIndex].id);
           return newIndex;
         });
       } else if (e.key === "Enter") {
