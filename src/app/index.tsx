@@ -3141,12 +3141,12 @@ function OpenCodeChatTUI() {
                 value={newSessionTitle}
                 onChange={(e) => setNewSessionTitle(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && newSessionTitle.trim()) {
+                  if (e.key === "Enter") {
                     e.preventDefault();
                     void handleCreateSession();
                   }
                 }}
-                placeholder="Session title..."
+                placeholder="Session title (optional)..."
                 size="small"
                 className="bg-theme-background text-theme-foreground border-theme-primary"
                 autoFocus
@@ -3165,7 +3165,7 @@ function OpenCodeChatTUI() {
                   box="round"
                   size="small"
                   onClick={() => void handleCreateSession()}
-                  disabled={!newSessionTitle.trim() || loading}
+                  disabled={loading}
                 >
                   Create Session
                 </Button>
