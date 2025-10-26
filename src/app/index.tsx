@@ -2332,10 +2332,10 @@ function OpenCodeChatTUI() {
               data-dialog-anchor="chat"
             >
               {/* Chat Messages */}
-              <div className="flex-1 overflow-y-auto scrollbar p-2 pb-4 space-y-2 min-h-0">
-                <div className="max-w-none lg:mx-auto lg:max-w-6xl xl:max-w-7xl space-y-2">
+              <div className="flex-1 overflow-y-auto scrollbar p-2 pb-4 space-y-2 min-h-0 flex flex-col">
+                <div className="max-w-none lg:mx-auto lg:max-w-6xl xl:max-w-7xl space-y-2 flex-1 flex flex-col">
                   {messages.length === 0 && !loading && (
-                  <div className="flex items-center justify-center h-full">
+                  <div className="flex items-center justify-center flex-1">
                     <View
                       box="round"
                       className="max-w-4xl w-full p-6 text-center bg-theme-background-alt"
@@ -2487,14 +2487,14 @@ function OpenCodeChatTUI() {
               {/* Input Area */}
               <View
                 box="square"
-                className="px-2 sm:px-3 py-1 space-y-1.5 bg-theme-background-alt"
+                className="px-2 sm:px-3 py-2 space-y-2 bg-theme-background-alt"
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 text-sm text-theme-foreground flex-wrap">
                     <span className="font-medium">Model:</span>
                     <button
                       onClick={() => setShowModelPicker(true)}
-                      className="text-theme-primary hover:underline cursor-pointer appearance-none"
+                      className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none"
                       style={{
                         background: "none",
                         border: "none",
@@ -2502,6 +2502,8 @@ function OpenCodeChatTUI() {
                         margin: 0,
                         font: "inherit",
                         color: "inherit",
+                        height: "auto",
+                        lineHeight: "inherit",
                       }}
                     >
                       {selectedModel?.name || "Loading..."}
@@ -2510,7 +2512,7 @@ function OpenCodeChatTUI() {
                     <span className="font-medium">Session:</span>
                     <button
                       onClick={() => setShowSessionPicker(true)}
-                      className="text-theme-primary hover:underline cursor-pointer appearance-none"
+                      className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none"
                       style={{
                         background: "none",
                         border: "none",
@@ -2518,6 +2520,8 @@ function OpenCodeChatTUI() {
                         margin: 0,
                         font: "inherit",
                         color: "inherit",
+                        height: "auto",
+                        lineHeight: "inherit",
                       }}
                     >
                       {currentSession?.title || "No session"}
@@ -2552,6 +2556,7 @@ function OpenCodeChatTUI() {
                       padding: 0,
                       margin: 0,
                       height: "auto",
+                      display: "inline-block",
                     }}
                   >
                     <Badge
@@ -2650,7 +2655,7 @@ function OpenCodeChatTUI() {
                     box="square"
                     onClick={handleSend}
                     disabled={!input.trim()}
-                    className="px-6 py-2 w-full sm:w-auto"
+                    className="px-6 w-full sm:w-auto h-full"
                   >
                     Send
                   </Button>
