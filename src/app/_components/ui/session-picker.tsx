@@ -88,11 +88,11 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
       >
         <div className="p-4 flex items-center justify-between">
           <h2 className="text-lg font-bold">Sessions</h2>
-          <Button
-            variant="foreground0"
-            box="round"
-            size="small"
-            onClick={toggleEditMode}
+           <Button
+             variant="foreground1"
+             box="round"
+             size="small"
+             onClick={toggleEditMode}
           >
             {isEditMode ? "Done" : "Edit"}
           </Button>
@@ -109,21 +109,21 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
                 borderBottom: "1px solid var(--theme-border, rgba(255,255,255,0.1))",
               }}
             >
-              <Button
-                variant="foreground0"
-                box="round"
-                size="small"
-                onClick={selectAll}
+               <Button
+                 variant="foreground1"
+                 box="round"
+                 size="small"
+                 onClick={selectAll}
               >
                 Select All
               </Button>
-              <Button
-                variant="foreground0"
-                box="round"
-                size="small"
-                onClick={handleBulkDeleteClick}
-                className="delete-button-bulk"
-                disabled={selectedIds.size === 0}
+               <Button
+                 variant="error"
+                 box="round"
+                 size="small"
+                 onClick={handleBulkDeleteClick}
+                 className="delete-button-bulk"
+                 disabled={selectedIds.size === 0}
               >
                 Delete {selectedIds.size > 0 ? `(${selectedIds.size})` : ""}
               </Button>
@@ -217,11 +217,11 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
 
         <Separator />
         <div className="p-4 flex justify-end">
-          <Button
-            variant="foreground0"
-            box="round"
-            onClick={onClose}
-            size="small"
+           <Button
+             variant="background2"
+             box="round"
+             onClick={onClose}
+             size="small"
           >
             Close
           </Button>

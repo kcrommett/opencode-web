@@ -206,6 +206,226 @@ function coerceToDate(value?: Date | string | number | null) {
   return null;
 }
 
+function ThemePickerDialog({
+  currentTheme,
+  onThemeChange,
+  onClose,
+}: {
+  currentTheme: string;
+  onThemeChange: (themeId: string) => void;
+  onClose: () => void;
+}) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [previewTheme, setPreviewTheme] = useState(currentTheme);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const selectedItemRef = useRef<HTMLDivElement>(null);
+  const listContainerRef = useRef<HTMLDivElement>(null);
+
+  // Filter themes based on search query
+  const filteredThemes = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return themeList;
+    return themeList.filter(
+      (theme) =>
+        theme.name.toLowerCase().includes(query) ||
+        theme.id.toLowerCase().includes(query)
+    );
+  }, [searchQuery]);
+
+  // Initialize: focus search input and scroll to current theme
+  useEffect(() => {
+    // Auto-focus search input
+    searchInputRef.current?.focus();
+
+    // Find current theme index and scroll to it
+    const currentIndex = filteredThemes.findIndex(
+      (theme) => theme.id === currentTheme
+    );
+    if (currentIndex !== -1) {
+      setSelectedIndex(currentIndex);
+      // Scroll to current theme after a brief delay to ensure DOM is ready
+      setTimeout(() => {
+        selectedItemRef.current?.scrollIntoView({
+          block: "center",
+          behavior: "smooth",
+        });
+      }, 100);
+    }
+  }, []);
+
+  // Update selected index when filtered themes change
+  useEffect(() => {
+    // Keep selection within bounds
+    if (selectedIndex >= filteredThemes.length) {
+      setSelectedIndex(Math.max(0, filteredThemes.length - 1));
+    }
+    // Reset to current theme when search is cleared
+    if (!searchQuery && filteredThemes.length > 0) {
+      const currentIndex = filteredThemes.findIndex(
+        (theme) => theme.id === currentTheme
+      );
+      if (currentIndex !== -1) {
+        setSelectedIndex(currentIndex);
+      }
+    }
+  }, [filteredThemes, searchQuery, currentTheme]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedIndex((prev) => {
+          const newIndex = Math.min(prev + 1, filteredThemes.length - 1);
+          if (newIndex !== prev) {
+            // Preview theme immediately
+            setPreviewTheme(filteredThemes[newIndex].id);
+            onThemeChange(filteredThemes[newIndex].id);
+          }
+          return newIndex;
+        });
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedIndex((prev) => {
+          const newIndex = Math.max(prev - 1, 0);
+          if (newIndex !== prev) {
+            // Preview theme immediately
+            setPreviewTheme(filteredThemes[newIndex].id);
+            onThemeChange(filteredThemes[newIndex].id);
+          }
+          return newIndex;
+        });
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        if (filteredThemes[selectedIndex]) {
+          onThemeChange(filteredThemes[selectedIndex].id);
+          onClose();
+        }
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        // Restore original theme if user cancels
+        onThemeChange(currentTheme);
+        onClose();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [filteredThemes, selectedIndex, onThemeChange, onClose, currentTheme]);
+
+  // Scroll selected item into view
+  useEffect(() => {
+    selectedItemRef.current?.scrollIntoView({
+      block: "nearest",
+      behavior: "smooth",
+    });
+  }, [selectedIndex]);
+
+  return (
+    <Dialog open={true} onClose={onClose}>
+      <View
+        box="square"
+        className="p-6 max-w-md w-full max-h-[80vh] overflow-hidden bg-theme-background text-theme-foreground"
+      >
+        <h2 className="text-lg font-bold mb-4">Select Theme</h2>
+        <Separator className="mb-4" />
+
+        {/* Search Input */}
+        <input
+          ref={searchInputRef}
+          type="text"
+          is-="input"
+          placeholder="Search themes..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full mb-4"
+        />
+
+        {/* Theme List */}
+        <div
+          ref={listContainerRef}
+          className="max-h-96 overflow-y-auto scrollbar space-y-2 mb-4"
+        >
+          {filteredThemes.length === 0 ? (
+            <div className="text-center py-8 text-theme-muted">
+              No themes found matching "{searchQuery}"
+            </div>
+          ) : (
+            filteredThemes.map((theme, index) => (
+              <div
+                key={theme.id}
+                ref={index === selectedIndex ? selectedItemRef : null}
+                className={`p-3 rounded cursor-pointer transition-colors border ${
+                  index === selectedIndex
+                    ? "bg-theme-primary/20 border-theme-primary text-theme-foreground ring-2 ring-theme-primary/50"
+                    : currentTheme === theme.id
+                      ? "border-theme-primary/50 bg-theme-background-alt"
+                      : "border-theme-border bg-theme-background-alt hover:bg-opacity-50"
+                }`}
+                onClick={() => {
+                  setSelectedIndex(index);
+                  onThemeChange(theme.id);
+                  onClose();
+                }}
+                onMouseEnter={() => {
+                  setSelectedIndex(index);
+                  onThemeChange(theme.id);
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium">{theme.name}</div>
+                    <div className="text-xs opacity-70 mt-1">{theme.id}</div>
+                  </div>
+                  <div className="flex gap-1">
+                    {Object.entries(theme.colors)
+                      .slice(0, 5)
+                      .map(([key, color]) => (
+                        <div
+                          key={key}
+                          className="w-4 h-4 rounded"
+                          style={{ backgroundColor: color }}
+                          title={key}
+                        />
+                      ))}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <Separator className="mb-4" />
+
+        {/* Footer with instructions */}
+        <div className="text-xs text-theme-muted mb-3">
+          <div className="flex gap-4">
+            <span>↑↓ Navigate</span>
+            <span>Enter Confirm</span>
+            <span>Esc Cancel</span>
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <Button
+            variant="background2"
+            box="round"
+            onClick={() => {
+              // Restore original theme on close
+              onThemeChange(currentTheme);
+              onClose();
+            }}
+            size="small"
+          >
+            Close
+          </Button>
+        </div>
+      </View>
+    </Dialog>
+  );
+}
+
 export const Route = createFileRoute("/")({
   component: OpenCodeChatTUI,
 });
@@ -1952,13 +2172,13 @@ function OpenCodeChatTUI() {
                     <div className="flex justify-between items-center">
                       <h3 className="text-sm font-medium">Sessions</h3>
                       <div className="flex gap-2">
-                        <Button
-                          variant="foreground0"
-                          box="round"
-                          onClick={handleSidebarEditToggle}
-                          size="small"
-                          disabled={!currentProject}
-                        >
+                         <Button
+                           variant="foreground1"
+                           box="round"
+                           onClick={handleSidebarEditToggle}
+                           size="small"
+                           disabled={!currentProject}
+                         >
                           {sidebarEditMode ? "Done" : "Edit"}
                         </Button>
                         <Button
@@ -1986,18 +2206,18 @@ function OpenCodeChatTUI() {
                       {sidebarEditMode && (
                         <>
                           <div className="flex items-center justify-between gap-2 px-2 py-2 bg-theme-background-alt rounded mb-2">
-                            <Button
-                              variant="foreground0"
-                              box="round"
-                              size="small"
-                              onClick={handleSidebarSelectAll}
-                            >
+                             <Button
+                               variant="foreground1"
+                               box="round"
+                               size="small"
+                               onClick={handleSidebarSelectAll}
+                             >
                               Select All
                             </Button>
-                            <Button
-                              variant="foreground0"
-                              box="round"
-                              size="small"
+                             <Button
+                               variant="error"
+                               box="round"
+                               size="small"
                               onClick={handleSidebarBulkDelete}
                               disabled={selectedSidebarSessionIds.size === 0}
                               className="sidebar-delete-button"
@@ -2113,13 +2333,13 @@ function OpenCodeChatTUI() {
                 <View box="square" className="p-2 mb-2 bg-theme-background-alt">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-medium">Files</h3>
-                    <Button
-                      variant="foreground0"
-                      box="round"
-                      size="small"
-                      onClick={() =>
-                        void handleDirectoryOpen(fileDirectory || ".")
-                      }
+                     <Button
+                       variant="foreground1"
+                       box="round"
+                       size="small"
+                       onClick={() =>
+                         void handleDirectoryOpen(fileDirectory || ".")
+                       }
                     >
                       Refresh
                     </Button>
@@ -2171,22 +2391,22 @@ function OpenCodeChatTUI() {
                   </div>
                   <div className="flex gap-1 flex-shrink-0">
                     {fileSearchQuery && (
-                      <Button
-                        variant="foreground0"
-                        box="round"
-                        size="small"
-                        onClick={() => setFileSearchQuery("")}
+                       <Button
+                         variant="foreground1"
+                         box="round"
+                         size="small"
+                         onClick={() => setFileSearchQuery("")}
                       >
                         Clear
                       </Button>
                     )}
-                    <Button
-                      variant="foreground0"
-                      box="round"
-                      size="small"
-                      disabled={
-                        fileDirectory === "." || breadcrumbParts.length === 0
-                      }
+                     <Button
+                       variant="foreground1"
+                       box="round"
+                       size="small"
+                       disabled={
+                         fileDirectory === "." || breadcrumbParts.length === 0
+                       }
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -2964,15 +3184,15 @@ function OpenCodeChatTUI() {
                           Copy
                         </Button>
                       )}
-                      <Button
-                        variant="foreground0"
-                        box="round"
-                        onClick={() => {
-                          setSelectedFile(null);
-                          setFileContent(null);
-                          setFileError(null);
-                        }}
-                        size="small"
+                       <Button
+                         variant="background2"
+                         box="round"
+                         onClick={() => {
+                           setSelectedFile(null);
+                           setFileContent(null);
+                           setFileError(null);
+                         }}
+                         size="small"
                       >
                         Close
                       </Button>
@@ -3184,11 +3404,11 @@ function OpenCodeChatTUI() {
           >
             <div className="flex justify-between items-center mb-4 flex-shrink-0">
               <h2 className="text-lg font-bold">OpenCode Commands</h2>
-              <Button
-                variant="foreground0"
-                box="round"
-                onClick={() => setShowHelp(false)}
-                size="small"
+               <Button
+                 variant="background2"
+                 box="round"
+                 onClick={() => setShowHelp(false)}
+                 size="small"
               >
                 Close
               </Button>
@@ -3323,61 +3543,11 @@ function OpenCodeChatTUI() {
 
       {/* Themes Dialog */}
       {showThemes && (
-        <Dialog open={showThemes} onClose={() => setShowThemes(false)}>
-          <View
-            box="square"
-            className="p-6 max-w-md w-full max-h-[80vh] overflow-hidden bg-theme-background text-theme-foreground"
-          >
-            <h2 className="text-lg font-bold mb-4">Select Theme</h2>
-            <Separator className="mb-4" />
-            <div className="max-h-96 overflow-y-auto scrollbar space-y-2 mb-4">
-              {themeList.map((theme) => (
-                <div
-                  key={theme.id}
-                  className={`p-3 rounded cursor-pointer transition-colors border border-theme-border ${
-                    currentTheme === theme.id
-                      ? "bg-theme-primary/20 border-theme-primary text-theme-foreground"
-                      : "bg-theme-background-alt hover:bg-opacity-50"
-                  }`}
-                  onClick={() => {
-                    changeTheme(theme.id);
-                    setShowThemes(false);
-                  }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium">{theme.name}</div>
-                      <div className="text-xs opacity-70 mt-1">{theme.id}</div>
-                    </div>
-                    <div className="flex gap-1">
-                      {Object.entries(theme.colors)
-                        .slice(0, 5)
-                        .map(([key, color]) => (
-                          <div
-                            key={key}
-                            className="w-4 h-4 rounded"
-                            style={{ backgroundColor: color }}
-                            title={key}
-                          />
-                        ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <Separator className="mb-4" />
-            <div className="flex justify-end">
-              <Button
-                variant="foreground0"
-                box="round"
-                onClick={() => setShowThemes(false)}
-                size="small"
-              >
-                Close
-              </Button>
-            </div>
-          </View>
-        </Dialog>
+        <ThemePickerDialog
+          currentTheme={currentTheme}
+          onThemeChange={changeTheme}
+          onClose={() => setShowThemes(false)}
+        />
       )}
 
       {/* Config Dialog */}
@@ -3396,11 +3566,11 @@ function OpenCodeChatTUI() {
             </div>
             <Separator className="mb-4" />
             <div className="flex justify-end">
-              <Button
-                variant="foreground0"
-                box="round"
-                onClick={() => setShowConfig(false)}
-                size="small"
+               <Button
+                 variant="background2"
+                 box="round"
+                 onClick={() => setShowConfig(false)}
+                 size="small"
               >
                 Close
               </Button>
@@ -3607,15 +3777,15 @@ function OpenCodeChatTUI() {
               <div className="text-xs opacity-70">
                 Use ↑↓ arrows to navigate, Enter to select
               </div>
-              <Button
-                variant="foreground0"
-                box="round"
-                onClick={() => {
-                  setShowModelPicker(false);
-                  setModelSearchQuery("");
-                  setSelectedModelIndex(0);
-                }}
-                size="small"
+               <Button
+                 variant="background2"
+                 box="round"
+                 onClick={() => {
+                   setShowModelPicker(false);
+                   setModelSearchQuery("");
+                   setSelectedModelIndex(0);
+                 }}
+                 size="small"
               >
                 Cancel
               </Button>
@@ -3669,20 +3839,20 @@ function OpenCodeChatTUI() {
               "? This action cannot be undone.
             </p>
             <div className="flex gap-2 justify-end">
-              <Button
-                variant="foreground0"
-                box="round"
-                size="small"
-                onClick={() => setDeleteDialogState({ open: false })}
-              >
+               <Button
+                 variant="background2"
+                 box="round"
+                 size="small"
+                 onClick={() => setDeleteDialogState({ open: false })}
+               >
                 Cancel
               </Button>
               <Button
-                variant="foreground0"
-                box="round"
-                size="small"
-                onClick={confirmDelete}
-                className="delete-button-confirm"
+                 variant="error"
+                 box="round"
+                 size="small"
+                 onClick={confirmDelete}
+                 className="delete-button-confirm"
               >
                 Delete
               </Button>
@@ -3714,20 +3884,20 @@ function OpenCodeChatTUI() {
               be undone.
             </p>
             <div className="flex gap-2 justify-end">
-              <Button
-                variant="foreground0"
-                box="round"
-                size="small"
-                onClick={() => setBulkDeleteDialogOpen(false)}
-              >
+               <Button
+                 variant="background2"
+                 box="round"
+                 size="small"
+                 onClick={() => setBulkDeleteDialogOpen(false)}
+               >
                 Cancel
               </Button>
               <Button
-                variant="foreground0"
-                box="round"
-                size="small"
-                onClick={confirmBulkDelete}
-                className="delete-button-confirm"
+                 variant="error"
+                 box="round"
+                 size="small"
+                 onClick={confirmBulkDelete}
+                 className="delete-button-confirm"
               >
                 Delete All
               </Button>

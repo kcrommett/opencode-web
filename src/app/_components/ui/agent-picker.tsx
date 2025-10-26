@@ -104,11 +104,11 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
 
         <Separator />
         <div className="p-4 flex justify-end">
-          <Button
-            variant="foreground0"
-            box="round"
-            onClick={onClose}
-            size="small"
+           <Button
+             variant="background2"
+             box="round"
+             onClick={onClose}
+             size="small"
           >
             Close
           </Button>
