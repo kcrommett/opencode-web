@@ -20,6 +20,12 @@ OpenCode Web is a web-based interface for the OpenCode Server API, providing a b
 
 ## 🚀 Quick Start
 
+### Prerequisites
+
+- **[Bun](https://bun.sh)** v1.3.0 or later (required runtime)
+- **[OpenCode CLI](https://opencode.ai)** installed and available in PATH
+- **Windows Users**: Windows 10 version 1903 or later for Bun compatibility
+
 ### Option 1: Run with bunx (Recommended)
 
 ```bash
@@ -28,6 +34,11 @@ bunx opencode-web@latest
 
 # Dev release (bleeding edge)
 bunx opencode-web@dev
+```
+
+**Windows PowerShell:**
+```powershell
+bunx opencode-web@latest
 ```
 
 ### Option 2: Install Globally
@@ -46,7 +57,7 @@ yarn global add opencode-web
 opencode-web
 ```
 
-### Option 3: One-liner Installer
+### Option 3: One-liner Installer (Unix/Linux/macOS)
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/kcrommett/opencode-web/main/install.sh | bash
@@ -215,6 +226,45 @@ Key entry points include:
 - `bun run lint` – enforce shared ESLint rules
 - `bun x tsc --noEmit` – typecheck without generating artifacts
 - `bun run test` – run Playwright smoke tests when present
+
+## Platform Support
+
+OpenCode Web runs on Linux, macOS, and Windows with Bun's cross-platform runtime.
+
+### Windows-Specific Notes
+
+**Prerequisites:**
+- [Bun for Windows](https://bun.sh/docs/installation#windows) v1.3.0 or later
+- Windows 10 version 1903 or later
+- [OpenCode CLI](https://opencode.ai) installed and in your PATH
+
+**Installation:**
+```powershell
+# PowerShell (Administrator recommended for first install)
+bunx opencode-web@latest
+```
+
+**Common Issues:**
+
+1. **Shell not found error**: Ensure the OpenCode CLI binary is installed and available in your PATH. Test with:
+   ```powershell
+   opencode --version
+   ```
+
+2. **Permission denied errors**: Run PowerShell or Command Prompt as Administrator for first-time setup.
+
+3. **Port already in use**: Specify an alternative port:
+   ```powershell
+   bunx opencode-web --port 3001
+   ```
+
+4. **Paths with spaces**: Windows paths with spaces are fully supported. The application automatically normalizes backslashes for HTTP transmission.
+
+**Known Limitations:**
+- UNC network paths (e.g., `\\server\share`) have limited testing. Use mapped drives when possible.
+- Very long path names (>260 characters) may require [Windows Long Path support](https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation) to be enabled.
+
+**CI/CD**: Windows builds are tested automatically in GitHub Actions for every PR and release.
 
 ## Development Notes
 

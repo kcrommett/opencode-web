@@ -1,6 +1,16 @@
 import { getOpencodeServerUrl } from "./opencode-config";
 import { Agent } from "../types/opencode";
 
+/**
+ * Normalize file paths for HTTP transmission.
+ * On Windows, converts backslashes to forward slashes for URL compatibility.
+ * The OpenCode server will handle the platform-specific interpretation.
+ */
+function normalizePath(path: string): string {
+  // Replace Windows backslashes with forward slashes for HTTP URLs
+  return path.replace(/\\/g, '/');
+}
+
 function buildUrl(
   path: string,
   params?: Record<string, string>,
@@ -15,7 +25,11 @@ function buildUrl(
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined) {
-        url.searchParams.set(key, value);
+        // Normalize paths in parameters (especially 'path' and 'directory' params)
+        const normalizedValue = (key === 'path' || key === 'directory') 
+          ? normalizePath(value) 
+          : value;
+        url.searchParams.set(key, normalizedValue);
       }
     });
   }
