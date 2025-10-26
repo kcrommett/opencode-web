@@ -259,42 +259,42 @@ const handleMentionSelect = (suggestion: MentionSuggestion) => {
 
 ### Implementation Tasks
 
-- [ ] **Task 1.1**: Add `subagents` state to `useOpenCode` hook
+- [x] **Task 1.1**: Add `subagents` state to `useOpenCode` hook
   - File: `src/hooks/useOpenCode.ts:2394-2398`
   - Add state declaration: `const [subagents, setSubagents] = useState<Agent[]>([]);`
   - Filter logic: `mode === "subagent" || mode === "all"`
   - Export in return object
 
-- [ ] **Task 1.2**: Create `MentionSuggestion` type
+- [x] **Task 1.2**: Create `MentionSuggestion` type
   - File: `src/types/opencode.ts`
   - Union type for agent/file suggestions
   - Include display properties (`label`, `description`)
 
-- [ ] **Task 1.3**: Implement `searchAgents` function
+- [x] **Task 1.3**: Implement `searchAgents` function
   - File: `src/app/index.tsx` (near line 1285)
   - Filter by name/description match
   - Return formatted `MentionSuggestion[]`
   - Limit to 5 results
 
-- [ ] **Task 1.4**: Update @ trigger logic
+- [x] **Task 1.4**: Update @ trigger logic
   - File: `src/app/index.tsx:1285-1300`
   - Replace `setFileSuggestions` with `setMentionSuggestions`
   - Call both `searchAgents` and `searchFiles` in parallel
   - Merge with agents first
 
-- [ ] **Task 1.5**: Update suggestion UI rendering
+- [x] **Task 1.5**: Update suggestion UI rendering
   - File: `src/app/index.tsx` (existing suggestion list location)
   - Rename `showFileSuggestions` → `showMentionSuggestions`
   - Distinguish agent vs file visually
   - Add `(agent)` label in muted color
 
-- [ ] **Task 1.6**: Implement `handleMentionSelect`
+- [x] **Task 1.6**: Implement `handleMentionSelect`
   - File: `src/app/index.tsx`
   - Handle both agent and file types
   - Insert with trailing space
   - Clear suggestions and refocus input
 
-- [ ] **Task 1.7**: Add styling for agent suggestions
+- [x] **Task 1.7**: Add styling for agent suggestions
   - File: `src/app/globals.css`
   - Border accent for agents
   - Muted description text
@@ -545,41 +545,41 @@ const confirmBulkDelete = async () => {
 
 ### Implementation Tasks
 
-- [ ] **Task 2.1**: Create delete confirmation dialog state
+- [x] **Task 2.1**: Create delete confirmation dialog state
   - File: `src/app/index.tsx`
   - Add state: `deleteDialogState` with `{ open, sessionId, sessionTitle }`
   - Replace all `window.confirm` calls with state updates
 
-- [ ] **Task 2.2**: Implement single delete dialog UI
+- [x] **Task 2.2**: Implement single delete dialog UI
   - File: `src/app/index.tsx`
   - Use existing Dialog component
   - Show session title/ID in message
   - Cancel/Delete actions
 
-- [ ] **Task 2.3**: Add checkbox selection to SessionPicker
+- [x] **Task 2.3**: Add checkbox selection to SessionPicker
   - File: `src/app/_components/ui/session-picker.tsx`
   - State: `selectedIds` Set
   - Checkbox component per session
   - Stop propagation to prevent select-on-check
 
-- [ ] **Task 2.4**: Add bulk action bar to SessionPicker
+- [x] **Task 2.4**: Add bulk action bar to SessionPicker
   - File: `src/app/_components/ui/session-picker.tsx`
   - Show when `selectedIds.size > 0`
   - Display count, Clear, Delete Selected buttons
   - Pass selection to parent via callback
 
-- [ ] **Task 2.5**: Implement bulk delete handler
+- [x] **Task 2.5**: Implement bulk delete handler
   - File: `src/app/index.tsx`
   - Use `Promise.allSettled` for parallel deletes
   - Report failures (console or toast)
   - Refresh sessions after completion
 
-- [ ] **Task 2.6**: Create bulk delete confirmation dialog
+- [x] **Task 2.6**: Create bulk delete confirmation dialog
   - File: `src/app/index.tsx`
   - Show count in message
   - Confirm before `Promise.allSettled` loop
 
-- [ ] **Task 2.7**: Style delete buttons with neutral variant
+- [x] **Task 2.7**: Style delete buttons with neutral variant
   - File: `src/app/globals.css`
   - Neutral color at rest (opacity 0.6)
   - Red on hover with background tint
@@ -750,7 +750,7 @@ if (process.env.NODE_ENV !== "production") {
 
 ### Implementation Tasks
 
-- [ ] **Task 3.0**: Fix token schema type definition (PREREQUISITE)
+- [x] **Task 3.0**: Fix token schema type definition (PREREQUISITE)
   - File: `src/lib/opencode-events.ts:98-102`
   - Update `MessageUpdatedEvent.properties.info.tokens` to include cache fields
   - **Before**:
@@ -775,7 +775,7 @@ if (process.env.NODE_ENV !== "production") {
     ```
   - Rationale: Desktop client proves server sends these fields; Web needs to recognize them
 
-- [ ] **Task 3.1**: Add `SessionUsageTotals` type
+- [x] **Task 3.1**: Add `SessionUsageTotals` type
   - File: `src/types/opencode.ts`
   - Interface with full token breakdown:
     ```typescript
@@ -790,7 +790,7 @@ if (process.env.NODE_ENV !== "production") {
     }
     ```
 
-- [ ] **Task 3.2**: Add `sessionUsage` state to useOpenCode
+- [x] **Task 3.2**: Add `sessionUsage` state to useOpenCode
   - File: `src/hooks/useOpenCode.ts`
   - Add state near other session-related state (after line ~400):
     ```typescript
@@ -798,7 +798,7 @@ if (process.env.NODE_ENV !== "production") {
     ```
   - Initialize empty Map
 
-- [ ] **Task 3.3**: Update SSE `message.updated` handler
+- [x] **Task 3.3**: Update SSE `message.updated` handler
   - File: `src/hooks/useOpenCode.ts` (around line 1100-1150, inside `message.updated` case)
   - Add token aggregation logic AFTER existing message state update
   - Deduplication: Only aggregate if `messageInfo.id` NOT in current session's `lastMessageId`
@@ -847,14 +847,14 @@ if (process.env.NODE_ENV !== "production") {
     }
     ```
 
-- [ ] **Task 3.4**: Clear session usage on session deletion/switch
+- [x] **Task 3.4**: Clear session usage on session deletion/switch
   - File: `src/hooks/useOpenCode.ts`
   - In `deleteSession`: Remove session from Map after deletion succeeds
   - In `switchSession`: Keep existing totals (they're keyed by session ID)
   - In `createSession`: Session starts with no entry (defaults to 0)
   - In `session.deleted` SSE handler: Remove from Map when `seenMessageIdsRef.current.clear()` is called
 
-- [ ] **Task 3.5**: Expose sessionUsage in hook return
+- [x] **Task 3.5**: Expose sessionUsage in hook return
   - File: `src/hooks/useOpenCode.ts` (return object, around line 2900)
   - Add to return statement:
     ```typescript
@@ -863,7 +863,7 @@ if (process.env.NODE_ENV !== "production") {
       : null,
     ```
 
-- [ ] **Task 3.6**: Update UI to read from sessionUsage
+- [x] **Task 3.6**: Update UI to read from sessionUsage
   - File: `src/app/index.tsx:1447-1469`
   - **Find existing `sessionTokenStats` memo**:
     ```typescript
@@ -919,7 +919,7 @@ if (process.env.NODE_ENV !== "production") {
   - **Note**: Display code at line 2529-2534 already uses `sessionTokenStats.totalTokens.toLocaleString()` - no changes needed there
   - **Compact notation**: Desktop uses compact notation, but Web uses `toLocaleString()` - keep current formatting for now (can iterate)
 
-- [ ] **Task 3.7**: Add development assertion (OPTIONAL - for testing only)
+- [x] **Task 3.7**: Add development assertion (OPTIONAL - for testing only)
   - File: `src/app/index.tsx` (inside sessionTokenStats memo, after sessionUsage lookup)
   - Add dev-only comparison to verify migration correctness:
     ```typescript

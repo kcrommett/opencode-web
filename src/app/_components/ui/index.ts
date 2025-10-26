@@ -2,6 +2,7 @@
 import "./component-examples";
 export { Badge } from "./badge";
 export { Button } from "./button";
+export { Checkbox } from "./checkbox";
 export { Input } from "./input";
 export { Textarea } from "./textarea";
 export { Pre } from "./pre";

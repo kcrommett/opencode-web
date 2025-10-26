@@ -18,13 +18,14 @@ import {
   HamburgerMenu,
   InstallPrompt,
   PWAReloadPrompt,
+  Checkbox,
 } from "@/app/_components/ui";
 import { CommandPicker } from "@/app/_components/ui/command-picker";
 import { AgentPicker } from "@/app/_components/ui/agent-picker";
 import { SessionPicker } from "@/app/_components/ui/session-picker";
 import { PermissionModal } from "@/app/_components/ui/permission-modal";
 import { MessagePart } from "@/app/_components/message";
-import type { FileContentData } from "@/types/opencode";
+import type { FileContentData, MentionSuggestion, Agent } from "@/types/opencode";
 import { FileIcon } from "@/app/_components/files/file-icon";
 import { useOpenCodeContext } from "@/contexts/OpenCodeContext";
 import { openCodeService } from "@/lib/opencode-client";
@@ -224,6 +225,10 @@ function OpenCodeChatTUI() {
     setShowNewSessionForm(false);
     setNewSessionTitle("");
   };
+  const [sidebarEditMode, setSidebarEditMode] = useState(false);
+  const [selectedSidebarSessionIds, setSelectedSidebarSessionIds] = useState<
+    Set<string>
+  >(new Set());
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("opencode-active-tab") || "workspace";
@@ -241,13 +246,14 @@ function OpenCodeChatTUI() {
   });
   const [fileContent, setFileContent] = useState<FileContentData | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [fileSuggestions, setFileSuggestions] = useState<string[]>([]);
-  const [showFileSuggestions, setShowFileSuggestions] = useState(false);
+  const [mentionSuggestions, setMentionSuggestions] = useState<
+    MentionSuggestion[]
+  >([]);
+  const [showMentionSuggestions, setShowMentionSuggestions] = useState(false);
   const [commandSuggestions, setCommandSuggestions] = useState<Command[]>([]);
   const [showCommandPicker, setShowCommandPicker] = useState(false);
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
-  const [selectedFileSuggestionIndex, setSelectedFileSuggestionIndex] =
-    useState(0);
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
   const [showAgentPicker, setShowAgentPicker] = useState(false);
   const [showSessionPicker, setShowSessionPicker] = useState(false);
   const [selectedModelIndex, setSelectedModelIndex] = useState(0);
@@ -255,10 +261,18 @@ function OpenCodeChatTUI() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [configData, setConfigData] = useState<string | null>(null);
+  const [deleteDialogState, setDeleteDialogState] = useState<{
+    open: boolean;
+    sessionId?: string;
+    sessionTitle?: string;
+  }>({ open: false });
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const modelSearchInputRef = useRef<HTMLInputElement>(null);
   const fileSearchInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("opencode-sidebar-width");
@@ -316,7 +330,7 @@ function OpenCodeChatTUI() {
     loadMessages,
     switchSession,
     deleteSession,
-    clearAllSessions,
+    clearAllSessions: _clearAllSessions,
     // New features
     projects,
     currentProject,
@@ -345,6 +359,7 @@ function OpenCodeChatTUI() {
     showModelPicker,
     setShowModelPicker,
     agents,
+    subagents,
     currentAgent,
     selectAgent,
     extractTextFromParts,
@@ -366,6 +381,7 @@ function OpenCodeChatTUI() {
     config,
     commands,
     executeSlashCommand,
+    sessionUsage,
   } = useOpenCodeContext();
   const { currentTheme, changeTheme } = useTheme(config?.theme);
 
@@ -1210,27 +1226,88 @@ function OpenCodeChatTUI() {
     }
   };
 
-  const handleDeleteSession = async (
-    sessionId: string,
-    event: React.MouseEvent,
-  ) => {
-    event.stopPropagation();
-    if (confirm("Are you sure you want to delete this session?")) {
-      try {
-        await deleteSession(sessionId);
-      } catch (err) {
-        console.error("Failed to delete session:", err);
-      }
+  const confirmDelete = async () => {
+    if (!deleteDialogState.sessionId) return;
+
+    try {
+      await deleteSession(deleteDialogState.sessionId);
+    } catch (err) {
+      console.error("Failed to delete session:", err);
+    } finally {
+      setDeleteDialogState({ open: false });
     }
   };
 
-  const handleClearSessions = async () => {
-    if (confirm("Are you sure you want to delete all sessions?")) {
+  const handleBulkDeleteClick = (sessionIds: string[]) => {
+    setBulkDeleteIds(sessionIds);
+    setBulkDeleteDialogOpen(true);
+  };
+
+  const confirmBulkDelete = async () => {
+    const results = await Promise.allSettled(
+      bulkDeleteIds.map((id) => deleteSession(id))
+    );
+
+    const failures = results.filter((r) => r.status === "rejected");
+
+    if (failures.length > 0) {
+      console.error(`Failed to delete ${failures.length} sessions`);
+    }
+
+    await loadSessions();
+
+    setBulkDeleteDialogOpen(false);
+    setBulkDeleteIds([]);
+  };
+
+  const handleSidebarEditToggle = () => {
+    if (sidebarEditMode) {
+      // Exiting edit mode - clear selection
+      setSelectedSidebarSessionIds(new Set());
+    }
+    setSidebarEditMode(!sidebarEditMode);
+  };
+
+  const handleSidebarSessionToggle = (sessionId: string) => {
+    setSelectedSidebarSessionIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(sessionId)) {
+        next.delete(sessionId);
+      } else {
+        next.add(sessionId);
+      }
+      return next;
+    });
+  };
+
+  const handleSidebarSelectAll = () => {
+    const projectSessions = sessions.filter(
+      (session) =>
+        session.projectID === currentProject?.id ||
+        session.directory === currentProject?.worktree,
+    );
+    setSelectedSidebarSessionIds(new Set(projectSessions.map((s) => s.id)));
+  };
+
+  const handleSidebarBulkDelete = async () => {
+    const count = selectedSidebarSessionIds.size;
+    if (count === 0) return;
+
+    if (
+      confirm(
+        `Are you sure you want to delete ${count} session${count > 1 ? "s" : ""}?`,
+      )
+    ) {
       try {
-        await clearAllSessions();
+        const deletePromises = Array.from(selectedSidebarSessionIds).map(
+          (id) => deleteSession(id),
+        );
+        await Promise.allSettled(deletePromises);
         await loadSessions();
+        setSelectedSidebarSessionIds(new Set());
+        setSidebarEditMode(false);
       } catch (err) {
-        console.error("Failed to clear sessions:", err);
+        console.error("Failed to delete sessions:", err);
       }
     }
   };
@@ -1240,14 +1317,8 @@ function OpenCodeChatTUI() {
       e.preventDefault();
       if (showCommandPicker && commandSuggestions.length > 0) {
         handleCommandSelect(commandSuggestions[selectedCommandIndex]);
-      } else if (showFileSuggestions && fileSuggestions.length > 0) {
-        setInput(
-          input.replace(
-            /@\w*$/,
-            `@${fileSuggestions[selectedFileSuggestionIndex]} `,
-          ),
-        );
-        setShowFileSuggestions(false);
+      } else if (showMentionSuggestions && mentionSuggestions.length > 0) {
+        handleMentionSelect(mentionSuggestions[selectedMentionIndex]);
       } else {
         handleSend();
       }
@@ -1275,10 +1346,10 @@ function OpenCodeChatTUI() {
         setSelectedCommandIndex((prev) =>
           prev < commandSuggestions.length - 1 ? prev + 1 : prev,
         );
-      } else if (showFileSuggestions) {
+      } else if (showMentionSuggestions) {
         e.preventDefault();
-        setSelectedFileSuggestionIndex((prev) =>
-          prev < fileSuggestions.length - 1 ? prev + 1 : prev,
+        setSelectedMentionIndex((prev) =>
+          prev < mentionSuggestions.length - 1 ? prev + 1 : prev,
         );
       }
     }
@@ -1286,24 +1357,62 @@ function OpenCodeChatTUI() {
       if (showCommandPicker) {
         e.preventDefault();
         setSelectedCommandIndex((prev) => (prev > 0 ? prev - 1 : prev));
-      } else if (showFileSuggestions) {
+      } else if (showMentionSuggestions) {
         e.preventDefault();
-        setSelectedFileSuggestionIndex((prev) => (prev > 0 ? prev - 1 : prev));
+        setSelectedMentionIndex((prev) => (prev > 0 ? prev - 1 : prev));
       }
     }
     if (e.key === "Escape") {
       if (showCommandPicker) {
         e.preventDefault();
         setShowCommandPicker(false);
-      } else if (showFileSuggestions) {
+      } else if (showMentionSuggestions) {
         e.preventDefault();
-        setShowFileSuggestions(false);
+        setShowMentionSuggestions(false);
       } else if (currentSessionBusy && !isMobile) {
         // On desktop, ESC aborts the running agent
         e.preventDefault();
         handleAbort();
       }
     }
+  };
+
+  const searchAgents = (
+    query: string,
+    agents: Agent[],
+  ): MentionSuggestion[] => {
+    const lowerQuery = query.toLowerCase();
+    return agents
+      .filter((agent: Agent) => {
+        const nameMatch = agent.name?.toLowerCase().includes(lowerQuery);
+        const descMatch = agent.description?.toLowerCase().includes(lowerQuery);
+        return nameMatch || descMatch;
+      })
+      .map((agent: Agent) => ({
+        type: "agent" as const,
+        name: agent.name,
+        description: agent.description,
+        label: `${agent.name} (agent)`,
+      }))
+      .slice(0, 5);
+  };
+
+  const handleMentionSelect = (suggestion: MentionSuggestion) => {
+    const currentValue = input || "";
+    const beforeAt = currentValue.substring(0, currentValue.lastIndexOf("@"));
+
+    if (suggestion.type === "agent") {
+      // Insert @agent-name with trailing space
+      const newValue = `${beforeAt}@${suggestion.name} `;
+      setInput(newValue);
+    } else {
+      // Insert @file/path with trailing space
+      const newValue = `${beforeAt}@${suggestion.path} `;
+      setInput(newValue);
+    }
+
+    setShowMentionSuggestions(false);
+    inputRef.current?.focus();
   };
 
   const handleInputChange = async (value: string) => {
@@ -1322,19 +1431,26 @@ function OpenCodeChatTUI() {
 
     if (value.includes("@")) {
       const query = value.split("@").pop() || "";
-      if (query.length > 0) {
-        try {
-          const suggestions = await searchFiles(query);
-          setFileSuggestions(suggestions.slice(0, 5));
-          setShowFileSuggestions(true);
-        } catch (error) {
-          console.error("Failed to search files:", error);
-        }
-      } else {
-        setShowFileSuggestions(false);
+      try {
+        // Parallel fetch: agents first, then files (matching TUI order)
+        const [agentResults, fileResults] = await Promise.all([
+          Promise.resolve(searchAgents(query, subagents)),
+          searchFiles(query).then((files) =>
+            files
+              .slice(0, 5)
+              .map((f) => ({ type: "file" as const, path: f, label: f })),
+          ),
+        ]);
+
+        // Agents first in combined list
+        const combined = [...agentResults, ...fileResults];
+        setMentionSuggestions(combined);
+        setShowMentionSuggestions(true);
+      } catch (error) {
+        console.error("Failed to search mentions:", error);
       }
     } else {
-      setShowFileSuggestions(false);
+      setShowMentionSuggestions(false);
     }
   };
 
@@ -1483,17 +1599,8 @@ function OpenCodeChatTUI() {
   }, [models, modelSearchQuery]);
 
   const sessionTokenStats = useMemo(() => {
-    const totalTokens = messages.reduce((sum, msg) => {
-      if (msg.metadata?.tokens) {
-        return (
-          sum +
-          msg.metadata.tokens.input +
-          msg.metadata.tokens.output +
-          msg.metadata.tokens.reasoning
-        );
-      }
-      return sum;
-    }, 0);
+    // Read from session-scoped cache instead of reducing messages
+    const totalTokens = sessionUsage?.totalTokens || 0;
 
     const contextWindow = 200000;
     const contextPercentage =
@@ -1503,8 +1610,18 @@ function OpenCodeChatTUI() {
       totalTokens,
       contextPercentage,
       contextWindow,
+      // Optionally expose breakdown for future UI enhancements
+      breakdown: sessionUsage
+        ? {
+            input: sessionUsage.input,
+            output: sessionUsage.output,
+            reasoning: sessionUsage.reasoning,
+            cacheRead: sessionUsage.cacheRead,
+            cacheWrite: sessionUsage.cacheWrite,
+          }
+        : null,
     };
-  }, [messages]);
+  }, [sessionUsage]);
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
@@ -1825,10 +1942,11 @@ function OpenCodeChatTUI() {
                         <Button
                           variant="foreground0"
                           box="round"
-                          onClick={handleClearSessions}
+                          onClick={handleSidebarEditToggle}
                           size="small"
+                          disabled={!currentProject}
                         >
-                          Clear
+                          {sidebarEditMode ? "Done" : "Edit"}
                         </Button>
                         <Button
                           variant="foreground0"
@@ -1852,6 +1970,31 @@ function OpenCodeChatTUI() {
                     </div>
                   ) : (
                     <>
+                      {sidebarEditMode && (
+                        <>
+                          <div className="flex items-center justify-between gap-2 px-2 py-2 bg-theme-background-alt rounded mb-2">
+                            <Button
+                              variant="foreground0"
+                              box="round"
+                              size="small"
+                              onClick={handleSidebarSelectAll}
+                            >
+                              Select All
+                            </Button>
+                            <Button
+                              variant="foreground0"
+                              box="round"
+                              size="small"
+                              onClick={handleSidebarBulkDelete}
+                              disabled={selectedSidebarSessionIds.size === 0}
+                              className="sidebar-delete-button"
+                            >
+                              Delete ({selectedSidebarSessionIds.size})
+                            </Button>
+                          </div>
+                          <Separator className="mb-2" />
+                        </>
+                      )}
                       <div className="flex-1 overflow-y-auto scrollbar space-y-2 min-h-0">
                         {sessions
                           .filter(
@@ -1862,33 +2005,54 @@ function OpenCodeChatTUI() {
                           .map((session) => {
                             const isSelected =
                               currentSession?.id === session.id;
+                            const isChecked =
+                              selectedSidebarSessionIds.has(session.id);
                             return (
                               <div
                                 key={session.id}
                                 className="p-2 cursor-pointer transition-colors rounded"
                                 style={{
-                                  backgroundColor: isSelected
-                                    ? "var(--theme-primary)"
-                                    : "var(--theme-background)",
-                                  color: isSelected
-                                    ? "var(--theme-background)"
-                                    : "var(--theme-foreground)",
+                                  backgroundColor:
+                                    !sidebarEditMode && isSelected
+                                      ? "var(--theme-primary)"
+                                      : "var(--theme-background)",
+                                  color:
+                                    !sidebarEditMode && isSelected
+                                      ? "var(--theme-background)"
+                                      : "var(--theme-foreground)",
                                 }}
-                                onClick={() => handleSessionSwitch(session.id)}
+                                onClick={() =>
+                                  sidebarEditMode
+                                    ? handleSidebarSessionToggle(session.id)
+                                    : handleSessionSwitch(session.id)
+                                }
                                 onMouseEnter={(e) => {
-                                  if (!isSelected) {
+                                  if (!isSelected || sidebarEditMode) {
                                     e.currentTarget.style.backgroundColor =
                                       "var(--theme-backgroundAlt)";
                                   }
                                 }}
                                 onMouseLeave={(e) => {
-                                  if (!isSelected) {
+                                  if (!isSelected || sidebarEditMode) {
                                     e.currentTarget.style.backgroundColor =
                                       "var(--theme-background)";
                                   }
                                 }}
                               >
-                                <div className="flex justify-between items-start">
+                                <div className="flex justify-between items-start gap-2">
+                                  {sidebarEditMode && (
+                                    <div
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="mt-1 flex-shrink-0"
+                                    >
+                                      <Checkbox
+                                        checked={isChecked}
+                                        onChange={() =>
+                                          handleSidebarSessionToggle(session.id)
+                                        }
+                                      />
+                                    </div>
+                                  )}
                                   <div className="flex-1 min-w-0">
                                     <div className="font-medium text-sm truncate">
                                       {session.title}
@@ -1914,17 +2078,6 @@ function OpenCodeChatTUI() {
                                       </div>
                                     )}
                                   </div>
-                                  <Button
-                                    variant="foreground0"
-                                    box="round"
-                                    size="small"
-                                    onClick={(e) =>
-                                      handleDeleteSession(session.id, e)
-                                    }
-                                    className="ml-2 flex-shrink-0"
-                                  >
-                                    ×
-                                  </Button>
                                 </div>
                               </div>
                             );
@@ -2644,7 +2797,7 @@ function OpenCodeChatTUI() {
                       size="large"
                       className="w-full bg-theme-background text-theme-foreground border-theme-primary resize-none"
                     />
-                    {showFileSuggestions && fileSuggestions.length > 0 && (
+                    {showMentionSuggestions && mentionSuggestions.length > 0 && (
                       <div
                         className="absolute bottom-full left-0 right-0 mb-1 max-h-48 overflow-y-auto scrollbar z-10 shadow-lg rounded border"
                         style={{
@@ -2653,13 +2806,12 @@ function OpenCodeChatTUI() {
                           borderWidth: "1px",
                         }}
                       >
-                        {fileSuggestions.map((file, index) => {
-                          const isSelected =
-                            index === selectedFileSuggestionIndex;
+                        {mentionSuggestions.map((suggestion, index) => {
+                          const isSelected = index === selectedMentionIndex;
                           return (
                             <div
-                              key={index}
-                              className="p-2 cursor-pointer transition-colors text-sm"
+                              key={suggestion.label}
+                              className={`p-2 cursor-pointer transition-colors text-sm ${suggestion.type === "agent" ? "agent-suggestion" : ""}`}
                               style={{
                                 backgroundColor: isSelected
                                   ? "var(--theme-primary)"
@@ -2668,10 +2820,7 @@ function OpenCodeChatTUI() {
                                   ? "var(--theme-background)"
                                   : "var(--theme-foreground)",
                               }}
-                              onClick={() => {
-                                setInput(input.replace(/@\w*$/, `@${file} `));
-                                setShowFileSuggestions(false);
-                              }}
+                              onClick={() => handleMentionSelect(suggestion)}
                               onMouseEnter={(e) => {
                                 if (!isSelected) {
                                   e.currentTarget.style.backgroundColor =
@@ -2688,7 +2837,20 @@ function OpenCodeChatTUI() {
                               }}
                             >
                               <div className="flex items-center justify-between gap-2">
-                                <div className="flex-1 truncate">{file}</div>
+                                <div className="flex-1 truncate">
+                                  <span className="suggestion-name">
+                                    {suggestion.label}
+                                  </span>
+                                  {suggestion.type === "agent" &&
+                                    suggestion.description && (
+                                      <span
+                                        className="suggestion-desc block text-xs"
+                                        style={{ opacity: 0.6 }}
+                                      >
+                                        {suggestion.description}
+                                      </span>
+                                    )}
+                                </div>
                                 {isSelected && (
                                   <Badge
                                     variant="background2"
@@ -3463,9 +3625,95 @@ function OpenCodeChatTUI() {
           )}
           currentSession={currentSession}
           onSelect={switchSession}
-          onDelete={deleteSession}
+          onBulkDelete={handleBulkDeleteClick}
           onClose={() => setShowSessionPicker(false)}
         />
+      )}
+
+      {/* Delete Session Confirmation Dialog */}
+      {deleteDialogState.open && (
+        <Dialog
+          open={deleteDialogState.open}
+          onClose={() => setDeleteDialogState({ open: false })}
+        >
+          <View
+            className="p-6 rounded border max-w-md"
+            style={{
+              backgroundColor: "var(--theme-background)",
+              borderColor: "var(--theme-border)",
+            }}
+          >
+            <h3 className="text-lg font-bold mb-3">Delete Session</h3>
+            <p className="mb-4 text-sm opacity-90">
+              Are you sure you want to delete "{deleteDialogState.sessionTitle}
+              "? This action cannot be undone.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="foreground0"
+                box="round"
+                size="small"
+                onClick={() => setDeleteDialogState({ open: false })}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="foreground0"
+                box="round"
+                size="small"
+                onClick={confirmDelete}
+                className="delete-button-confirm"
+              >
+                Delete
+              </Button>
+            </div>
+          </View>
+        </Dialog>
+      )}
+
+      {/* Bulk Delete Confirmation Dialog */}
+      {bulkDeleteDialogOpen && (
+        <Dialog
+          open={bulkDeleteDialogOpen}
+          onClose={() => setBulkDeleteDialogOpen(false)}
+        >
+          <View
+            className="p-6 rounded border max-w-md"
+            style={{
+              backgroundColor: "var(--theme-background)",
+              borderColor: "var(--theme-border)",
+            }}
+          >
+            <h3 className="text-lg font-bold mb-3">
+              Delete {bulkDeleteIds.length} Session
+              {bulkDeleteIds.length > 1 ? "s" : ""}
+            </h3>
+            <p className="mb-4 text-sm opacity-90">
+              Are you sure you want to delete {bulkDeleteIds.length} selected
+              session{bulkDeleteIds.length > 1 ? "s" : ""}? This action cannot
+              be undone.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="foreground0"
+                box="round"
+                size="small"
+                onClick={() => setBulkDeleteDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="foreground0"
+                box="round"
+                size="small"
+                onClick={confirmBulkDelete}
+                className="delete-button-confirm"
+              >
+                Delete All
+              </Button>
+            </div>
+          </View>
+        </Dialog>
       )}
 
       {/* Permission Modal */}

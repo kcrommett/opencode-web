@@ -84,6 +84,8 @@ providersData: ReturnType<typeof useOpenCode>["providersData"];
   >["setCurrentSessionTodos"];
   executeSlashCommand: ReturnType<typeof useOpenCode>["executeSlashCommand"];
   parseCommand: ReturnType<typeof useOpenCode>["parseCommand"];
+  subagents: ReturnType<typeof useOpenCode>["subagents"];
+  sessionUsage: ReturnType<typeof useOpenCode>["sessionUsage"];
 }
 
 const OpenCodeContext = createContext<OpenCodeContextType | undefined>(

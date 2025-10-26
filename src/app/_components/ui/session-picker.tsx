@@ -1,5 +1,5 @@
-import React, { useEffect } from "react";
-import { Badge, Separator, Button, Dialog, View } from "./index";
+import React, { useEffect, useState } from "react";
+import { Badge, Separator, Button, Dialog, View, Checkbox } from "./index";
 
 interface Session {
   id: string;
@@ -15,7 +15,7 @@ interface SessionPickerProps {
   sessions: Session[];
   currentSession: Session | null;
   onSelect: (sessionId: string) => void;
-  onDelete: (sessionId: string) => void;
+  onBulkDelete?: (sessionIds: string[]) => void;
   onClose: () => void;
 }
 
@@ -23,9 +23,46 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
   sessions,
   currentSession,
   onSelect,
-  onDelete,
+  onBulkDelete,
   onClose,
 }) => {
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const toggleSelection = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  const selectAll = () => {
+    setSelectedIds(new Set(sessions.map((s) => s.id)));
+  };
+
+  const handleBulkDeleteClick = () => {
+    if (onBulkDelete && selectedIds.size > 0) {
+      onBulkDelete(Array.from(selectedIds));
+      clearSelection();
+      setIsEditMode(false);
+    }
+  };
+
+  const toggleEditMode = () => {
+    setIsEditMode(!isEditMode);
+    clearSelection();
+  };
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -49,11 +86,50 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
           borderWidth: "1px",
         }}
       >
-        <div className="p-4">
-          <h2 className="text-lg font-bold mb-2">Sessions</h2>
+        <div className="p-4 flex items-center justify-between">
+          <h2 className="text-lg font-bold">Sessions</h2>
+          <Button
+            variant="foreground0"
+            box="round"
+            size="small"
+            onClick={toggleEditMode}
+          >
+            {isEditMode ? "Done" : "Edit"}
+          </Button>
         </div>
 
         <Separator />
+
+        {isEditMode && (
+          <>
+            <div
+              className="flex items-center justify-between gap-2 px-4 py-2"
+              style={{
+                backgroundColor: "var(--theme-surface, var(--theme-backgroundAlt))",
+                borderBottom: "1px solid var(--theme-border, rgba(255,255,255,0.1))",
+              }}
+            >
+              <Button
+                variant="foreground0"
+                box="round"
+                size="small"
+                onClick={selectAll}
+              >
+                Select All
+              </Button>
+              <Button
+                variant="foreground0"
+                box="round"
+                size="small"
+                onClick={handleBulkDeleteClick}
+                className="delete-button-bulk"
+                disabled={selectedIds.size === 0}
+              >
+                Delete {selectedIds.size > 0 ? `(${selectedIds.size})` : ""}
+              </Button>
+            </div>
+          </>
+        )}
 
         <div className="px-4 py-2 space-y-2 max-h-96 overflow-y-auto scrollbar">
           {sessions.length === 0 ? (
@@ -63,10 +139,13 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
           ) : (
             sessions.map((session) => {
               const isSelected = currentSession?.id === session.id;
+              const isChecked = selectedIds.has(session.id);
               return (
                 <div
                   key={session.id}
-                  className="p-3 rounded cursor-pointer transition-colors"
+                  className={`p-3 rounded transition-colors ${
+                    isEditMode ? "flex items-start gap-3" : ""
+                  }`}
                   style={{
                     backgroundColor: isSelected
                       ? "var(--theme-primary)"
@@ -75,53 +154,59 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
                       ? "var(--theme-background)"
                       : "var(--theme-foreground)",
                   }}
-                  onClick={() => {
-                    onSelect(session.id);
-                    onClose();
-                  }}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate">
-                        {session.title || session.id.slice(0, 8)}
-                      </div>
-                      <div className="text-xs opacity-70 mt-1">
-                        {session.createdAt?.toLocaleDateString() || "Unknown"}
-                        {session.messageCount !== undefined && (
-                          <span className="ml-2">
-                            • {session.messageCount} messages
-                          </span>
+                  {isEditMode && (
+                    <Checkbox
+                      checked={isChecked}
+                      onChange={(e) =>
+                        toggleSelection(
+                          session.id,
+                          e as unknown as React.MouseEvent,
+                        )
+                      }
+                      onClick={(e) => e.stopPropagation()}
+                      className="mt-1"
+                    />
+                  )}
+                  <div
+                    className="flex-1 min-w-0 cursor-pointer"
+                    onClick={() => {
+                      if (!isEditMode) {
+                        onSelect(session.id);
+                        onClose();
+                      }
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">
+                          {session.title || session.id.slice(0, 8)}
+                        </div>
+                        <div className="text-xs opacity-70 mt-1">
+                          {session.createdAt?.toLocaleDateString() || "Unknown"}
+                          {session.messageCount !== undefined && (
+                            <span className="ml-2">
+                              • {session.messageCount} messages
+                            </span>
+                          )}
+                        </div>
+                        {session.directory && (
+                          <div className="text-xs opacity-50 truncate mt-1">
+                            {session.directory}
+                          </div>
                         )}
                       </div>
-                      {session.directory && (
-                        <div className="text-xs opacity-50 truncate mt-1">
-                          {session.directory}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex gap-1 flex-shrink-0">
-                      {isSelected && (
-                        <Badge
-                          variant="background2"
-                          cap="round"
-                          className="text-xs"
-                        >
-                          Current
-                        </Badge>
-                      )}
-                      <Button
-                        variant="foreground0"
-                        box="round"
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (confirm("Delete this session?")) {
-                            onDelete(session.id);
-                          }
-                        }}
-                      >
-                        ×
-                      </Button>
+                      <div className="flex gap-1 flex-shrink-0">
+                        {isSelected && !isEditMode && (
+                          <Badge
+                            variant="background2"
+                            cap="round"
+                            className="text-xs"
+                          >
+                            Current
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

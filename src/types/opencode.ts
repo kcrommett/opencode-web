@@ -93,3 +93,17 @@ export interface OpencodeConfig {
   provider?: Record<string, ProviderConfig>;
   [key: string]: unknown;
 }
+
+export interface SessionUsageTotals {
+  input: number;
+  output: number;
+  reasoning: number;
+  cacheRead: number;
+  cacheWrite: number;
+  totalTokens: number;
+  lastMessageId?: string;
+}
+
+export type MentionSuggestion =
+  | { type: "agent"; name: string; description?: string; label: string }
+  | { type: "file"; path: string; label: string };
