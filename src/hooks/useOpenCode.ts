@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { openCodeService, handleOpencodeError } from "@/lib/opencode-client";
 import { OpencodeEvent, SSEConnectionState } from "@/lib/opencode-events";
 import { getAgentModel, getDefaultModel } from "@/lib/config";
@@ -352,6 +352,10 @@ export function useOpenCode() {
     }
     return [];
   });
+  const [sessionActivity, setSessionActivity] = useState<
+    Record<string, { running: boolean; lastUpdated: number }>
+  >({});
+  const [abortInFlight, setAbortInFlight] = useState(false);
 
   useEffect(() => {
     setFileDirectory(".");
@@ -404,6 +408,11 @@ export function useOpenCode() {
     manualModelSelectionRef.current = false;
   }, [currentAgent?.id]);
 
+  const currentSessionBusy = useMemo(() => {
+    if (!currentSession?.id) return false;
+    return sessionActivity[currentSession.id]?.running ?? false;
+  }, [currentSession?.id, sessionActivity]);
+
   useEffect(() => {
     if (!isHydrated) return;
 
@@ -447,6 +456,28 @@ export function useOpenCode() {
     models,
     sessionModelMap,
   ]);
+
+  const markSessionRunning = useCallback((sessionId: string) => {
+    setSessionActivity((prev) => ({
+      ...prev,
+      [sessionId]: { running: true, lastUpdated: Date.now() },
+    }));
+  }, []);
+
+  const markSessionIdle = useCallback((sessionId: string) => {
+    setSessionActivity((prev) => ({
+      ...prev,
+      [sessionId]: { running: false, lastUpdated: Date.now() },
+    }));
+  }, []);
+
+  const cleanupSessionActivity = useCallback((sessionId: string) => {
+    setSessionActivity((prev) => {
+      const next = { ...prev };
+      delete next[sessionId];
+      return next;
+    });
+  }, []);
 
   const normalizeProject = useCallback((project: unknown): Project | null => {
     if (!project || typeof project !== "object") return null;
@@ -899,6 +930,9 @@ export function useOpenCode() {
 
         case "session.deleted": {
           const sessionInfo = event.properties.info;
+          if (sessionInfo?.id) {
+            cleanupSessionActivity(sessionInfo.id);
+          }
           if (sessionInfo && activeSession?.id === sessionInfo.id) {
             setCurrentSession(null);
             setMessages([]);
@@ -916,8 +950,11 @@ export function useOpenCode() {
         }
 
         case "session.idle": {
-          debugLog("[SSE] Session became idle");
           const sessionId = event.properties.sessionID;
+          if (sessionId) {
+            markSessionIdle(sessionId);
+            debugLog("[SSE] Session idle:", sessionId);
+          }
           if (sessionId && sessionId === activeSession?.id) {
             loadMessages(sessionId).catch((error) => {
               console.error(
@@ -935,6 +972,9 @@ export function useOpenCode() {
             showToast(error.message, "error");
           }
           const sessionId = event.properties.sessionID;
+          if (sessionId) {
+            markSessionIdle(sessionId);
+          }
           if (sessionId && sessionId === activeSession?.id) {
             loadMessages(sessionId).catch((loadError) => {
               console.error(
@@ -1573,6 +1613,8 @@ export function useOpenCode() {
         throw new Error("No active session");
       }
 
+      markSessionRunning(targetSession.id);
+
       try {
         setLoading(true);
         setIsStreaming(false);
@@ -1705,13 +1747,22 @@ export function useOpenCode() {
         };
       } catch (error) {
         console.error("Failed to send message:", error);
+        markSessionIdle(targetSession.id);
         throw new Error(handleOpencodeError(error));
       } finally {
         setLoading(false);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentSession, currentProject, selectedModel, currentAgent, config],
+    [
+      currentSession,
+      currentProject,
+      selectedModel,
+      currentAgent,
+      config,
+      markSessionRunning,
+      markSessionIdle,
+    ],
   );  
 
   const loadProjects = useCallback(async () => {
@@ -2499,6 +2550,7 @@ export function useOpenCode() {
 
   const runShell = useCallback(
     async (sessionId: string, command: string, args: string[] = []) => {
+      markSessionRunning(sessionId);
       try {
         const response = await openCodeService.runShell(
           sessionId,
@@ -2509,10 +2561,11 @@ export function useOpenCode() {
         return response;
       } catch (error) {
         console.error("Failed to run shell command:", error);
+        markSessionIdle(sessionId);
         throw error;
       }
     },
-    [currentProject?.worktree],
+    [currentProject?.worktree, markSessionRunning, markSessionIdle],
   );
 
   const revertMessage = useCallback(
@@ -2587,6 +2640,7 @@ export function useOpenCode() {
       providerID: string,
       modelID: string,
     ) => {
+      markSessionRunning(sessionId);
       try {
         const response = await openCodeService.initSession(
           sessionId,
@@ -2598,14 +2652,16 @@ export function useOpenCode() {
         return response.data;
       } catch (error) {
         console.error("Failed to init session:", error);
+        markSessionIdle(sessionId);
         throw error;
       }
     },
-    [currentProject?.worktree],
+    [currentProject?.worktree, markSessionRunning, markSessionIdle],
   );
 
   const summarizeSession = useCallback(
     async (sessionId: string, providerID: string, modelID: string) => {
+      markSessionRunning(sessionId);
       try {
         const response = await openCodeService.summarizeSession(
           sessionId,
@@ -2616,7 +2672,34 @@ export function useOpenCode() {
         return response.data;
       } catch (error) {
         console.error("Failed to summarize session:", error);
+        markSessionIdle(sessionId);
         throw error;
+      }
+    },
+    [currentProject?.worktree, markSessionRunning, markSessionIdle],
+  );
+
+  const abortSession = useCallback(
+    async (sessionId: string) => {
+      try {
+        setAbortInFlight(true);
+        const response = await openCodeService.abortSession(
+          sessionId,
+          currentProject?.worktree,
+        );
+
+        if (response.error) {
+          throw new Error(response.error);
+        }
+
+        debugLog("[Abort] Session abort requested:", sessionId);
+
+        return response.data;
+      } catch (error) {
+        console.error("Failed to abort session:", error);
+        throw error;
+      } finally {
+        setAbortInFlight(false);
       }
     },
     [currentProject?.worktree],
@@ -2750,6 +2833,10 @@ export function useOpenCode() {
     unshareSession,
     initSession,
     summarizeSession,
+    abortSession,
+    currentSessionBusy,
+    abortInFlight,
+    sessionActivity,
     executeSlashCommand,
     parseCommand: (input: string) => parseCommand(input, commands),
     sseConnectionState,

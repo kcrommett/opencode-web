@@ -62,7 +62,7 @@ The opencode server already implements session interruption:
 
 **Location**: Add state declarations around line 220 (after existing useState declarations)
 
-- [ ] Add state for tracking active sessions
+- [x] Add state for tracking active sessions
   ```typescript
   const [sessionActivity, setSessionActivity] = useState<
     Record<string, { running: boolean; lastUpdated: number }>
@@ -70,7 +70,7 @@ The opencode server already implements session interruption:
   const [abortInFlight, setAbortInFlight] = useState(false)
   ```
 
-- [ ] Add derived state for current session
+- [x] Add derived state for current session
   ```typescript
   const currentSessionBusy = useMemo(() => {
     if (!currentSession?.id) return false
@@ -91,7 +91,7 @@ The opencode server already implements session interruption:
 
 **Location**: Add after state declarations (around line 230)
 
-- [ ] Add function to mark session as running
+- [x] Add function to mark session as running
   ```typescript
   const markSessionRunning = useCallback((sessionId: string) => {
     setSessionActivity(prev => ({
@@ -101,7 +101,7 @@ The opencode server already implements session interruption:
   }, [])
   ```
 
-- [ ] Add function to mark session as idle
+- [x] Add function to mark session as idle
   ```typescript
   const markSessionIdle = useCallback((sessionId: string) => {
     setSessionActivity(prev => ({
@@ -111,7 +111,7 @@ The opencode server already implements session interruption:
   }, [])
   ```
 
-- [ ] Add cleanup function for deleted sessions
+- [x] Add cleanup function for deleted sessions
   ```typescript
   const cleanupSessionActivity = useCallback((sessionId: string) => {
     setSessionActivity(prev => {
@@ -135,14 +135,14 @@ The opencode server already implements session interruption:
 
 **Location**: Modify `sendMessage` function (starts around line 1328)
 
-- [ ] Mark session running before API call
+- [x] Mark session running before API call
   ```typescript
   // After: if (!targetSession) throw...
   // Add:
   markSessionRunning(targetSession.id)
   ```
 
-- [ ] Ensure cleanup in finally block
+- [x] Ensure cleanup in finally block
   ```typescript
   // Modify existing finally block to NOT mark idle here
   // SSE events will handle marking idle
@@ -152,7 +152,7 @@ The opencode server already implements session interruption:
   }
   ```
 
-- [ ] Add error case handling
+- [x] Add error case handling
   ```typescript
   // In catch block before throw
   catch (error) {
@@ -178,17 +178,17 @@ The opencode server already implements session interruption:
 
 Apply same pattern to:
 
-- [ ] `runShell` function (line 2168)
+- [x] `runShell` function (line 2168)
   - Add `markSessionRunning(sessionId)` at start
   - Add `markSessionIdle(sessionId)` in catch for immediate failures
   - Rely on SSE for completion
 
-- [ ] `initSession` function (line 2251)
+- [x] `initSession` function (line 2251)
   - Add `markSessionRunning(sessionId)` at start
   - Add `markSessionIdle(sessionId)` in catch for immediate failures
   - Rely on SSE for completion
 
-- [ ] `summarizeSession` function (line 2275)
+- [x] `summarizeSession` function (line 2275)
   - Add `markSessionRunning(sessionId)` at start
   - Add `markSessionIdle(sessionId)` in catch for immediate failures
   - Rely on SSE for completion
@@ -208,7 +208,7 @@ Apply same pattern to:
 
 **Location**: Modify `handleSSEEvent` function inside `useEffect` (around line 750-1090)
 
-- [ ] Handle `session.idle` event
+- [x] Handle `session.idle` event
   ```typescript
   // Add new case around line 1090
   case "session.idle": {
@@ -221,7 +221,7 @@ Apply same pattern to:
   }
   ```
 
-- [ ] Handle `session.error` event (already exists around line 860)
+- [x] Handle `session.error` event (already exists around line 860)
   ```typescript
   // Modify existing case to also mark idle
   case "session.error": {
@@ -234,7 +234,7 @@ Apply same pattern to:
   }
   ```
 
-- [ ] Handle `session.deleted` event (already exists around line 820)
+- [x] Handle `session.deleted` event (already exists around line 820)
   ```typescript
   // Modify existing case to cleanup activity
   case "session.deleted": {
@@ -247,7 +247,7 @@ Apply same pattern to:
   }
   ```
 
-- [ ] Add message completion detection
+- [x] Add message completion detection
   ```typescript
   // Modify existing "message.updated" case (around line 900)
   case "message.updated": {
@@ -286,7 +286,7 @@ Apply same pattern to:
 
 **Location**: Add after other session operations (around line 2291, before return statement)
 
-- [ ] Implement abort function
+- [x] Implement abort function
   ```typescript
   const abortSession = useCallback(
     async (sessionId: string) => {
@@ -329,7 +329,7 @@ Apply same pattern to:
 
 **Location**: Modify return statement (around line 2293-2363)
 
-- [ ] Add new exports to return object
+- [x] Add new exports to return object
   ```typescript
   return {
     // ... existing exports
@@ -358,7 +358,7 @@ Apply same pattern to:
 
 **Location**: Modify `OpenCodeContextType` interface (lines 4-73)
 
-- [ ] Add new type properties
+- [x] Add new type properties
   ```typescript
   interface OpenCodeContextType {
     // ... existing properties
@@ -381,13 +381,13 @@ Apply same pattern to:
 
 ### Phase 3: UI Implementation
 
-#### Task 3.1: Add Stop Button Component
+#### Task 3.1: Add ESC Key Abort and Mobile Stop Button
 
 **File**: `src/app/index.tsx`
 
-**Location**: Modify input section (around lines 2471-2560)
+**Location**: Modify input section and keyboard handling
 
-- [ ] Import abort function from context (top of component)
+- [x] Import abort function from context (top of component)
   ```typescript
   // Modify useOpenCodeContext destructuring (around line 291)
   const {
@@ -398,7 +398,7 @@ Apply same pattern to:
   } = useOpenCodeContext();
   ```
 
-- [ ] Create abort handler function (around line 403, after `handleSend`)
+- [x] Create abort handler function (around line 403, after `handleSend`)
   ```typescript
   const handleAbort = async () => {
     if (!currentSession?.id || abortInFlight) return
@@ -425,48 +425,65 @@ Apply same pattern to:
   }
   ```
 
-- [ ] Modify button section to conditionally show Stop or Send
+- [x] Add ESC key handler for desktop abort
   ```typescript
-  // Replace existing Send button section (lines 2551-2559) with:
-  <div className="flex gap-2">
-    {currentSessionBusy ? (
-      <Button
-        variant="foreground0"
-        box="square"
-        onClick={handleAbort}
-        disabled={abortInFlight}
-        className="px-6 py-2 w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
-      >
-        {abortInFlight ? "Stopping..." : "Stop Agent"}
-      </Button>
-    ) : (
-      <Button
-        variant="foreground0"
-        box="square"
-        onClick={handleSend}
-        disabled={!input.trim() || loading}
-        className="px-6 py-2 w-full sm:w-auto"
-      >
-        Send
-      </Button>
-    )}
-  </div>
+  // Modify handleKeyDown function to add ESC handling:
+  if (e.key === "Escape") {
+    if (showCommandPicker) {
+      e.preventDefault();
+      setShowCommandPicker(false);
+    } else if (showFileSuggestions) {
+      e.preventDefault();
+      setShowFileSuggestions(false);
+    } else if (currentSessionBusy && !isMobile) {
+      // On desktop, ESC aborts the running agent
+      e.preventDefault();
+      handleAbort();
+    }
+  }
   ```
 
+- [x] Remove Send button entirely, add mobile-only Stop button
+  ```typescript
+  // Replace button section with:
+  {currentSessionBusy && isMobile && (
+    <div className="relative w-full">
+      <Button
+        variant="foreground0"
+        box="square"
+        size="large"
+        onClick={handleAbort}
+        disabled={abortInFlight}
+        className="w-full text-white disabled:opacity-50"
+        style={{
+          backgroundColor: "var(--theme-error)",
+          opacity: abortInFlight ? 0.7 : 1,
+        }}
+      >
+        {abortInFlight ? "Stopping..." : "Stop Agent (ESC on desktop)"}
+      </Button>
+    </div>
+  )}
+  ```
+
+- [x] Remove unused `composerHeight` state and `sendButtonDimensionStyle` variable
+- [x] Remove unused `CSSProperties` import
+
 **Validation**:
-- Button switches between Send and Stop based on `currentSessionBusy`
-- Stop button disabled while abort in flight
-- Click handler executes abort
+- ESC key aborts agent on desktop when running
+- Mobile shows Stop Agent button when agent running
+- Desktop has no visible button (cleaner UI)
+- Enter key still sends messages as usual
 
 ---
 
-#### Task 3.2: Add Running Status Indicator
+#### Task 3.2: Add Running Status Indicator with ESC Hint
 
 **File**: `src/app/index.tsx`
 
 **Location**: Status bar with model/session info (around lines 2392-2450)
 
-- [ ] Add running indicator badge
+- [x] Add running indicator badge with ESC hint on desktop
   ```typescript
   // After the session button (around line 2429), add:
   {currentSessionBusy && (
@@ -478,7 +495,7 @@ Apply same pattern to:
         className="flex items-center gap-1 animate-pulse"
       >
         <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
-        Agent running
+        Agent running {!isMobile && "(ESC to stop)"}
       </Badge>
     </>
   )}
@@ -486,18 +503,20 @@ Apply same pattern to:
 
 **Validation**:
 - Badge appears when agent is running
+- Badge shows "(ESC to stop)" on desktop only
 - Badge disappears when idle
 - Animation provides visual feedback
 
 ---
 
-#### Task 3.3: Disable Input During Agent Execution
+#### Task 3.3: Update Input Placeholder with ESC Hint
 
 **File**: `src/app/index.tsx`
 
 **Location**: Textarea component (around line 2481)
 
-- [ ] Disable textarea when busy
+- [x] Keep textarea always enabled (for future message queuing feature)
+- [x] Add context-aware placeholder for desktop users
   ```typescript
   // Modify Textarea component:
   <Textarea
@@ -505,25 +524,27 @@ Apply same pattern to:
     onChange={(e) => handleInputChange(e.target.value)}
     onKeyDown={handleKeyDown}
     placeholder={
-      currentSessionBusy 
-        ? "Agent is running... Click 'Stop Agent' to interrupt"
+      currentSessionBusy && !isMobile
+        ? "Agent running... Press ESC to stop, or type to queue a message"
         : "Type your message, Tab to switch agent, /models to select model..."
     }
-    disabled={currentSessionBusy}
     rows={2}
     size="large"
-    className={`w-full bg-theme-background text-theme-foreground border-theme-primary resize-none ${
-      currentSessionBusy ? "opacity-60 cursor-not-allowed" : ""
-    }`}
+    className="w-full bg-theme-background text-theme-foreground border-theme-primary resize-none"
   />
   ```
 
-**Rationale**: Prevents user from queuing messages while agent is running, which could cause confusion. Users must stop the current operation before starting a new one.
+**Rationale**: 
+- Users discover ESC keyboard shortcut through placeholder text
+- Prepares for future message queuing feature
+- Different placeholder on mobile where ESC isn't available
+- Input stays enabled so users can compose next message
 
 **Validation**:
-- Input disabled when agent running
-- Placeholder updates to inform user
-- Visual styling indicates disabled state
+- Input always enabled regardless of agent state
+- Desktop placeholder mentions ESC key when agent running
+- Mobile placeholder doesn't mention ESC
+- Placeholder returns to normal when agent idle
 
 ---
 
@@ -1013,18 +1034,26 @@ No new configuration required. Feature uses existing:
 4. Prevents race conditions where HTTP completes before SSE
 5. Works even if client loses connection during abort (SSE reconnects and delivers event)
 
-### Why Disable Input During Execution?
+### Why Use ESC Key Instead of Stop Button on Desktop?
 
-**Decision**: Disable textarea and show different placeholder while agent is running.
+**Decision**: Remove Send button entirely, use ESC key for abort on desktop, show mobile-only Stop button.
 
 **Rationale**:
-1. Prevents users from queuing messages (server processes one per session via lock)
-2. Makes it clear that action is required (stop current operation)
-3. Reduces confusion about why new messages aren't sending
-4. Matches mental model of synchronous interaction
+1. Nobody uses the Send button - everyone presses Enter to send
+2. ESC is a natural keyboard shortcut for "cancel/stop" operations
+3. Cleaner UI with no buttons cluttering the input area on desktop
+4. Mobile still needs visual button since ESC key not available
+5. Aligns with message queuing feature - users type and press Enter to queue/send
+6. Keyboard-first interface matches developer workflow
 
-**Alternative Considered**: Allow queuing messages, send them after current operation completes.
-**Rejected Because**: Server lock prevents this, would need queue in client with complex state management.
+**Alternative Considered**: Show both Stop and Send buttons.
+**Rejected Because**: Send button adds visual clutter when users already use Enter key. Stop button also clutters desktop UI when ESC is more natural.
+
+**Benefits**:
+- Minimal, clean interface on desktop (just textarea)
+- Keyboard shortcuts feel natural (Enter = send, ESC = stop)
+- Mobile users get visible button for discoverability
+- Placeholder text teaches desktop users about ESC shortcut
 
 ### Why Show Running Badge?
 

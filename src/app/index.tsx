@@ -1,5 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo, useEffect, useRef } from "react";
+import {
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+} from "react";
 import {
   Button,
   Input,
@@ -37,6 +42,7 @@ import {
   isImageFile,
   addLineNumbers,
 } from "@/lib/highlight";
+import { useIsMobile } from "@/lib/breakpoints";
 import "highlight.js/styles/github-dark.css";
 
 type ProjectItem = {
@@ -261,6 +267,7 @@ function OpenCodeChatTUI() {
     return 320;
   });
   const [isResizing, setIsResizing] = useState(false);
+  const isMobile = useIsMobile();
 
   const selectedFileName = selectedFile?.split("/").pop() ?? null;
   const fileTextContent = fileContent?.text ?? null;
@@ -348,6 +355,9 @@ function OpenCodeChatTUI() {
     unshareSession,
     initSession,
     summarizeSession,
+    abortSession,
+    currentSessionBusy,
+    abortInFlight,
     currentPermission,
     setCurrentPermission,
     shouldBlurEditor,
@@ -424,6 +434,30 @@ function OpenCodeChatTUI() {
       }
     } catch (err) {
       console.error("Failed to send message:", err);
+    }
+  };
+
+  const handleAbort = async () => {
+    if (!currentSession?.id || abortInFlight) return;
+
+    try {
+      await abortSession(currentSession.id);
+
+      const successMsg = {
+        id: `assistant-${Date.now()}`,
+        type: "assistant" as const,
+        content: "Agent stopped by user.",
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, successMsg]);
+    } catch (error) {
+      const errorMsg = {
+        id: `assistant-${Date.now()}`,
+        type: "assistant" as const,
+        content: `Failed to stop agent: ${error instanceof Error ? error.message : "Unknown error"}`,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMsg]);
     }
   };
 
@@ -1264,6 +1298,10 @@ function OpenCodeChatTUI() {
       } else if (showFileSuggestions) {
         e.preventDefault();
         setShowFileSuggestions(false);
+      } else if (currentSessionBusy && !isMobile) {
+        // On desktop, ESC aborts the running agent
+        e.preventDefault();
+        handleAbort();
       }
     }
   };
@@ -2526,6 +2564,19 @@ function OpenCodeChatTUI() {
                     >
                       {currentSession?.title || "No session"}
                     </button>
+                    {currentSessionBusy && (
+                      <>
+                        <span className="text-theme-muted">•</span>
+                        <Badge
+                          variant="foreground0"
+                          cap="round"
+                          className="flex items-center gap-1 animate-pulse"
+                        >
+                          <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
+                          Agent running {!isMobile && "(ESC to stop)"}
+                        </Badge>
+                      </>
+                    )}
                     {sessionTokenStats.totalTokens > 0 && (
                       <>
                         <span className="text-theme-muted">•</span>
@@ -2569,7 +2620,7 @@ function OpenCodeChatTUI() {
                     </Badge>
                   </button>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-2 items-stretch">
+                <div className="flex flex-col sm:flex-row sm:items-stretch gap-2">
                   <div className="flex-1 relative w-full">
                     {showCommandPicker && (
                       <CommandPicker
@@ -2584,7 +2635,11 @@ function OpenCodeChatTUI() {
                       value={input}
                       onChange={(e) => handleInputChange(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      placeholder="Type your message, Tab to switch agent, /models to select model..."
+                      placeholder={
+                        currentSessionBusy && !isMobile
+                          ? "Agent running... Press ESC to stop, or type to queue a message"
+                          : "Type your message, Tab to switch agent, /models to select model..."
+                      }
                       rows={2}
                       size="large"
                       className="w-full bg-theme-background text-theme-foreground border-theme-primary resize-none"
@@ -2650,15 +2705,24 @@ function OpenCodeChatTUI() {
                       </div>
                     )}
                   </div>
-                  <Button
-                    variant="foreground0"
-                    box="square"
-                    onClick={handleSend}
-                    disabled={!input.trim()}
-                    className="px-6 w-full sm:w-auto h-full"
-                  >
-                    Send
-                  </Button>
+                  {currentSessionBusy && isMobile && (
+                    <div className="relative w-full">
+                      <Button
+                        variant="foreground0"
+                        box="square"
+                        size="large"
+                        onClick={handleAbort}
+                        disabled={abortInFlight}
+                        className="w-full text-white disabled:opacity-50"
+                        style={{
+                          backgroundColor: "var(--theme-error)",
+                          opacity: abortInFlight ? 0.7 : 1,
+                        }}
+                      >
+                        {abortInFlight ? "Stopping..." : "Stop Agent (ESC on desktop)"}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </View>
             </div>
