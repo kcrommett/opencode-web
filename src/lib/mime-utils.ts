@@ -60,6 +60,15 @@ const CUSTOM_MIME_TYPES: Record<string, string> = {
   conf: "text/plain",
   cfg: "text/plain",
   env: "text/plain",
+  jsonc: "application/json",
+
+  // JavaScript module formats
+  cjs: "application/javascript",
+  mjs: "application/javascript",
+
+  // Stylesheets
+  scss: "text/x-scss",
+  sass: "text/x-sass",
 
   // Markdown
   md: "text/markdown",
