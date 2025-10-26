@@ -79,9 +79,7 @@ providersData: ReturnType<typeof useOpenCode>["providersData"];
   shouldBlurEditor: ReturnType<typeof useOpenCode>["shouldBlurEditor"];
   setShouldBlurEditor: ReturnType<typeof useOpenCode>["setShouldBlurEditor"];
   currentSessionTodos: ReturnType<typeof useOpenCode>["currentSessionTodos"];
-  setCurrentSessionTodos: ReturnType<
-    typeof useOpenCode
-  >["setCurrentSessionTodos"];
+  setCurrentSessionTodos: ReturnType<typeof useOpenCode>["setCurrentSessionTodos"];
   executeSlashCommand: ReturnType<typeof useOpenCode>["executeSlashCommand"];
   parseCommand: ReturnType<typeof useOpenCode>["parseCommand"];
   subagents: ReturnType<typeof useOpenCode>["subagents"];
@@ -92,6 +90,10 @@ providersData: ReturnType<typeof useOpenCode>["providersData"];
   clearQueue: ReturnType<typeof useOpenCode>["clearQueue"];
   processNextInQueue: ReturnType<typeof useOpenCode>["processNextInQueue"];
   isProcessingQueue: ReturnType<typeof useOpenCode>["isProcessingQueue"];
+  // Frame state management for keyboard navigation
+  selectedFrame: string | null;
+  selectFrame: (frame: string | null) => void;
+  frameActions: Record<string, () => void>;
 }
 
 const OpenCodeContext = createContext<OpenCodeContextType | undefined>(

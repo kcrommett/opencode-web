@@ -43,6 +43,8 @@ import {
   addLineNumbers,
 } from "@/lib/highlight";
 import { useIsMobile } from "@/lib/breakpoints";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { KeyboardIndicator } from "@/app/_components/ui";
 import "highlight.js/styles/github-dark.css";
 
 type ProjectItem = {
@@ -448,6 +450,7 @@ function OpenCodeChatTUI() {
   const [selectedSidebarSessionIds, setSelectedSidebarSessionIds] = useState<
     Set<string>
   >(new Set());
+  const lastEscTimeRef = useRef<number>(0);
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("opencode-active-tab") || "workspace";
@@ -607,8 +610,234 @@ function OpenCodeChatTUI() {
     clearQueue,
     processNextInQueue: _processNextInQueue,
     isProcessingQueue: _isProcessingQueue,
+    // Frame state for keyboard navigation
+    selectedFrame,
+    selectFrame,
+    frameActions,
   } = useOpenCodeContext();
   const { currentTheme, changeTheme } = useTheme(config?.theme);
+
+  // Initialize keyboard shortcuts
+  const { keyboardState, registerShortcut } = useKeyboardShortcuts();
+
+  // Register keyboard shortcuts for frame navigation
+  useEffect(() => {
+    const unregisterFns: (() => void)[] = [];
+
+    // Frame navigation shortcuts (require leader key)
+    unregisterFns.push(
+      registerShortcut({
+        key: "p",
+        handler: () => selectFrame("projects"),
+        requiresLeader: true,
+        description: "Navigate to Projects",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "s",
+        handler: () => selectFrame("sessions"),
+        requiresLeader: true,
+        description: "Navigate to Sessions",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "f",
+        handler: () => selectFrame("files"),
+        requiresLeader: true,
+        description: "Navigate to Files",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "w",
+        handler: () => selectFrame("workspace"),
+        requiresLeader: true,
+        description: "Navigate to Workspace",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "m",
+        handler: () => setShowModelPicker(true),
+        requiresLeader: true,
+        description: "Open Model Picker",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "a",
+        handler: () => setShowAgentPicker(true),
+        requiresLeader: true,
+        description: "Open Agent Picker",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "t",
+        handler: () => setShowThemes(true),
+        requiresLeader: true,
+        description: "Open Theme Picker",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "h",
+        handler: () => setShowHelp(true),
+        requiresLeader: true,
+        description: "Open Help Dialog",
+        category: "navigation",
+      })
+    );
+
+    // Secondary action shortcuts (require selected frame)
+    unregisterFns.push(
+      registerShortcut({
+        key: "n",
+        handler: () => {
+          if (selectedFrame === "sessions") {
+            setShowNewSessionForm(true);
+          } else if (selectedFrame === "projects") {
+            setShowNewProjectForm(true);
+          }
+        },
+        requiresFrame: selectedFrame || undefined,
+        description: "New (Project/Session)",
+        category: "action",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "e",
+        handler: () => {
+          if (selectedFrame === "sessions" && currentSession) {
+            setSidebarEditMode(true);
+          }
+        },
+        requiresFrame: "sessions",
+        description: "Edit Session",
+        category: "action",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "d",
+        handler: () => {
+          if (selectedFrame === "sessions" && currentSession) {
+            if (confirm("Are you sure you want to delete this session?")) {
+              deleteSession(currentSession.id);
+            }
+          }
+        },
+        requiresFrame: "sessions",
+        description: "Delete Session",
+        category: "action",
+      })
+    );
+
+    return () => {
+      unregisterFns.forEach((fn) => fn());
+    };
+  }, [
+    registerShortcut,
+    selectFrame,
+    selectedFrame,
+    currentSession,
+    setShowModelPicker,
+    setShowAgentPicker,
+    setShowThemes,
+    setShowHelp,
+    setShowNewSessionForm,
+    setShowNewProjectForm,
+    setSidebarEditMode,
+    deleteSession,
+  ]);
+
+  // Handle frame navigation and actions
+  useEffect(() => {
+    if (selectedFrame === "projects") {
+      // Focus on project selector
+      const projectSelector = document.querySelector('[data-project-selector]');
+      if (projectSelector) {
+        (projectSelector as HTMLElement).focus();
+      }
+    } else if (selectedFrame === "sessions") {
+      // Focus on sessions list
+      const sessionsList = document.querySelector('[data-sessions-list]');
+      if (sessionsList) {
+        (sessionsList as HTMLElement).focus();
+      }
+    } else if (selectedFrame === "files") {
+      // Switch to files tab
+      setActiveTab("files");
+    } else if (selectedFrame === "workspace") {
+      // Focus on input area
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    }
+  }, [selectedFrame]);
+
+  // Handle secondary actions based on selected frame
+  useEffect(() => {
+    const handleFrameAction = (action: string) => {
+      if (!selectedFrame) return;
+
+      switch (selectedFrame) {
+        case "sessions":
+          if (action === "new") {
+            setShowNewSessionForm(true);
+          } else if (action === "edit") {
+            // Enable edit mode for current session
+            if (currentSession) {
+              setSidebarEditMode(true);
+            }
+          } else if (action === "delete") {
+            // Delete current session
+            if (currentSession && confirm("Are you sure you want to delete this session?")) {
+              deleteSession(currentSession.id);
+            }
+          }
+          break;
+        case "projects":
+          if (action === "new") {
+            setShowNewProjectForm(true);
+          }
+          break;
+      }
+      
+      // Clear frame selection after action
+      selectFrame(null);
+    };
+
+    // Listen for frame actions (this will be triggered by keyboard shortcuts)
+    const handleFrameActionEvent = (event: CustomEvent) => {
+      handleFrameAction(event.detail.action);
+    };
+
+    window.addEventListener("frame-action", handleFrameActionEvent as EventListener);
+    
+    return () => {
+      window.removeEventListener("frame-action", handleFrameActionEvent as EventListener);
+    };
+  }, [selectedFrame, currentSession, deleteSession, selectFrame]);
 
   const customCommandSuggestions = useMemo<Command[]>(() => {
     if (!commands || commands.length === 0) return [];
@@ -1624,10 +1853,37 @@ function OpenCodeChatTUI() {
       } else if (showMentionSuggestions) {
         e.preventDefault();
         setShowMentionSuggestions(false);
-      } else if (currentSessionBusy && !isMobile) {
-        // On desktop, ESC aborts the running agent
+      } else if (keyboardState.leaderActive) {
+        // Deactivate leader mode if it's active
         e.preventDefault();
-        handleAbort();
+        // This will be handled by the keyboard manager
+      } else {
+        // Handle double ESC for agent interruption (desktop only)
+        const now = Date.now();
+        const timeSinceLastEsc = now - lastEscTimeRef.current;
+        
+        if (timeSinceLastEsc < 500 && currentSessionBusy && !isMobile) {
+          // Double ESC detected - interrupt agent
+          e.preventDefault();
+          handleAbort();
+          lastEscTimeRef.current = 0; // Reset timer
+        } else {
+          // Single ESC - blur focused element or prepare for double ESC
+          lastEscTimeRef.current = now;
+          
+          // Blur any focused element that's not the body
+          const activeElement = document.activeElement as HTMLElement;
+          if (activeElement && activeElement !== document.body) {
+            activeElement.blur();
+          }
+          
+          // Clear the timer after the threshold
+          setTimeout(() => {
+            if (lastEscTimeRef.current === now) {
+              lastEscTimeRef.current = 0;
+            }
+          }, 500);
+        }
       }
     }
   };
@@ -3573,6 +3829,117 @@ function OpenCodeChatTUI() {
                     <span className="opacity-70">Export session</span>
                   </div>
                   <div className="flex justify-between p-2 rounded bg-theme-background-alt">
+                    <span className="text-theme-primary">/import</span>
+                    <span className="opacity-70">Import session</span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="text-xs font-bold uppercase mb-2 opacity-60">
+                  Keyboard Shortcuts
+                </div>
+                <div className="space-y-2">
+                  <div className="text-xs opacity-70 mb-2">
+                    Press <span className="font-mono bg-theme-background-alt px-1 rounded">Space</span> to activate leader mode, then:
+                  </div>
+                  <div className="space-y-1 font-mono text-sm">
+                    <div className="flex justify-between p-2 rounded bg-theme-background-alt">
+                      <span className="text-theme-primary">Space P</span>
+                      <span className="opacity-70">Navigate to Projects</span>
+                    </div>
+                    <div className="flex justify-between p-2 rounded bg-theme-background-alt">
+                      <span className="text-theme-primary">Space S</span>
+                      <span className="opacity-70">Navigate to Sessions</span>
+                    </div>
+                    <div className="flex justify-between p-2 rounded bg-theme-background-alt">
+                      <span className="text-theme-primary">Space F</span>
+                      <span className="opacity-70">Navigate to Files</span>
+                    </div>
+                    <div className="flex justify-between p-2 rounded bg-theme-background-alt">
+                      <span className="text-theme-primary">Space W</span>
+                      <span className="opacity-70">Navigate to Workspace</span>
+                    </div>
+                    <div className="flex justify-between p-2 rounded bg-theme-background-alt">
+                      <span className="text-theme-primary">Space M</span>
+                      <span className="opacity-70">Open Model picker</span>
+                    </div>
+                    <div className="flex justify-between p-2 rounded bg-theme-background-alt">
+                      <span className="text-theme-primary">Space A</span>
+                      <span className="opacity-70">Open Agent picker</span>
+                    </div>
+                    <div className="flex justify-between p-2 rounded bg-theme-background-alt">
+                      <span className="text-theme-primary">Space T</span>
+                      <span className="opacity-70">Open Theme picker</span>
+                    </div>
+                    <div className="flex justify-between p-2 rounded bg-theme-background-alt">
+                      <span className="text-theme-primary">Space C</span>
+                      <span className="opacity-70">Open Config</span>
+                    </div>
+                    <div className="flex justify-between p-2 rounded bg-theme-background-alt">
+                      <span className="text-theme-primary">Space H</span>
+                      <span className="opacity-70">Open Help</span>
+                    </div>
+                  </div>
+                  <div className="text-xs opacity-70 mt-3 mb-2">
+                    When a frame is selected:
+                  </div>
+                  <div className="space-y-1 font-mono text-sm">
+                    <div className="flex justify-between p-2 rounded bg-theme-background-alt">
+                      <span className="text-theme-primary">N</span>
+                      <span className="opacity-70">New (project/session)</span>
+                    </div>
+                    <div className="flex justify-between p-2 rounded bg-theme-background-alt">
+                      <span className="text-theme-primary">E</span>
+                      <span className="opacity-70">Edit (session)</span>
+                    </div>
+                    <div className="flex justify-between p-2 rounded bg-theme-background-alt">
+                      <span className="text-theme-primary">D</span>
+                      <span className="opacity-70">Delete (session)</span>
+                    </div>
+                    <div className="flex justify-between p-2 rounded bg-theme-background-alt">
+                      <span className="text-theme-primary">Enter</span>
+                      <span className="opacity-70">Activate selection</span>
+                    </div>
+                  </div>
+                  <div className="text-xs opacity-70 mt-3 mb-2">
+                    Global shortcuts:
+                  </div>
+                  <div className="space-y-1 font-mono text-sm">
+                    <div className="flex justify-between p-2 rounded bg-theme-background-alt">
+                      <span className="text-theme-primary">ESC</span>
+                      <span className="opacity-70">Break focus / Close dialog</span>
+                    </div>
+                    <div className="flex justify-between p-2 rounded bg-theme-background-alt">
+                      <span className="text-theme-primary">ESC ESC</span>
+                      <span className="opacity-70">Interrupt agent (desktop only)</span>
+                    </div>
+                    <div className="flex justify-between p-2 rounded bg-theme-background-alt">
+                      <span className="text-theme-primary">Tab</span>
+                      <span className="opacity-70">Cycle through agents</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="text-xs font-bold uppercase mb-2 opacity-60">
+                  Slash Commands
+                </div>
+                <div className="space-y-1 font-mono text-sm">
+                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
+                    <span className="text-theme-primary">/help</span>
+                    <span className="opacity-70">Show this help dialog</span>
+                  </div>
+                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
+                    <span className="text-theme-primary">/share</span>
+                    <span className="opacity-70">Share current session</span>
+                  </div>
+                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
+                    <span className="text-theme-primary">/export</span>
+                    <span className="opacity-70">Export session</span>
+                  </div>
+                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
                     <span className="text-theme-primary">/debug</span>
                     <span className="opacity-70">
                       Export session data (JSON)
@@ -3991,6 +4358,9 @@ function OpenCodeChatTUI() {
       {/* PWA Components */}
       <InstallPrompt />
       <PWAReloadPrompt />
+      
+      {/* Keyboard Shortcuts Indicator */}
+      <KeyboardIndicator keyboardState={keyboardState} />
     </View>
   );
 }

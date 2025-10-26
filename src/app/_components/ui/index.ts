@@ -12,6 +12,7 @@ export { Spinner } from "./spinner";
 export { View } from "./view";
 export { MobileSidebar } from "./mobile-sidebar";
 export { HamburgerMenu } from "./hamburger-menu";
+export { KeyboardIndicator } from "./keyboard-indicator";
 
 // PWA Components
 export { InstallPrompt } from "./install-prompt";
