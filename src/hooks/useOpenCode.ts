@@ -11,6 +11,7 @@ import type {
   SessionTodo,
   OpencodeConfig,
   Command,
+  SessionUsageTotals,
 } from "@/types/opencode";
 
 const isDevEnvironment = process.env.NODE_ENV !== "production";
@@ -373,7 +374,11 @@ export function useOpenCode() {
   const [customCommands, setCustomCommands] = useState<
     Array<{ name: string; description: string; template: string }>
   >([]);
+  const [sessionUsage, setSessionUsage] = useState<
+    Map<string, SessionUsageTotals>
+  >(new Map());
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [subagents, setSubagents] = useState<Agent[]>([]);
   const [currentAgent, setCurrentAgent] = useState<Agent | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
 
@@ -903,6 +908,12 @@ export function useOpenCode() {
             setCurrentSession(null);
             setMessages([]);
             seenMessageIdsRef.current.clear();
+            // Clear session usage for deleted session
+            setSessionUsage((prev) => {
+              const next = new Map(prev);
+              next.delete(sessionInfo.id);
+              return next;
+            });
             showToast("Session was deleted", "info");
           }
           break;
@@ -1075,6 +1086,51 @@ export function useOpenCode() {
             debugLog("[SSE] Added new message placeholder:", messageInfo.id);
             return newMessages;
           });
+
+          // Update session usage totals for assistant messages with tokens
+          if (
+            messageInfo.tokens &&
+            messageInfo.role === "assistant" &&
+            eventSessionId
+          ) {
+            setSessionUsage((prev) => {
+              const current = prev.get(eventSessionId) || {
+                input: 0,
+                output: 0,
+                reasoning: 0,
+                cacheRead: 0,
+                cacheWrite: 0,
+                totalTokens: 0,
+              };
+
+              // Skip if we've already counted this message
+              if (messageInfo.id === current.lastMessageId) {
+                return prev;
+              }
+
+              const tokens = messageInfo.tokens;
+              const newTotals: SessionUsageTotals = {
+                input: current.input + (tokens.input || 0),
+                output: current.output + (tokens.output || 0),
+                reasoning: current.reasoning + (tokens.reasoning || 0),
+                cacheRead: current.cacheRead + (tokens.cache?.read || 0),
+                cacheWrite: current.cacheWrite + (tokens.cache?.write || 0),
+                totalTokens: 0,
+                lastMessageId: messageInfo.id,
+              };
+
+              newTotals.totalTokens =
+                newTotals.input +
+                newTotals.output +
+                newTotals.reasoning +
+                newTotals.cacheRead +
+                newTotals.cacheWrite;
+
+              const next = new Map(prev);
+              next.set(eventSessionId, newTotals);
+              return next;
+            });
+          }
 
           if (
             eventSessionId &&
@@ -1851,6 +1907,12 @@ export function useOpenCode() {
           currentProject?.worktree,
         );
         setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+        // Clear session usage for deleted session
+        setSessionUsage((prev) => {
+          const next = new Map(prev);
+          next.delete(sessionId);
+          return next;
+        });
         if (currentSession?.id === sessionId) {
           setCurrentSession(null);
           setMessages([]);
@@ -1877,6 +1939,8 @@ export function useOpenCode() {
       setCurrentSession(null);
       setMessages([]);
       seenMessageIdsRef.current.clear();
+      // Clear all session usage
+      setSessionUsage(new Map());
     } catch (error) {
       console.error("Failed to clear sessions:", error);
     }
@@ -2395,6 +2459,12 @@ export function useOpenCode() {
         (agent) => agent.mode === "primary" || agent.mode === "all" || !agent.mode
       );
       setAgents(agentsArray);
+      
+      const subagentsArray = allAgents.filter(
+        (agent) => agent.mode === "subagent" || agent.mode === "all"
+      );
+      setSubagents(subagentsArray);
+      
       loadedAgentsRef.current = true;
 
       // Try to restore saved agent from localStorage
@@ -2739,6 +2809,7 @@ export function useOpenCode() {
     showModelPicker,
     setShowModelPicker,
     agents,
+    subagents,
     currentAgent,
     selectAgent,
     loadAgents,
@@ -2760,5 +2831,8 @@ export function useOpenCode() {
     setShouldBlurEditor,
     currentSessionTodos,
     setCurrentSessionTodos,
+    sessionUsage: currentSession?.id
+      ? sessionUsage.get(currentSession.id) || null
+      : null,
   };
 }

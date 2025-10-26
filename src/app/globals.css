@@ -846,3 +846,40 @@ pre.whitespace-pre-wrap {
   background-color: transparent !important;
   background-image: none !important;
 }
+
+/* Agent mention suggestion styling */
+.agent-suggestion {
+  border-left: 2px solid var(--theme-primary);
+}
+
+.suggestion-desc {
+  font-size: 0.875rem;
+  opacity: 0.6;
+}
+
+/* Session deletion button styling */
+.delete-button-neutral {
+  color: var(--theme-foreground);
+  opacity: 0.6;
+  transition: opacity 0.2s, color 0.2s, background-color 0.2s;
+}
+
+.delete-button-neutral:hover {
+  opacity: 1;
+  color: var(--theme-error, #ef4444);
+  background-color: color-mix(in srgb, var(--theme-error, #ef4444) 10%, transparent);
+}
+
+.delete-button-bulk:hover {
+  color: var(--theme-error, #ef4444);
+  background-color: color-mix(in srgb, var(--theme-error, #ef4444) 10%, transparent);
+}
+
+.delete-button-confirm {
+  background-color: var(--theme-error, #ef4444);
+  color: white;
+}
+
+.delete-button-confirm:hover {
+  background-color: color-mix(in srgb, var(--theme-error, #ef4444) 90%, black);
+}
