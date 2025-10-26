@@ -792,28 +792,28 @@ export const themes: Record<string, Theme> = {
       foreground: "#f8f8f2",
       foregroundAlt: "#cfcfc2",
       border: "#3e3d32",
-      primary: "#66d9ef",
-      primaryHover: "#ae81ff",
+      primary: "#ae81ff",
+      primaryHover: "#66d9ef",
       success: "#a6e22e",
       warning: "#e6db74",
       error: "#f92672",
       muted: "#75715e",
       backgroundPanel: "#1e1f1c",
       backgroundElement: "#3e3d32",
-      borderActive: "#66d9ef",
+      borderActive: "#ae81ff",
       borderSubtle: "#1e1f1c",
       textMuted: "#75715e",
-      secondary: "#ae81ff",
+      secondary: "#66d9ef",
       accent: "#fd971f",
-      info: "#66d9ef",
+      info: "#ae81ff",
       diffAdded: "#a6e22e",
       diffRemoved: "#f92672",
       diffContext: "#75715e",
       diffAddedBg: "#1e2a1e",
       diffRemovedBg: "#2a1e1e",
       diffContextBg: "#1e1f1c",
-      markdownHeading: "#66d9ef",
-      markdownLink: "#66d9ef",
+      markdownHeading: "#ae81ff",
+      markdownLink: "#ae81ff",
       markdownCode: "#a6e22e",
       markdownBlockQuote: "#75715e",
       syntaxComment: "#75715e",
@@ -1182,13 +1182,32 @@ export function applyTheme(themeId: string): void {
   });
 
   // Map theme variables to WebTUI variables
+  // WebTUI uses a semantic hierarchy for button variants and UI elements
+
+  // Background levels (darkest → lightest)
   root.style.setProperty("--background0", theme.colors.background);
   root.style.setProperty("--background1", theme.colors.backgroundAlt);
   root.style.setProperty("--background2", theme.colors.backgroundAccent);
-  root.style.setProperty("--background3", theme.colors.border);
+  root.style.setProperty(
+    "--background3",
+    theme.colors.backgroundPanel || theme.colors.backgroundElement,
+  );
+
+  // Foreground levels (highest prominence → lowest)
+  // foreground0: Primary actions, key CTAs
+  // foreground1: Secondary actions, main text
+  // foreground2: Tertiary actions, muted text
   root.style.setProperty("--foreground0", theme.colors.primary);
-  root.style.setProperty("--foreground1", theme.colors.foreground);
+  root.style.setProperty(
+    "--foreground1",
+    theme.colors.secondary || theme.colors.accent,
+  );
   root.style.setProperty("--foreground2", theme.colors.foregroundAlt);
+
+  // Additional semantic mappings for WebTUI components
+  root.style.setProperty("--border-color", theme.colors.border);
+  root.style.setProperty("--text-primary", theme.colors.foreground);
+  root.style.setProperty("--text-secondary", theme.colors.foregroundAlt);
 
   updateThemeColor(theme.colors.background);
 

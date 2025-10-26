@@ -55,12 +55,12 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
 
           <div className="px-4 py-3 flex justify-between items-center border-b border-[var(--theme-border)]">
             <h2 className="text-lg font-bold">{title}</h2>
-            <Button
-              variant="foreground0"
-              box="round"
-              size="small"
-              onClick={onClose}
-              className="min-touch-target"
+             <Button
+               variant="background2"
+               box="round"
+               size="small"
+               onClick={onClose}
+               className="min-touch-target"
             >
               Close
             </Button>
