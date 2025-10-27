@@ -4388,6 +4388,19 @@ function OpenCodeChatTUI() {
         </Dialog>
       )}
 
+      {/* Project Picker */}
+      {showProjectPicker && (
+        <ProjectPicker
+          projects={projects}
+          currentProject={currentProject}
+          onSelect={(project) => {
+            switchProject(project);
+            setShowProjectPicker(false);
+          }}
+          onClose={() => setShowProjectPicker(false)}
+        />
+      )}
+
       {/* Agent Picker */}
       {showAgentPicker && (
         <AgentPicker
