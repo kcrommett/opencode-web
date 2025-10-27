@@ -72,31 +72,11 @@ export const SessionSearchInput: React.FC<SessionSearchInputProps> = ({
             backgroundColor: "var(--theme-backgroundAlt)",
             color: "var(--theme-foreground)",
             borderColor: "var(--theme-border)",
-            paddingLeft: "2.5rem",
+            paddingLeft: "0.75rem",
             paddingRight: localValue ? "2.5rem" : "0.75rem",
             height: "2.5rem",
           }}
         />
-        
-        {/* Search icon */}
-        <div
-          className="absolute left-2.5 top-1/2 transform -translate-y-1/2 opacity-50 pointer-events-none"
-          aria-hidden="true"
-        >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="7" cy="7" r="5" />
-            <path d="M11 11l4 4" />
-          </svg>
-        </div>
 
         {/* Clear button - minimal circle with X */}
         {localValue && (

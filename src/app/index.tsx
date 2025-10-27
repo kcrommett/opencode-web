@@ -1,5 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import {
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  useCallback,
+  useLayoutEffect,
+} from "react";
 import {
   Button,
   Input,
@@ -17,7 +24,10 @@ import {
 } from "@/app/_components/ui";
 import { CommandPicker } from "@/app/_components/ui/command-picker";
 import { AgentPicker } from "@/app/_components/ui/agent-picker";
-import { SessionPicker } from "@/app/_components/ui/session-picker";
+import {
+  SessionPicker,
+  type SessionPickerEditControls,
+} from "@/app/_components/ui/session-picker";
 import { SessionSearchInput } from "@/app/_components/ui/session-search";
 import { ProjectPicker } from "@/app/_components/ui/project-picker";
 import { PermissionModal } from "@/app/_components/ui/permission-modal";
@@ -502,6 +512,8 @@ function OpenCodeChatTUI() {
   const fileSearchInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const sessionPickerEditControls =
+    useRef<SessionPickerEditControls | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("opencode-sidebar-width");
@@ -630,10 +642,17 @@ function OpenCodeChatTUI() {
   const { currentTheme, changeTheme } = useTheme(config?.theme);
 
   // Initialize keyboard shortcuts
-  const { keyboardState, registerShortcut, setActiveModal } = useKeyboardShortcuts();
+  const {
+    keyboardState,
+    registerShortcut,
+    setActiveModal,
+    setSpacePassthrough,
+  } = useKeyboardShortcuts();
 
   // Close all modals - ensures only one modal is open at a time
   const closeAllModals = useCallback(() => {
+    setSpacePassthrough(false);
+    setActiveModal(null);
     setShowCommandPicker(false);
     setShowAgentPicker(false);
     setShowSessionPicker(false);
@@ -643,7 +662,32 @@ function OpenCodeChatTUI() {
     setShowThemes(false);
     setShowHelp(false);
     setShowOnboarding(false);
-  }, []);
+  }, [
+    setActiveModal,
+    setShowCommandPicker,
+    setShowAgentPicker,
+    setShowSessionPicker,
+    setShowProjectPicker,
+    setShowConfig,
+    setShowModelPicker,
+    setShowThemes,
+    setShowHelp,
+    setShowOnboarding,
+    setSpacePassthrough,
+  ]);
+
+  const handleSessionPickerEditModeChange = useCallback(
+    (isEditMode: boolean) => {
+      setSpacePassthrough(isEditMode);
+    },
+    [setSpacePassthrough],
+  );
+
+  useEffect(() => {
+    if (!showSessionPicker) {
+      setSpacePassthrough(false);
+    }
+  }, [showSessionPicker, setSpacePassthrough]);
 
   // Register keyboard shortcuts for frame navigation
   useEffect(() => {
@@ -832,10 +876,7 @@ function OpenCodeChatTUI() {
       registerShortcut({
         key: "e",
         handler: () => {
-          if (currentSession) {
-            setSidebarEditMode(true);
-            setShowSessionPicker(false);
-          }
+          sessionPickerEditControls.current?.enterEditMode();
         },
         requiresModal: "session",
         description: "Edit Session",
@@ -863,7 +904,85 @@ function OpenCodeChatTUI() {
     setShowSessionPicker,
     setShowProjectPicker,
     closeAllModals,
+    sessionPickerEditControls,
   ]);
+
+  useLayoutEffect(() => {
+    if (showSessionPicker) {
+      setActiveModal("session");
+      return;
+    }
+
+    if (showProjectPicker) {
+      setActiveModal("project");
+      return;
+    }
+
+    if (showAgentPicker) {
+      setActiveModal("agent");
+      return;
+    }
+
+    if (showModelPicker) {
+      setActiveModal("model");
+      return;
+    }
+
+    if (showThemes) {
+      setActiveModal("theme");
+      return;
+    }
+
+    if (showConfig) {
+      setActiveModal("config");
+      return;
+    }
+
+    if (showCommandPicker) {
+      setActiveModal("command");
+      return;
+    }
+
+    setActiveModal(null);
+  }, [
+    showSessionPicker,
+    showProjectPicker,
+    showAgentPicker,
+    showModelPicker,
+    showThemes,
+    showConfig,
+    showCommandPicker,
+    setActiveModal,
+  ]);
+
+  useEffect(() => {
+    if (!showConfig) {
+      return;
+    }
+
+    let canceled = false;
+    setConfigData(null);
+
+    (async () => {
+      try {
+        const config = await openCodeService.getConfig();
+        if (!canceled) {
+          setConfigData(JSON.stringify(config, null, 2));
+        }
+      } catch (error) {
+        if (process.env.NODE_ENV !== "production") {
+          console.error("Failed to load config:", error);
+        }
+        if (!canceled) {
+          setConfigData("Unable to load configuration.");
+        }
+      }
+    })();
+
+    return () => {
+      canceled = true;
+    };
+  }, [showConfig]);
 
   // Handle frame navigation and actions
   useEffect(() => {
@@ -1884,6 +2003,10 @@ function OpenCodeChatTUI() {
     setSelectedSidebarSessionIds(new Set(projectSessions.map((s) => s.id)));
   };
 
+  const handleSidebarClearSelection = () => {
+    setSelectedSidebarSessionIds(new Set());
+  };
+
   const handleSidebarBulkDelete = async () => {
     const count = selectedSidebarSessionIds.size;
     if (count === 0) return;
@@ -1934,6 +2057,10 @@ function OpenCodeChatTUI() {
         session.directory === currentProject?.worktree,
     );
     setSelectedMobileSessionIds(new Set(projectSessions.map((s) => s.id)));
+  };
+
+  const handleMobileClearSelection = () => {
+    setSelectedMobileSessionIds(new Set());
   };
 
   const handleMobileBulkDelete = async () => {
@@ -2518,15 +2645,9 @@ function OpenCodeChatTUI() {
           <Button
             variant="foreground0"
             box="round"
-            onClick={async () => {
-              try {
-                const config = await openCodeService.getConfig();
-                setConfigData(JSON.stringify(config, null, 2));
-                closeAllModals();
-                setShowConfig(true);
-              } catch (error) {
-                console.error("Failed to fetch config:", error);
-              }
+            onClick={() => {
+              closeAllModals();
+              setShowConfig(true);
             }}
             size="small"
             className="border-none whitespace-nowrap"
@@ -2655,7 +2776,7 @@ function OpenCodeChatTUI() {
                   ) : (
                     <>
                       {/* Sidebar Search Input */}
-                      <div className="px-2 mb-2">
+                      <div className="mb-2">
                         <SessionSearchInput
                           value={sessionSearchQuery}
                           onChange={setSessionSearchQuery}
@@ -2664,25 +2785,38 @@ function OpenCodeChatTUI() {
                       </div>
                       {sidebarEditMode && (
                         <>
-                          <div className="flex items-center justify-between gap-2 px-2 py-2 bg-theme-background-alt rounded mb-2">
+                           <div className="flex items-center justify-between gap-2 p-2 bg-theme-background-alt rounded mb-2">
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="foreground1"
+                                box="round"
+                                size="small"
+                                onClick={handleSidebarSelectAll}
+                              >
+                                Select All
+                              </Button>
+                              <Button
+                                variant="foreground2"
+                                box="round"
+                                size="small"
+                                onClick={handleSidebarClearSelection}
+                                disabled={selectedSidebarSessionIds.size === 0}
+                              >
+                                Clear
+                              </Button>
+                            </div>
                              <Button
-                               variant="foreground1"
+                               variant="foreground2"
                                box="round"
                                size="small"
-                               onClick={handleSidebarSelectAll}
-                             >
-                              Select All
-                            </Button>
-                             <Button
-                               variant="error"
-                               box="round"
-                               size="small"
-                              onClick={handleSidebarBulkDelete}
-                              disabled={selectedSidebarSessionIds.size === 0}
-                              className="sidebar-delete-button"
-                            >
-                              Delete ({selectedSidebarSessionIds.size})
-                            </Button>
+                               onClick={handleSidebarBulkDelete}
+                               disabled={selectedSidebarSessionIds.size === 0}
+                               className={`sidebar-delete-button ${selectedSidebarSessionIds.size > 0 ? 'dangerous-bulk-delete' : ''}`}
+                              >
+                                <span className={selectedSidebarSessionIds.size > 0 ? 'text-red-500' : ''}>
+                                  Delete{selectedSidebarSessionIds.size > 0 ? ` (${selectedSidebarSessionIds.size})` : ""}
+                                </span>
+                             </Button>
                           </div>
                           <Separator className="mb-2" />
                         </>
@@ -2705,14 +2839,21 @@ function OpenCodeChatTUI() {
                                 key={session.id}
                                 className="p-2 cursor-pointer transition-colors rounded"
                                 style={{
-                                  backgroundColor:
-                                    !sidebarEditMode && isSelected
+                                  backgroundColor: sidebarEditMode
+                                    ? isChecked
+                                      ? "rgba(from var(--theme-primary) r g b / 0.15)"
+                                      : "var(--theme-background)"
+                                    : isSelected
                                       ? "var(--theme-primary)"
                                       : "var(--theme-background)",
-                                  color:
-                                    !sidebarEditMode && isSelected
+                                  color: sidebarEditMode
+                                    ? "var(--theme-foreground)"
+                                    : isSelected
                                       ? "var(--theme-background)"
                                       : "var(--theme-foreground)",
+                                  border: sidebarEditMode
+                                    ? `1px solid ${isChecked ? "var(--theme-primary)" : "var(--theme-borderSubtle)"}`
+                                    : "1px solid transparent",
                                 }}
                                 onClick={() =>
                                   sidebarEditMode
@@ -2720,13 +2861,28 @@ function OpenCodeChatTUI() {
                                     : handleSessionSwitch(session.id)
                                 }
                                 onMouseEnter={(e) => {
-                                  if (!isSelected || sidebarEditMode) {
+                                  if (sidebarEditMode) {
+                                    if (!isChecked) {
+                                      e.currentTarget.style.backgroundColor =
+                                        "var(--theme-backgroundAlt)";
+                                    }
+                                    return;
+                                  }
+
+                                  if (!isSelected) {
                                     e.currentTarget.style.backgroundColor =
                                       "var(--theme-backgroundAlt)";
                                   }
                                 }}
                                 onMouseLeave={(e) => {
-                                  if (!isSelected || sidebarEditMode) {
+                                  if (sidebarEditMode) {
+                                    e.currentTarget.style.backgroundColor = isChecked
+                                      ? "rgba(from var(--theme-primary) r g b / 0.15)"
+                                      : "var(--theme-background)";
+                                    return;
+                                  }
+
+                                  if (!isSelected) {
                                     e.currentTarget.style.backgroundColor =
                                       "var(--theme-background)";
                                   }
@@ -3086,23 +3242,36 @@ function OpenCodeChatTUI() {
                     {mobileEditMode && (
                       <>
                         <div className="flex items-center justify-between gap-2 px-2 py-2 bg-theme-background-alt rounded mb-2">
-                          <Button
-                            variant="foreground1"
-                            box="round"
-                            size="small"
-                            onClick={handleMobileSelectAll}
-                          >
-                            Select All
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="foreground1"
+                              box="round"
+                              size="small"
+                              onClick={handleMobileSelectAll}
+                            >
+                              Select All
+                            </Button>
+                            <Button
+                              variant="foreground2"
+                              box="round"
+                              size="small"
+                              onClick={handleMobileClearSelection}
+                              disabled={selectedMobileSessionIds.size === 0}
+                            >
+                              Clear
+                            </Button>
+                          </div>
                           <Button
                             variant="error"
                             box="round"
                             size="small"
                             onClick={handleMobileBulkDelete}
                             disabled={selectedMobileSessionIds.size === 0}
-                          >
-                            Delete ({selectedMobileSessionIds.size})
-                          </Button>
+                             >
+                               <span className={selectedSidebarSessionIds.size > 1 ? 'text-red-500' : ''}>
+                                 Delete{selectedSidebarSessionIds.size > 0 ? ` (${selectedSidebarSessionIds.size})` : ""}
+                               </span>
+                             </Button>
                         </div>
                         <Separator className="mb-2" />
                       </>
@@ -3151,12 +3320,21 @@ function OpenCodeChatTUI() {
                                   mobileEditMode ? "flex items-start gap-2" : ""
                                 }`}
                                 style={{
-                                  backgroundColor: isSelected && !mobileEditMode
-                                    ? "var(--theme-primary)"
-                                    : "var(--theme-background)",
-                                  color: isSelected && !mobileEditMode
-                                    ? "var(--theme-background)"
-                                    : "var(--theme-foreground)",
+                                  backgroundColor: mobileEditMode
+                                    ? isChecked
+                                      ? "rgba(from var(--theme-primary) r g b / 0.15)"
+                                      : "var(--theme-background)"
+                                    : isSelected
+                                      ? "var(--theme-primary)"
+                                      : "var(--theme-background)",
+                                  color: mobileEditMode
+                                    ? "var(--theme-foreground)"
+                                    : isSelected
+                                      ? "var(--theme-background)"
+                                      : "var(--theme-foreground)",
+                                  border: mobileEditMode
+                                    ? `1px solid ${isChecked ? "var(--theme-primary)" : "var(--theme-borderSubtle)"}`
+                                    : "1px solid transparent",
                                 }}
                                 onClick={() => {
                                   if (mobileEditMode) {
@@ -3167,13 +3345,28 @@ function OpenCodeChatTUI() {
                                   }
                                 }}
                                 onMouseEnter={(e) => {
-                                  if (!isSelected || mobileEditMode) {
+                                  if (mobileEditMode) {
+                                    if (!isChecked) {
+                                      e.currentTarget.style.backgroundColor =
+                                        "var(--theme-backgroundAlt)";
+                                    }
+                                    return;
+                                  }
+
+                                  if (!isSelected) {
                                     e.currentTarget.style.backgroundColor =
                                       "var(--theme-backgroundAlt)";
                                   }
                                 }}
                                 onMouseLeave={(e) => {
-                                  if (!isSelected || mobileEditMode) {
+                                  if (mobileEditMode) {
+                                    e.currentTarget.style.backgroundColor = isChecked
+                                      ? "rgba(from var(--theme-primary) r g b / 0.15)"
+                                      : "var(--theme-background)";
+                                    return;
+                                  }
+
+                                  if (!isSelected) {
                                     e.currentTarget.style.backgroundColor =
                                       "var(--theme-background)";
                                   }
@@ -4424,11 +4617,18 @@ function OpenCodeChatTUI() {
           onSelect={switchSession}
           onBulkDelete={handleBulkDeleteClick}
           onNewSession={() => setShowNewSessionForm(true)}
-          onClose={() => setShowSessionPicker(false)}
+          onClose={() => {
+            setShowSessionPicker(false);
+            setSpacePassthrough(false);
+          }}
           searchQuery={sessionSearchQuery}
           onSearchChange={setSessionSearchQuery}
           filters={sessionFilters}
           onFiltersChange={setSessionFilters}
+          onRegisterEditControls={(controls) => {
+            sessionPickerEditControls.current = controls;
+          }}
+          onEditModeChange={handleSessionPickerEditModeChange}
         />
       )}
 

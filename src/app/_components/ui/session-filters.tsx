@@ -69,7 +69,7 @@ export const SessionFilters: React.FC<SessionFiltersProps> = ({
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">Advanced Filters</span>
           {hasActiveFilters && (
-            <Badge variant="primary" cap="round" className="text-xs">
+            <Badge variant="background0" cap="round" className="text-xs">
               Active
             </Badge>
           )}

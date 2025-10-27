@@ -78,6 +78,7 @@ export function useKeyboardShortcuts() {
   const leaderTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const secondaryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const activeModalRef = useRef<string | null>(null);
+  const spacePassthroughRef = useRef(false);
 
   /**
    * Activate secondary shortcuts mode (when modal is open)
@@ -130,6 +131,9 @@ export function useKeyboardShortcuts() {
    * Activate leader mode
    */
   const activateLeader = useCallback(() => {
+    if (spacePassthroughRef.current) {
+      return;
+    }
     console.log('[activateLeader] Called');
     console.log('[activateLeader] isInputFocused:', isInputFocused());
     const dialogVisible = isDialogOpen();
@@ -182,6 +186,20 @@ export function useKeyboardShortcuts() {
     }));
   }, []);
 
+  const setSpacePassthrough = useCallback(
+    (value: boolean) => {
+      spacePassthroughRef.current = value;
+      if (value) {
+        deactivateSecondaryShortcuts();
+        setKeyboardState((prev) => ({
+          ...prev,
+          leaderActive: false,
+        }));
+      }
+    },
+    [deactivateSecondaryShortcuts, setKeyboardState],
+  );
+
   /**
    * Register a keyboard shortcut
    */
@@ -221,6 +239,9 @@ export function useKeyboardShortcuts() {
 
       // Handle Space key for leader activation or secondary shortcuts
       if (key === " " && !isInputFocused()) {
+        if (spacePassthroughRef.current) {
+          return;
+        }
         event.preventDefault();
         console.log('[Keyboard] Space pressed - calling activateLeader');
         activateLeader();
@@ -345,6 +366,7 @@ export function useKeyboardShortcuts() {
     activateSecondaryShortcuts,
     deactivateSecondaryShortcuts,
     setActiveModal,
+    setSpacePassthrough,
     isInputFocused,
     isDialogOpen,
     getFocusedElement,

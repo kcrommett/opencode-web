@@ -101,10 +101,13 @@ export const ProjectPicker: React.FC<ProjectPickerProps> = ({
                       ? "var(--theme-primary)"
                       : isHighlighted
                         ? "var(--theme-backgroundAlt)"
-                        : "var(--theme-background)",
+                        : "transparent",
                     color: isCurrent
                       ? "var(--theme-background)"
                       : "var(--theme-foreground)",
+                    border: isCurrent
+                      ? "1px solid transparent"
+                      : "1px solid var(--theme-borderSubtle)",
                     outline: isHighlighted && !isCurrent
                       ? "2px solid var(--theme-primary)"
                       : "none",

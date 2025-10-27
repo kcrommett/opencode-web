@@ -9,7 +9,7 @@
  * @see https://github.com/kcrommett/opencode-web/issues/39
  */
 
-import * as mime from "mime-types";
+// import mime from "mime-types";
 
 /**
  * Custom MIME type mappings for file extensions not covered by mime-types package.
@@ -165,8 +165,9 @@ export function getMimeType(filePath: string): string | false {
     return CUSTOM_MIME_TYPES[extension];
   }
 
-  // Fall back to mime-types package
-  return mime.lookup(filePath);
+  // Fall back to mime-types package (temporarily disabled for merge)
+  // return mime.lookup(filePath);
+  return false as const;
 }
 
 /**
