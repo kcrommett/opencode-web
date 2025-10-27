@@ -2687,7 +2687,7 @@ function OpenCodeChatTUI() {
                           <Separator className="mb-2" />
                         </>
                       )}
-                      <div className="flex-1 overflow-y-auto scrollbar space-y-2 min-h-0">
+                      <div className="flex-1 overflow-y-auto scrollbar space-y-2 min-h-0" data-sessions-list>
                         {filteredSessions
                           .filter(
                             (session) =>
@@ -4410,6 +4410,7 @@ function OpenCodeChatTUI() {
           currentSession={currentSession}
           onSelect={switchSession}
           onBulkDelete={handleBulkDeleteClick}
+          onNewSession={() => setShowNewSessionForm(true)}
           onClose={() => setShowSessionPicker(false)}
           searchQuery={sessionSearchQuery}
           onSearchChange={setSessionSearchQuery}
