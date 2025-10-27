@@ -83,7 +83,7 @@ export function useKeyboardShortcuts() {
   /**
    * Activate secondary shortcuts mode (when modal is open)
    */
-  const activateSecondaryShortcuts = useCallback((modalName: string) => {
+  const activateSecondaryShortcuts = useCallback((_modalName: string) => {
     // Only activate secondary shortcuts display
     // Don't update activeModal here - it's managed by parent component
     setKeyboardState((prev) => ({ 
@@ -352,6 +352,7 @@ export function useKeyboardShortcuts() {
     keyboardState.selectedFrame,
     keyboardState.activeModal,
     keyboardState.lastEscapeTime,
+    keyboardState.secondaryShortcutsActive,
     shortcuts,
     activateLeader,
     deactivateLeader,

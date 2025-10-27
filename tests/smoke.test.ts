@@ -60,7 +60,7 @@ describe("opencode-config", () => {
       // Clear any existing env vars
       delete process.env.OPENCODE_SERVER_URL;
       delete process.env.VITE_OPENCODE_SERVER_URL;
-      delete (globalThis as any).__OPENCODE_SERVER_URL__;
+      delete (globalThis as typeof globalThis & { __OPENCODE_SERVER_URL__?: string }).__OPENCODE_SERVER_URL__;
       expect(getOpencodeServerUrl()).toBe("http://localhost:4096");
     });
 
@@ -78,7 +78,7 @@ describe("opencode-config", () => {
     it("respects globalThis.__OPENCODE_SERVER_URL__", () => {
       delete process.env.OPENCODE_SERVER_URL;
       delete process.env.VITE_OPENCODE_SERVER_URL;
-      (globalThis as any).__OPENCODE_SERVER_URL__ = "https://global.com";
+      (globalThis as typeof globalThis & { __OPENCODE_SERVER_URL__?: string }).__OPENCODE_SERVER_URL__ = "https://global.com";
       expect(getOpencodeServerUrl()).toBe("https://global.com");
     });
   });

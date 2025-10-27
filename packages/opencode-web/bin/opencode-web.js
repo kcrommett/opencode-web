@@ -186,6 +186,11 @@ if (!process.env.NODE_ENV) {
   process.env.NODE_ENV = "production";
 }
 
+const { readFileSync } = await import("node:fs");
+const packageJsonPath = join(packageDir, "package.json");
+const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+console.log(`OpenCode Web v${packageJson.version}`);
+
 const envDisableBundledServer = isTruthy(
   process.env.OPENCODE_WEB_DISABLE_BUNDLED_SERVER,
 );

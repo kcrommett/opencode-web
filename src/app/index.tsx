@@ -233,7 +233,6 @@ function ThemePickerDialog({
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [previewTheme, setPreviewTheme] = useState(currentTheme);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const selectedItemRef = useRef<HTMLDivElement>(null);
   const listContainerRef = useRef<HTMLDivElement>(null);
@@ -268,6 +267,7 @@ function ThemePickerDialog({
         });
       }, 100);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Update selected index when filtered themes change
@@ -285,7 +285,7 @@ function ThemePickerDialog({
         setSelectedIndex(currentIndex);
       }
     }
-  }, [filteredThemes, searchQuery, currentTheme]);
+  }, [filteredThemes, searchQuery, currentTheme, selectedIndex]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -296,7 +296,6 @@ function ThemePickerDialog({
           // Circular navigation: wrap to start if at the end
           const newIndex = prev + 1 >= filteredThemes.length ? 0 : prev + 1;
           // Preview theme immediately
-          setPreviewTheme(filteredThemes[newIndex].id);
           onThemeChange(filteredThemes[newIndex].id);
           return newIndex;
         });
@@ -306,7 +305,6 @@ function ThemePickerDialog({
           // Circular navigation: wrap to end if at the start
           const newIndex = prev - 1 < 0 ? filteredThemes.length - 1 : prev - 1;
           // Preview theme immediately
-          setPreviewTheme(filteredThemes[newIndex].id);
           onThemeChange(filteredThemes[newIndex].id);
           return newIndex;
         });
@@ -637,7 +635,6 @@ function OpenCodeChatTUI() {
     // Frame state for keyboard navigation
     selectedFrame,
     selectFrame,
-    frameActions,
   } = useOpenCodeContext();
   const { currentTheme, changeTheme } = useTheme(config?.theme);
 
@@ -3524,41 +3521,56 @@ function OpenCodeChatTUI() {
                           />
                         ) : (
                           <>
-                            <img
+                             <img
                               src="data:image/svg+xml,%3csvg%20width='234'%20height='42'%20viewBox='0%200%20234%2042'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M18%2030H6V18H18V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M18%2012H6V30H18V12ZM24%2036H0V6H24V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M48%2030H36V18H48V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M36%2030H48V12H36V30ZM54%2036H36V42H30V6H54V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M84%2024V30H66V24H84Z'%20fill='%234B4646'/%3e%3cpath%20d='M84%2024H66V30H84V36H60V6H84V24ZM66%2018H78V12H66V18Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M108%2036H96V18H108V36Z'%20fill='%234B4646'/%3e%3cpath%20d='M108%2012H96V36H90V6H108V12ZM114%2036H108V12H114V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M144%2030H126V18H144V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M144%2012H126V30H144V36H120V6H144V12Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M168%2030H156V18H168V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M168%2012H156V30H168V12ZM174%2036H150V6H174V36Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M198%2030H186V18H198V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M198%2012H186V30H198V12ZM204%2036H180V6H198V0H204V36Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M234%2024V30H216V24H234Z'%20fill='%234B4646'/%3e%3cpath%20d='M216%2012V18H228V12H216ZM234%2024H216V30H234V36H210V6H234V24Z'%20fill='%23F1ECEC'/%3e%3c/svg%3e"
                               alt="OpenCode logo dark"
-                              className="mx-auto mb-4 h-16 w-auto"
+                              className="mx-auto mb-6 h-16 w-auto"
                             />
-                            <Pre
-                              size="small"
-                              className="break-words whitespace-pre-wrap overflow-wrap-anywhere mb-4 text-theme-foreground opacity-80"
-                            >
-                              {!currentProject
-                                ? "Select a project from the sidebar to get started, or create a new session to begin."
-                                : "Send a message to start a new session. Use @ to reference files, / for commands, and Tab to switch agents."}
-                            </Pre>
+                            {!currentProject ? (
+                              <div className="space-y-4">
+                                <h2 className="text-xl font-semibold text-theme-foreground mb-4">
+                                  Welcome to OpenCode
+                                </h2>
+                                <div className="text-theme-foreground opacity-90 space-y-3 max-w-2xl mx-auto">
+                                  <p className="text-base">
+                                    Navigate quickly using the{" "}
+                                    <kbd className="px-2 py-1 bg-theme-background rounded border border-theme-primary text-theme-primary font-mono text-sm">
+                                      Space
+                                    </kbd>{" "}
+                                    leader key
+                                  </p>
+                                  <p className="text-sm opacity-80">
+                                    Press{" "}
+                                    <kbd className="px-2 py-1 bg-theme-background rounded border border-theme-primary text-theme-primary font-mono text-xs">
+                                      Space
+                                    </kbd>{" "}
+                                    now to see all available shortcuts
+                                  </p>
+                                </div>
+                              </div>
+                            ) : (
+                              <Pre
+                                size="small"
+                                className="break-words whitespace-pre-wrap overflow-wrap-anywhere text-theme-foreground opacity-80"
+                              >
+                                Send a message to start a new session. Use @ to reference files, / for commands, and Tab to switch agents.
+                              </Pre>
+                            )}
                           </>
                         )}
-                        <div className="flex gap-2 justify-center flex-wrap">
-                          {!currentProject && (
-                            <Badge
-                              variant="foreground0"
-                              cap="round"
-                              className="text-xs"
-                            >
-                              Step 1: Select a project →
-                            </Badge>
-                          )}
-                          {currentProject && !currentSession && (
-                            <Badge
-                              variant="foreground0"
-                              cap="round"
-                              className="text-xs"
-                            >
-                              Step 2: Create or select a session →
-                            </Badge>
-                          )}
-                        </div>
+                         {currentProject && (
+                          <div className="flex gap-2 justify-center flex-wrap mt-4">
+                            {!currentSession && (
+                              <Badge
+                                variant="foreground0"
+                                cap="round"
+                                className="text-xs"
+                              >
+                                Create or select a session →
+                              </Badge>
+                            )}
+                          </div>
+                        )}
                       </View>
                     </div>
                   )}

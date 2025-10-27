@@ -30,7 +30,7 @@ export const Checkbox: React.FC<CheckboxProps> = ({
           backgroundColor: "transparent",
           cursor: "pointer",
           position: "relative",
-          ...((props as any).style || {}),
+          ...(props.style || {}),
         }}
       />
       {children}

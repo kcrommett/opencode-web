@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect } from "react";
 import { useKeyboardShortcuts, KeyboardShortcut } from "./useKeyboardShortcuts";
 import { useOpenCodeContext } from "@/contexts/OpenCodeContext";
 
@@ -13,27 +13,12 @@ export function useKeyboardShortcutsWithContext() {
   const { 
     selectedFrame, 
     selectFrame, 
-    frameActions,
-    showHelp,
     setShowHelp,
-    showThemes,
     setShowThemes,
-    showModelPicker,
     setShowModelPicker,
-    agents,
-    currentAgent,
-    selectAgent,
     currentSession,
     currentSessionBusy,
     abortSession,
-    sessions,
-    createSession,
-    deleteSession,
-    projects,
-    currentProject,
-    switchProject,
-    files,
-    loadFiles,
     showToast
   } = useOpenCodeContext();
 
