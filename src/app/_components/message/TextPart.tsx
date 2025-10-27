@@ -1,7 +1,7 @@
 import type { Part } from "@/types/opencode";
 import { Pre } from "../ui";
 import { MarkdownRenderer, hasMarkdownSyntax } from "@/lib/markdown";
-import { useOpenCode } from "@/hooks/useOpenCode";
+import { useOpenCodeContext } from "@/contexts/OpenCodeContext";
 import { getFeatureFlags } from "@/lib/config";
 
 interface TextPartProps {
@@ -9,7 +9,7 @@ interface TextPartProps {
 }
 
 export function TextPart({ part }: TextPartProps) {
-  const { config } = useOpenCode();
+  const { config } = useOpenCodeContext();
   const features = getFeatureFlags(config);
 
   if (part.type !== "text") return null;
