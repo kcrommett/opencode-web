@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import {
   Button,
   Input,
@@ -620,7 +620,20 @@ function OpenCodeChatTUI() {
   const { currentTheme, changeTheme } = useTheme(config?.theme);
 
   // Initialize keyboard shortcuts
-  const { keyboardState, registerShortcut } = useKeyboardShortcuts();
+  const { keyboardState, registerShortcut, setActiveModal } = useKeyboardShortcuts();
+
+  // Close all modals - ensures only one modal is open at a time
+  const closeAllModals = useCallback(() => {
+    setShowCommandPicker(false);
+    setShowAgentPicker(false);
+    setShowSessionPicker(false);
+    setShowProjectPicker(false);
+    setShowConfig(false);
+    setShowModelPicker(false);
+    setShowThemes(false);
+    setShowHelp(false);
+    setShowOnboarding(false);
+  }, []);
 
   // Register keyboard shortcuts for frame navigation
   useEffect(() => {
@@ -630,7 +643,10 @@ function OpenCodeChatTUI() {
     unregisterFns.push(
       registerShortcut({
         key: "p",
-        handler: () => setShowProjectPicker(true),
+        handler: () => {
+          closeAllModals();
+          setShowProjectPicker(true);
+        },
         requiresLeader: true,
         description: "Open Project Picker",
         category: "navigation",
@@ -640,7 +656,10 @@ function OpenCodeChatTUI() {
     unregisterFns.push(
       registerShortcut({
         key: "s",
-        handler: () => setShowSessionPicker(true),
+        handler: () => {
+          closeAllModals();
+          setShowSessionPicker(true);
+        },
         requiresLeader: true,
         description: "Open Session Picker",
         category: "navigation",
@@ -650,7 +669,10 @@ function OpenCodeChatTUI() {
     unregisterFns.push(
       registerShortcut({
         key: "f",
-        handler: () => selectFrame("files"),
+        handler: () => {
+          closeAllModals();
+          selectFrame("files");
+        },
         requiresLeader: true,
         description: "Navigate to Files",
         category: "navigation",
@@ -660,7 +682,10 @@ function OpenCodeChatTUI() {
     unregisterFns.push(
       registerShortcut({
         key: "w",
-        handler: () => selectFrame("workspace"),
+        handler: () => {
+          closeAllModals();
+          selectFrame("workspace");
+        },
         requiresLeader: true,
         description: "Navigate to Workspace",
         category: "navigation",
@@ -670,7 +695,10 @@ function OpenCodeChatTUI() {
     unregisterFns.push(
       registerShortcut({
         key: "m",
-        handler: () => setShowModelPicker(true),
+        handler: () => {
+          closeAllModals();
+          setShowModelPicker(true);
+        },
         requiresLeader: true,
         description: "Open Model Picker",
         category: "navigation",
@@ -680,7 +708,10 @@ function OpenCodeChatTUI() {
     unregisterFns.push(
       registerShortcut({
         key: "a",
-        handler: () => setShowAgentPicker(true),
+        handler: () => {
+          closeAllModals();
+          setShowAgentPicker(true);
+        },
         requiresLeader: true,
         description: "Open Agent Picker",
         category: "navigation",
@@ -690,7 +721,10 @@ function OpenCodeChatTUI() {
     unregisterFns.push(
       registerShortcut({
         key: "t",
-        handler: () => setShowThemes(true),
+        handler: () => {
+          closeAllModals();
+          setShowThemes(true);
+        },
         requiresLeader: true,
         description: "Open Theme Picker",
         category: "navigation",
@@ -700,7 +734,10 @@ function OpenCodeChatTUI() {
     unregisterFns.push(
       registerShortcut({
         key: "c",
-        handler: () => setShowConfig(true),
+        handler: () => {
+          closeAllModals();
+          setShowConfig(true);
+        },
         requiresLeader: true,
         description: "Open Config",
         category: "navigation",
@@ -710,7 +747,10 @@ function OpenCodeChatTUI() {
     unregisterFns.push(
       registerShortcut({
         key: "h",
-        handler: () => setShowHelp(true),
+        handler: () => {
+          closeAllModals();
+          setShowHelp(true);
+        },
         requiresLeader: true,
         description: "Open Help Dialog",
         category: "navigation",
@@ -764,6 +804,35 @@ function OpenCodeChatTUI() {
       })
     );
 
+    // Modal-specific shortcuts (work when modal is open)
+    unregisterFns.push(
+      registerShortcut({
+        key: "n",
+        handler: () => {
+          setShowSessionPicker(false);
+          setShowNewSessionForm(true);
+        },
+        requiresModal: "session",
+        description: "New Session",
+        category: "action",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "e",
+        handler: () => {
+          if (currentSession) {
+            setSidebarEditMode(true);
+            setShowSessionPicker(false);
+          }
+        },
+        requiresModal: "session",
+        description: "Edit Session",
+        category: "action",
+      })
+    );
+
     return () => {
       unregisterFns.forEach((fn) => fn());
     };
@@ -783,6 +852,7 @@ function OpenCodeChatTUI() {
     deleteSession,
     setShowSessionPicker,
     setShowProjectPicker,
+    closeAllModals,
   ]);
 
   // Handle frame navigation and actions
@@ -1015,6 +1085,7 @@ function OpenCodeChatTUI() {
       !showAgentPicker &&
       !showSessionPicker &&
       !showProjectPicker &&
+      currentProject &&
       textareaRef.current
     ) {
       const timer = setTimeout(() => {
@@ -1022,19 +1093,65 @@ function OpenCodeChatTUI() {
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [showModelPicker, showAgentPicker, showSessionPicker, showProjectPicker]);
+  }, [showModelPicker, showAgentPicker, showSessionPicker, showProjectPicker, currentProject]);
 
   useEffect(() => {
-    if (textareaRef.current && isHydrated) {
+    if (textareaRef.current && isHydrated && currentProject) {
       textareaRef.current.focus();
     }
-  }, [isHydrated, currentSession?.id]);
+  }, [isHydrated, currentSession?.id, currentProject]);
 
   useEffect(() => {
-    if (!loading && textareaRef.current) {
+    if (!loading && textareaRef.current && currentProject) {
       textareaRef.current.focus();
     }
-  }, [loading]);
+  }, [loading, currentProject]);
+
+  // Load config when config modal is opened
+  useEffect(() => {
+    if (showConfig && !configData) {
+      const loadConfig = async () => {
+        try {
+          const config = await openCodeService.getConfig();
+          setConfigData(JSON.stringify(config, null, 2));
+        } catch (error) {
+          console.error("Failed to fetch config:", error);
+          setConfigData("Error loading configuration");
+        }
+      };
+      void loadConfig();
+    }
+  }, [showConfig, configData]);
+
+  // Track active modal for keyboard shortcuts
+  useEffect(() => {
+    if (showSessionPicker) {
+      setActiveModal("session");
+    } else if (showProjectPicker) {
+      setActiveModal("project");
+    } else if (showAgentPicker) {
+      setActiveModal("agent");
+    } else if (showModelPicker) {
+      setActiveModal("model");
+    } else if (showThemes) {
+      setActiveModal("theme");
+    } else if (showConfig) {
+      setActiveModal("config");
+    } else if (showHelp) {
+      setActiveModal("help");
+    } else {
+      setActiveModal(null);
+    }
+  }, [
+    showSessionPicker, 
+    showProjectPicker, 
+    showAgentPicker, 
+    showModelPicker, 
+    showThemes, 
+    showConfig, 
+    showHelp,
+    setActiveModal
+  ]);
 
   const handleShellCommand = async (command: string) => {
     if (!currentSession) {
@@ -2010,12 +2127,15 @@ function OpenCodeChatTUI() {
       setShowHelp(true);
     } else if (command.name === "sessions") {
       setInput("");
+      closeAllModals();
       setShowSessionPicker(true);
     } else if (command.name === "project") {
       setInput("");
+      closeAllModals();
       setShowProjectPicker(true);
     } else if (command.name === "agents") {
       setInput("");
+      closeAllModals();
       setShowAgentPicker(true);
     } else if (
       [
@@ -2387,6 +2507,7 @@ function OpenCodeChatTUI() {
               try {
                 const config = await openCodeService.getConfig();
                 setConfigData(JSON.stringify(config, null, 2));
+                closeAllModals();
                 setShowConfig(true);
               } catch (error) {
                 console.error("Failed to fetch config:", error);
@@ -3092,38 +3213,53 @@ function OpenCodeChatTUI() {
                             <img
                               src="data:image/svg+xml,%3csvg%20width='234'%20height='42'%20viewBox='0%200%20234%2042'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M18%2030H6V18H18V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M18%2012H6V30H18V12ZM24%2036H0V6H24V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M48%2030H36V18H48V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M36%2030H48V12H36V30ZM54%2036H36V42H30V6H54V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M84%2024V30H66V24H84Z'%20fill='%234B4646'/%3e%3cpath%20d='M84%2024H66V30H84V36H60V6H84V24ZM66%2018H78V12H66V18Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M108%2036H96V18H108V36Z'%20fill='%234B4646'/%3e%3cpath%20d='M108%2012H96V36H90V6H108V12ZM114%2036H108V12H114V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M144%2030H126V18H144V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M144%2012H126V30H144V36H120V6H144V12Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M168%2030H156V18H168V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M168%2012H156V30H168V12ZM174%2036H150V6H174V36Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M198%2030H186V18H198V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M198%2012H186V30H198V12ZM204%2036H180V6H198V0H204V36Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M234%2024V30H216V24H234Z'%20fill='%234B4646'/%3e%3cpath%20d='M216%2012V18H228V12H216ZM234%2024H216V30H234V36H210V6H234V24Z'%20fill='%23F1ECEC'/%3e%3c/svg%3e"
                               alt="OpenCode logo dark"
-                              className="mx-auto mb-4 h-16 w-auto"
+                              className="mx-auto mb-6 h-16 w-auto"
                             />
-                            <Pre
-                              size="small"
-                              className="break-words whitespace-pre-wrap overflow-wrap-anywhere mb-4 text-theme-foreground opacity-80"
-                            >
-                              {!currentProject
-                                ? "Select a project from the sidebar to get started, or create a new session to begin."
-                                : "Send a message to start a new session. Use @ to reference files, / for commands, and Tab to switch agents."}
-                            </Pre>
+                            {!currentProject ? (
+                              <div className="space-y-4">
+                                <h2 className="text-xl font-semibold text-theme-foreground mb-4">
+                                  Welcome to OpenCode
+                                </h2>
+                                <div className="text-theme-foreground opacity-90 space-y-3 max-w-2xl mx-auto">
+                                  <p className="text-base">
+                                    Navigate quickly using the{" "}
+                                    <kbd className="px-2 py-1 bg-theme-background rounded border border-theme-primary text-theme-primary font-mono text-sm">
+                                      Space
+                                    </kbd>{" "}
+                                    leader key
+                                  </p>
+                                  <p className="text-sm opacity-80">
+                                    Press{" "}
+                                    <kbd className="px-2 py-1 bg-theme-background rounded border border-theme-primary text-theme-primary font-mono text-xs">
+                                      Space
+                                    </kbd>{" "}
+                                    now to see all available shortcuts
+                                  </p>
+                                </div>
+                              </div>
+                            ) : (
+                              <Pre
+                                size="small"
+                                className="break-words whitespace-pre-wrap overflow-wrap-anywhere text-theme-foreground opacity-80"
+                              >
+                                Send a message to start a new session. Use @ to reference files, / for commands, and Tab to switch agents.
+                              </Pre>
+                            )}
                           </>
                         )}
-                        <div className="flex gap-2 justify-center flex-wrap">
-                          {!currentProject && (
-                            <Badge
-                              variant="foreground0"
-                              cap="round"
-                              className="text-xs"
-                            >
-                              Step 1: Select a project →
-                            </Badge>
-                          )}
-                          {currentProject && !currentSession && (
-                            <Badge
-                              variant="foreground0"
-                              cap="round"
-                              className="text-xs"
-                            >
-                              Step 2: Create or select a session →
-                            </Badge>
-                          )}
-                        </div>
+                        {currentProject && (
+                          <div className="flex gap-2 justify-center flex-wrap mt-4">
+                            {!currentSession && (
+                              <Badge
+                                variant="foreground0"
+                                cap="round"
+                                className="text-xs"
+                              >
+                                Create or select a session →
+                              </Badge>
+                            )}
+                          </div>
+                        )}
                       </View>
                     </div>
                   )}
@@ -3249,7 +3385,10 @@ function OpenCodeChatTUI() {
                   <div className="flex items-center gap-2 text-sm text-theme-foreground flex-wrap">
                     <span className="font-medium">Model:</span>
                     <button
-                      onClick={() => setShowModelPicker(true)}
+                      onClick={() => {
+                        closeAllModals();
+                        setShowModelPicker(true);
+                      }}
                       className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none"
                       style={{
                         background: "none",
@@ -3267,7 +3406,10 @@ function OpenCodeChatTUI() {
                     <span className="text-theme-muted">•</span>
                     <span className="font-medium">Session:</span>
                     <button
-                      onClick={() => setShowSessionPicker(true)}
+                      onClick={() => {
+                        closeAllModals();
+                        setShowSessionPicker(true);
+                      }}
                       className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none"
                       style={{
                         background: "none",
@@ -4273,6 +4415,7 @@ function OpenCodeChatTUI() {
           currentSession={currentSession}
           onSelect={switchSession}
           onBulkDelete={handleBulkDeleteClick}
+          onNewSession={() => setShowNewSessionForm(true)}
           onClose={() => setShowSessionPicker(false)}
         />
       )}

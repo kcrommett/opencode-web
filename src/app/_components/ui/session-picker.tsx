@@ -16,6 +16,7 @@ interface SessionPickerProps {
   currentSession: Session | null;
   onSelect: (sessionId: string) => void;
   onBulkDelete?: (sessionIds: string[]) => void;
+  onNewSession?: () => void;
   onClose: () => void;
 }
 
@@ -24,6 +25,7 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
   currentSession,
   onSelect,
   onBulkDelete,
+  onNewSession,
   onClose,
 }) => {
   const [isEditMode, setIsEditMode] = useState(false);
@@ -116,14 +118,29 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
       >
         <div className="p-4 flex items-center justify-between">
           <h2 className="text-lg font-bold">Sessions</h2>
-           <Button
-             variant="foreground1"
-             box="round"
-             size="small"
-             onClick={toggleEditMode}
-          >
-            {isEditMode ? "Done" : "Edit"}
-          </Button>
+          <div className="flex gap-2">
+            {onNewSession && (
+              <Button
+                variant="foreground0"
+                box="round"
+                size="small"
+                onClick={() => {
+                  onNewSession();
+                  onClose();
+                }}
+              >
+                New Session
+              </Button>
+            )}
+            <Button
+              variant="foreground1"
+              box="round"
+              size="small"
+              onClick={toggleEditMode}
+            >
+              {isEditMode ? "Done" : "Edit"}
+            </Button>
+          </div>
         </div>
 
         <Separator />

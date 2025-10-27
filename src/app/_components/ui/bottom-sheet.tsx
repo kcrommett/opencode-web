@@ -33,6 +33,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
     <>
       <div
         className="fixed inset-0 bg-black/50 z-50"
+        data-dialog-open="true"
         onClick={onClose}
         style={{ touchAction: "none" }}
       />
@@ -44,6 +45,9 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
           ${isOpen ? "translate-y-0" : "translate-y-full"}
           ${fullScreen ? "top-0" : "max-h-[85vh] rounded-t-2xl"}
         `}
+        data-dialog-open="true"
+        role="dialog"
+        aria-modal="true"
         style={{ backgroundColor: "var(--theme-background)" }}
       >
         <View box="square" className="h-full flex flex-col">

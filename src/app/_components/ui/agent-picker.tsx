@@ -33,6 +33,9 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
   return (
     <div
       className="fixed inset-0 flex items-center justify-center z-50 p-4"
+      data-dialog-open="true"
+      role="dialog"
+      aria-modal="true"
       onClick={onClose}
     >
       <div
