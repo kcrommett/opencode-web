@@ -61,3 +61,23 @@ export function getDefaultModel(
 
   return null;
 }
+
+/**
+ * Feature flags for progressive feature rollout.
+ */
+export interface FeatureFlags {
+  enableMarkdown?: boolean;
+  enableMarkdownImages?: boolean;
+}
+
+/**
+ * Get feature flag configuration from OpencodeConfig.
+ * Returns default values if not configured.
+ */
+export function getFeatureFlags(config: OpencodeConfig | null): FeatureFlags {
+  const features = config?.features as FeatureFlags | undefined;
+  return {
+    enableMarkdown: features?.enableMarkdown ?? true,
+    enableMarkdownImages: features?.enableMarkdownImages ?? false,
+  };
+}

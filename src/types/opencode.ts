@@ -91,6 +91,11 @@ export interface OpencodeConfig {
   agent?: Record<string, AgentConfig>;
   command?: Record<string, CommandConfig>;
   provider?: Record<string, ProviderConfig>;
+  features?: {
+    enableMarkdown?: boolean;
+    enableMarkdownImages?: boolean;
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 }
 

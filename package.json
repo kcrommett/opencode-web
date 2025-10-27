@@ -28,7 +28,10 @@
     "highlight.js": "^11.11.1",
     "mime-types": "3.0.1",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "react-markdown": "10.1.0",
+    "rehype-sanitize": "6.0.0",
+    "remark-gfm": "4.0.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.13",
