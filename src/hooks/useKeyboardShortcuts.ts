@@ -1,5 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
+const isDevEnvironment = process.env.NODE_ENV !== "production";
+
+// Debug logging utility
+const debugLog = (...args: unknown[]) => {
+  if (isDevEnvironment) console.log(...args);
+};
+
 /**
  * Keyboard shortcut state management
  */
@@ -134,30 +141,30 @@ export function useKeyboardShortcuts() {
     if (spacePassthroughRef.current) {
       return;
     }
-    console.log('[activateLeader] Called');
-    console.log('[activateLeader] isInputFocused:', isInputFocused());
+    debugLog('[activateLeader] Called');
+    debugLog('[activateLeader] isInputFocused:', isInputFocused());
     const dialogVisible = isDialogOpen();
-    console.log('[activateLeader] isDialogOpen:', dialogVisible);
-    console.log('[activateLeader] activeModalRef.current:', activeModalRef.current);
+    debugLog('[activateLeader] isDialogOpen:', dialogVisible);
+    debugLog('[activateLeader] activeModalRef.current:', activeModalRef.current);
     const modalName = activeModalRef.current;
     const modalOpen = dialogVisible || Boolean(modalName);
-    console.log('[activateLeader] modalOpen:', modalOpen);
+    debugLog('[activateLeader] modalOpen:', modalOpen);
     
     // Don't activate if input is focused
     if (isInputFocused()) {
-      console.log('[activateLeader] Skipping - input focused');
+      debugLog('[activateLeader] Skipping - input focused');
       return;
     }
 
     // If a modal is open, activate secondary shortcuts instead
     if (modalOpen) {
       const resolvedModalName = modalName || "unknown";
-      console.log('[activateLeader] Dialog open - activating secondary shortcuts for:', resolvedModalName);
+      debugLog('[activateLeader] Dialog open - activating secondary shortcuts for:', resolvedModalName);
       activateSecondaryShortcuts(resolvedModalName);
       return;
     }
 
-    console.log('[activateLeader] Activating primary leader mode');
+    debugLog('[activateLeader] Activating primary leader mode');
     setKeyboardState((prev) => ({ ...prev, leaderActive: true }));
 
     // Auto-deactivate after 3 seconds
@@ -204,7 +211,7 @@ export function useKeyboardShortcuts() {
    * Register a keyboard shortcut
    */
   const registerShortcut = useCallback((shortcut: KeyboardShortcut) => {
-    console.log('[registerShortcut] Registering:', {
+    debugLog('[registerShortcut] Registering:', {
       key: shortcut.key,
       description: shortcut.description,
       requiresLeader: shortcut.requiresLeader,
@@ -226,15 +233,15 @@ export function useKeyboardShortcuts() {
 
       // Debug logging
       if (key === " " || key === "n" || key === "e" || key === "s" || key === "p") {
-        console.log('[Keyboard] Key pressed:', key);
-        console.log('[Keyboard] State:', {
+        debugLog('[Keyboard] Key pressed:', key);
+        debugLog('[Keyboard] State:', {
           leaderActive: keyboardState.leaderActive,
           activeModal: keyboardState.activeModal,
           secondaryShortcutsActive: keyboardState.secondaryShortcutsActive,
           isInputFocused: isInputFocused(),
           isDialogOpen: isDialogOpen(),
         });
-        console.log('[Keyboard] Registered shortcuts:', shortcuts.length);
+        debugLog('[Keyboard] Registered shortcuts:', shortcuts.length);
       }
 
       // Handle Space key for leader activation or secondary shortcuts
@@ -243,7 +250,7 @@ export function useKeyboardShortcuts() {
           return;
         }
         event.preventDefault();
-        console.log('[Keyboard] Space pressed - calling activateLeader');
+        debugLog('[Keyboard] Space pressed - calling activateLeader');
         activateLeader();
         return;
       }
@@ -292,20 +299,20 @@ export function useKeyboardShortcuts() {
         );
 
         if (matchingShortcut) {
-          console.log('[Keyboard] Leader shortcut matched:', matchingShortcut.description);
+          debugLog('[Keyboard] Leader shortcut matched:', matchingShortcut.description);
           event.preventDefault();
           matchingShortcut.handler();
           deactivateLeader();
         } else if (key !== " ") {
-          console.log('[Keyboard] No leader shortcut found for key:', key);
+          debugLog('[Keyboard] No leader shortcut found for key:', key);
         }
       }
 
       // Handle modal-specific shortcuts (when modal is open)
       if (keyboardState.activeModal && !keyboardState.leaderActive) {
-        console.log('[Keyboard] Checking modal shortcuts for modal:', keyboardState.activeModal);
+        debugLog('[Keyboard] Checking modal shortcuts for modal:', keyboardState.activeModal);
         const modalShortcuts = shortcuts.filter(s => s.requiresModal === keyboardState.activeModal);
-        console.log('[Keyboard] Available modal shortcuts:', modalShortcuts.map(s => `${s.key}:${s.description}`));
+        debugLog('[Keyboard] Available modal shortcuts:', modalShortcuts.map(s => `${s.key}:${s.description}`));
         
         const matchingModalShortcut = shortcuts.find(
           (shortcut) =>
@@ -314,12 +321,12 @@ export function useKeyboardShortcuts() {
         );
 
         if (matchingModalShortcut) {
-          console.log('[Keyboard] Modal shortcut matched:', matchingModalShortcut.description);
+          debugLog('[Keyboard] Modal shortcut matched:', matchingModalShortcut.description);
           event.preventDefault();
           matchingModalShortcut.handler();
           return;
         } else {
-          console.log('[Keyboard] No modal shortcut found for key:', key);
+          debugLog('[Keyboard] No modal shortcut found for key:', key);
         }
       }
 

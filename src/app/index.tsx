@@ -1680,7 +1680,8 @@ function OpenCodeChatTUI() {
           }
 
           if (totalTokens >= tokensBefore) {
-            console.warn("[Compact] Timeout waiting for token reduction");
+            if (process.env.NODE_ENV !== "production")
+              console.warn("[Compact] Timeout waiting for token reduction");
           } else {
             if (process.env.NODE_ENV !== "production")
               console.log(
@@ -1901,7 +1902,8 @@ function OpenCodeChatTUI() {
     const title = newSessionTitle.trim() || "New Session";
     const directory = currentProject?.worktree || "";
     if (!directory) {
-      console.warn("Select a project before creating a session.");
+      if (process.env.NODE_ENV !== "production")
+        console.warn("Select a project before creating a session.");
       return;
     }
     try {
@@ -2216,13 +2218,16 @@ function OpenCodeChatTUI() {
   const handleInputChange = async (value: string) => {
     setInput(value);
     if (value.startsWith("/")) {
-      console.log("Commands from context:", commands);
-      console.log("Custom commands list:", customCommandSuggestions);
+      if (process.env.NODE_ENV !== "production") {
+        console.log("Commands from context:", commands);
+        console.log("Custom commands list:", customCommandSuggestions);
+      }
       const suggestions = getCommandSuggestions(
         value,
         customCommandSuggestions,
       );
-      console.log("All suggestions:", suggestions);
+      if (process.env.NODE_ENV !== "production")
+        console.log("All suggestions:", suggestions);
       setCommandSuggestions(suggestions);
       setShowCommandPicker(suggestions.length > 0);
       setSelectedCommandIndex(0);

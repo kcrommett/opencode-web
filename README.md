@@ -81,9 +81,13 @@ The OpenCode Server URL is resolved in the following precedence order:
 - `OPENCODE_SERVER_PORT`: Port for the bundled OpenCode Server (default: 4096)
 - `OPENCODE_SERVER_HOSTNAME`: Hostname for the bundled OpenCode Server (default: 127.0.0.1)
 
-Example: `opencode-web --external-server https://opencode.example.com --host 0.0.0.0 -p 8080`
+Example: `opencode-web --external-server http://10.0.0.200:4096 --host 0.0.0.0 -p 8080`
 
-Example: `VITE_OPENCODE_SERVER_URL=https://opencode.example.com bun run dev`
+  - Runs opencode-web listening on all interfaces at port 8080, connecting to an existing OpenCode Server at `http://10.0.0.200:4096`
+
+Example: `VITE_OPENCODE_SERVER_URL=http://10.0.0.200:4096 bun run dev`
+
+  - Runs opencode-web in development mode, connecting to an existing OpenCode Server at `http://10.0.0.200:4096`
 
 ## Why a web interface?
 
