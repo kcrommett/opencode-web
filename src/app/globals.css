@@ -960,7 +960,7 @@ pre.whitespace-pre-wrap {
 
 .delete-button-confirm {
   background-color: var(--theme-error, #ef4444);
-  color: white;
+  color: #ff0000 !important;
 }
 
 .delete-button-confirm:hover {
