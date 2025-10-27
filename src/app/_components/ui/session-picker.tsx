@@ -311,14 +311,16 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
                 </Button>
               </div>
               <Button
-                variant="error"
+                variant="foreground2"
                 box="round"
                 size="small"
                 onClick={handleBulkDeleteClick}
-                className="delete-button-bulk"
+                className={`delete-button-bulk ${selectedIds.size > 0 ? 'dangerous-bulk-delete' : ''}`}
                 disabled={selectedIds.size === 0}
               >
-                Delete {selectedIds.size > 0 ? `(${selectedIds.size})` : ""}
+                <span className={selectedIds.size > 0 ? 'text-red-500' : ''}>
+                  Delete {selectedIds.size > 0 ? `(${selectedIds.size})` : ""}
+                </span>
               </Button>
             </div>
           </>
