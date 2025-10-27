@@ -126,10 +126,14 @@ export const Dialog: React.FC<DialogProps> = ({
     <div
       ref={containerRef}
       className="fixed inset-0 flex items-center justify-center z-50 p-4"
+      data-dialog-open="true"
       onClick={onClose}
     >
       <dialog
         is-="dialog"
+        role="dialog"
+        aria-modal="true"
+        data-dialog-open="true"
         className={`${className} shadow-2xl`}
         {...dialogProps}
         {...restProps}

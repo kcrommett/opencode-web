@@ -7,6 +7,11 @@ interface OpenCodeContextType {
   messages: ReturnType<typeof useOpenCode>["messages"];
   setMessages: ReturnType<typeof useOpenCode>["setMessages"];
   sessions: ReturnType<typeof useOpenCode>["sessions"];
+  sessionSearchQuery: ReturnType<typeof useOpenCode>["sessionSearchQuery"];
+  setSessionSearchQuery: ReturnType<typeof useOpenCode>["setSessionSearchQuery"];
+  sessionFilters: ReturnType<typeof useOpenCode>["sessionFilters"];
+  setSessionFilters: ReturnType<typeof useOpenCode>["setSessionFilters"];
+  filteredSessions: ReturnType<typeof useOpenCode>["filteredSessions"];
   loading: ReturnType<typeof useOpenCode>["loading"];
   createSession: ReturnType<typeof useOpenCode>["createSession"];
   sendMessage: ReturnType<typeof useOpenCode>["sendMessage"];
@@ -79,9 +84,7 @@ providersData: ReturnType<typeof useOpenCode>["providersData"];
   shouldBlurEditor: ReturnType<typeof useOpenCode>["shouldBlurEditor"];
   setShouldBlurEditor: ReturnType<typeof useOpenCode>["setShouldBlurEditor"];
   currentSessionTodos: ReturnType<typeof useOpenCode>["currentSessionTodos"];
-  setCurrentSessionTodos: ReturnType<
-    typeof useOpenCode
-  >["setCurrentSessionTodos"];
+  setCurrentSessionTodos: ReturnType<typeof useOpenCode>["setCurrentSessionTodos"];
   executeSlashCommand: ReturnType<typeof useOpenCode>["executeSlashCommand"];
   parseCommand: ReturnType<typeof useOpenCode>["parseCommand"];
   subagents: ReturnType<typeof useOpenCode>["subagents"];
@@ -92,6 +95,10 @@ providersData: ReturnType<typeof useOpenCode>["providersData"];
   clearQueue: ReturnType<typeof useOpenCode>["clearQueue"];
   processNextInQueue: ReturnType<typeof useOpenCode>["processNextInQueue"];
   isProcessingQueue: ReturnType<typeof useOpenCode>["isProcessingQueue"];
+  // Frame state management for keyboard navigation
+  selectedFrame: string | null;
+  selectFrame: (frame: string | null) => void;
+  frameActions: Record<string, () => void>;
 }
 
 const OpenCodeContext = createContext<OpenCodeContextType | undefined>(

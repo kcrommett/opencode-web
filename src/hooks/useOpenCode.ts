@@ -3,6 +3,8 @@ import { openCodeService, handleOpencodeError } from "@/lib/opencode-client";
 import { OpencodeEvent, SSEConnectionState } from "@/lib/opencode-events";
 import { getAgentModel, getDefaultModel } from "@/lib/config";
 import { parseCommand, ParsedCommand } from "@/lib/commandParser";
+import { shouldDecodeAsText as checkIfText } from "@/lib/mime-utils";
+import { searchSessions, SessionFilters } from "@/lib/session-index";
 import type {
   Agent,
   FileContentData,
@@ -22,85 +24,19 @@ const debugLog = (...args: unknown[]) => {
 };
 
 const BASE64_ENCODING = "base64";
-const TEXT_LIKE_MIME_SNIPPETS = [
-  "json",
-  "xml",
-  "yaml",
-  "yml",
-  "toml",
-  "csv",
-  "javascript",
-  "typescript",
-  "html",
-  "css",
-  "plain",
-  "markdown",
-  "shell",
-];
-const TEXT_LIKE_EXTENSIONS = new Set([
-  "txt",
-  "text",
-  "md",
-  "markdown",
-  "json",
-  "jsonc",
-  "yaml",
-  "yml",
-  "toml",
-  "xml",
-  "html",
-  "htm",
-  "css",
-  "scss",
-  "sass",
-  "js",
-  "jsx",
-  "ts",
-  "tsx",
-  "cjs",
-  "mjs",
-  "py",
-  "rb",
-  "rs",
-  "go",
-  "java",
-  "c",
-  "cpp",
-  "h",
-  "hpp",
-  "sql",
-  "sh",
-  "bash",
-  "zsh",
-  "env",
-  "lock",
-  "gitignore",
-  "gitattributes",
-]);
 
-const TEXT_LIKE_FILENAMES = new Set([
-  "license",
-  "license.md",
-  "license.txt",
-  "readme",
-  "readme.md",
-  "changelog",
-  "changelog.md",
-  "contributing",
-  "contributing.md",
-  "conduct",
-  "conduct.md",
-  "makefile",
-  "dockerfile",
-  ".gitignore",
-  ".gitattributes",
-  ".editorconfig",
-  "cargo.toml",
-  "package.json",
-  "package-lock.json",
-  "pnpm-lock.yaml",
-  "bun.lock",
-]);
+/**
+ * MIGRATION NOTE (Issue #39):
+ * File type detection has been migrated to the mime-utils module (src/lib/mime-utils.ts).
+ * This migration:
+ * - Fixes detection for Common Lisp (.cl) and Clojure (.clj, .cljs, .cljc) files
+ * - Uses the industry-standard mime-types package for better coverage
+ * - Reduces maintenance burden by centralizing MIME type logic
+ * - Maintains backward compatibility for all existing file types
+ *
+ * Previously hard-coded constants (TEXT_LIKE_MIME_SNIPPETS, TEXT_LIKE_EXTENSIONS, TEXT_LIKE_FILENAMES)
+ * have been replaced with the getMimeType() and shouldDecodeAsText() functions.
+ */
 
 interface Message {
   id: string;
@@ -323,12 +259,34 @@ export function useOpenCode() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [sessions, setSessions] = useState<Session[]>([]);
+  
+  // Session search state
+  const [sessionSearchQuery, setSessionSearchQuery] = useState<string>('');
+  const [sessionFilters, setSessionFilters] = useState<SessionFilters>({
+    sortBy: 'updated',
+    sortOrder: 'desc',
+  });
+  
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [fileDirectory, setFileDirectory] = useState<string>(".");
   const [models, setModels] = useState<Model[]>([]);
   const modelsRef = useRef<Model[]>([]);
+
+  // Computed filtered sessions based on search query and filters
+  const filteredSessions = useMemo(() => {
+    // If no search query and no active filters, return all sessions
+    if (!sessionSearchQuery && !sessionFilters.dateFrom && !sessionFilters.dateTo && !sessionFilters.projectID && !sessionFilters.sortBy) {
+      return sessions;
+    }
+    
+    // Apply search and filters
+    return searchSessions(sessions, {
+      text: sessionSearchQuery,
+      ...sessionFilters,
+    });
+  }, [sessions, sessionSearchQuery, sessionFilters]);
 
   // Permission and todo state
   const [currentPermission, setCurrentPermission] =
@@ -385,6 +343,10 @@ export function useOpenCode() {
   const [messageQueue, setMessageQueue] = useState<Message[]>([]);
   const messageQueueRef = useRef<Message[]>([]);
   const [isProcessingQueue, setIsProcessingQueue] = useState(false);
+
+  // Frame state management for keyboard navigation
+  const [selectedFrame, setSelectedFrame] = useState<string | null>(null);
+  const frameTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [customCommands, setCustomCommands] = useState<
     Array<{ name: string; description: string; template: string }>
   >([]);
@@ -2018,6 +1980,43 @@ export function useOpenCode() {
     }
   }, [loading, isStreaming, currentSessionBusy, messageQueue.length, isProcessingQueue, processNextInQueue]);
 
+  // Frame state management functions
+  const selectFrame = useCallback((frame: string | null) => {
+    if (frameTimeoutRef.current) {
+      clearTimeout(frameTimeoutRef.current);
+      frameTimeoutRef.current = null;
+    }
+
+    setSelectedFrame(frame);
+
+    // Auto-clear frame selection after 3 seconds if no action is taken
+    if (frame) {
+      frameTimeoutRef.current = setTimeout(() => {
+        setSelectedFrame(null);
+      }, 3000);
+    }
+  }, []);
+
+  // Frame actions registry - maps frame names to their available actions
+  const frameActions = useMemo(() => ({
+    // Projects frame actions
+    projects: () => {
+      // This will be populated by the keyboard manager when the frame is selected
+    },
+    // Sessions frame actions  
+    sessions: () => {
+      // This will be populated by the keyboard manager when the frame is selected
+    },
+    // Files frame actions
+    files: () => {
+      // This will be populated by the keyboard manager when the frame is selected
+    },
+    // Workspace frame actions
+    workspace: () => {
+      // This will be populated by the keyboard manager when the frame is selected
+    },
+  }), []);
+
   const loadProjects = useCallback(async () => {
     if (loadedProjectsRef.current) return;
     try {
@@ -2293,36 +2292,14 @@ export function useOpenCode() {
     return null;
   }, []);
 
+  /**
+   * Determine if a file should be decoded as text based on MIME type and path.
+   * Now uses the mime-utils module for better file type detection.
+   * @see src/lib/mime-utils.ts
+   */
   const shouldDecodeAsText = useCallback(
     (mimeType: string | null, filePath: string) => {
-      const baseName = filePath.split(/[\\/]/).pop() ?? "";
-      const normalizedBaseName = baseName.toLowerCase();
-      const extension = normalizedBaseName.includes(".")
-        ? (normalizedBaseName.split(".").pop() ?? "")
-        : "";
-      const isTextByExtension = extension
-        ? TEXT_LIKE_EXTENSIONS.has(extension)
-        : false;
-      const isTextByName = TEXT_LIKE_FILENAMES.has(normalizedBaseName);
-
-      if (!mimeType) {
-        return isTextByExtension || isTextByName;
-      }
-
-      const normalized = mimeType.toLowerCase();
-      if (normalized.startsWith("text/")) return true;
-      if (normalized.includes("charset=")) return true;
-      if (
-        TEXT_LIKE_MIME_SNIPPETS.some((snippet) => normalized.includes(snippet))
-      )
-        return true;
-      if (
-        normalized === "application/octet-stream" &&
-        (isTextByExtension || isTextByName)
-      ) {
-        return true;
-      }
-      return isTextByExtension || isTextByName;
+      return checkIfText(mimeType, filePath);
     },
     [],
   );
@@ -3040,6 +3017,11 @@ export function useOpenCode() {
     messages,
     setMessages,
     sessions,
+    sessionSearchQuery,
+    setSessionSearchQuery,
+    sessionFilters,
+    setSessionFilters,
+    filteredSessions,
     loading,
     createSession,
     sendMessage,
@@ -3129,5 +3111,9 @@ export function useOpenCode() {
     clearQueue,
     processNextInQueue,
     isProcessingQueue,
+    // Frame state management for keyboard navigation
+    selectedFrame,
+    selectFrame,
+    frameActions,
   };
 }

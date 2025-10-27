@@ -1,5 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo, useEffect, useRef } from "react";
+import {
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  useCallback,
+  useLayoutEffect,
+} from "react";
 import {
   Button,
   Input,
@@ -17,7 +24,12 @@ import {
 } from "@/app/_components/ui";
 import { CommandPicker } from "@/app/_components/ui/command-picker";
 import { AgentPicker } from "@/app/_components/ui/agent-picker";
-import { SessionPicker } from "@/app/_components/ui/session-picker";
+import {
+  SessionPicker,
+  type SessionPickerEditControls,
+} from "@/app/_components/ui/session-picker";
+import { SessionSearchInput } from "@/app/_components/ui/session-search";
+import { ProjectPicker } from "@/app/_components/ui/project-picker";
 import { PermissionModal } from "@/app/_components/ui/permission-modal";
 import { MessagePart } from "@/app/_components/message";
 import type {
@@ -43,6 +55,8 @@ import {
   addLineNumbers,
 } from "@/lib/highlight";
 import { useIsMobile } from "@/lib/breakpoints";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { KeyboardIndicator } from "@/app/_components/ui";
 import "highlight.js/styles/github-dark.css";
 
 type ProjectItem = {
@@ -219,7 +233,6 @@ function ThemePickerDialog({
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [previewTheme, setPreviewTheme] = useState(currentTheme);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const selectedItemRef = useRef<HTMLDivElement>(null);
   const listContainerRef = useRef<HTMLDivElement>(null);
@@ -254,6 +267,7 @@ function ThemePickerDialog({
         });
       }, 100);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Update selected index when filtered themes change
@@ -271,7 +285,7 @@ function ThemePickerDialog({
         setSelectedIndex(currentIndex);
       }
     }
-  }, [filteredThemes, searchQuery, currentTheme]);
+  }, [filteredThemes, searchQuery, currentTheme, selectedIndex]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -282,7 +296,6 @@ function ThemePickerDialog({
           // Circular navigation: wrap to start if at the end
           const newIndex = prev + 1 >= filteredThemes.length ? 0 : prev + 1;
           // Preview theme immediately
-          setPreviewTheme(filteredThemes[newIndex].id);
           onThemeChange(filteredThemes[newIndex].id);
           return newIndex;
         });
@@ -292,7 +305,6 @@ function ThemePickerDialog({
           // Circular navigation: wrap to end if at the start
           const newIndex = prev - 1 < 0 ? filteredThemes.length - 1 : prev - 1;
           // Preview theme immediately
-          setPreviewTheme(filteredThemes[newIndex].id);
           onThemeChange(filteredThemes[newIndex].id);
           return newIndex;
         });
@@ -448,6 +460,11 @@ function OpenCodeChatTUI() {
   const [selectedSidebarSessionIds, setSelectedSidebarSessionIds] = useState<
     Set<string>
   >(new Set());
+  const [mobileEditMode, setMobileEditMode] = useState(false);
+  const [selectedMobileSessionIds, setSelectedMobileSessionIds] = useState<
+    Set<string>
+  >(new Set());
+  const lastEscTimeRef = useRef<number>(0);
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("opencode-active-tab") || "workspace";
@@ -475,6 +492,7 @@ function OpenCodeChatTUI() {
   const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
   const [showAgentPicker, setShowAgentPicker] = useState(false);
   const [showSessionPicker, setShowSessionPicker] = useState(false);
+  const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [selectedModelIndex, setSelectedModelIndex] = useState(0);
   const [showDetails, setShowDetails] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -492,6 +510,8 @@ function OpenCodeChatTUI() {
   const fileSearchInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const sessionPickerEditControls =
+    useRef<SessionPickerEditControls | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("opencode-sidebar-width");
@@ -541,6 +561,11 @@ function OpenCodeChatTUI() {
     messages,
     setMessages,
     sessions,
+    sessionSearchQuery,
+    setSessionSearchQuery,
+    sessionFilters,
+    setSessionFilters,
+    filteredSessions,
     loading,
     isStreaming,
     createSession,
@@ -607,8 +632,426 @@ function OpenCodeChatTUI() {
     clearQueue,
     processNextInQueue: _processNextInQueue,
     isProcessingQueue: _isProcessingQueue,
+    // Frame state for keyboard navigation
+    selectedFrame,
+    selectFrame,
   } = useOpenCodeContext();
   const { currentTheme, changeTheme } = useTheme(config?.theme);
+
+  // Initialize keyboard shortcuts
+  const {
+    keyboardState,
+    registerShortcut,
+    setActiveModal,
+    setSpacePassthrough,
+  } = useKeyboardShortcuts();
+
+  // Close all modals - ensures only one modal is open at a time
+  const closeAllModals = useCallback(() => {
+    setSpacePassthrough(false);
+    setActiveModal(null);
+    setShowCommandPicker(false);
+    setShowAgentPicker(false);
+    setShowSessionPicker(false);
+    setShowProjectPicker(false);
+    setShowConfig(false);
+    setShowModelPicker(false);
+    setShowThemes(false);
+    setShowHelp(false);
+    setShowOnboarding(false);
+  }, [
+    setActiveModal,
+    setShowCommandPicker,
+    setShowAgentPicker,
+    setShowSessionPicker,
+    setShowProjectPicker,
+    setShowConfig,
+    setShowModelPicker,
+    setShowThemes,
+    setShowHelp,
+    setShowOnboarding,
+    setSpacePassthrough,
+  ]);
+
+  const handleSessionPickerEditModeChange = useCallback(
+    (isEditMode: boolean) => {
+      setSpacePassthrough(isEditMode);
+    },
+    [setSpacePassthrough],
+  );
+
+  useEffect(() => {
+    if (!showSessionPicker) {
+      setSpacePassthrough(false);
+    }
+  }, [showSessionPicker, setSpacePassthrough]);
+
+  // Register keyboard shortcuts for frame navigation
+  useEffect(() => {
+    const unregisterFns: (() => void)[] = [];
+
+    // Frame navigation shortcuts (require leader key)
+    unregisterFns.push(
+      registerShortcut({
+        key: "p",
+        handler: () => {
+          closeAllModals();
+          setShowProjectPicker(true);
+        },
+        requiresLeader: true,
+        description: "Open Project Picker",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "s",
+        handler: () => {
+          closeAllModals();
+          setShowSessionPicker(true);
+        },
+        requiresLeader: true,
+        description: "Open Session Picker",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "f",
+        handler: () => {
+          closeAllModals();
+          selectFrame("files");
+        },
+        requiresLeader: true,
+        description: "Navigate to Files",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "w",
+        handler: () => {
+          closeAllModals();
+          selectFrame("workspace");
+        },
+        requiresLeader: true,
+        description: "Navigate to Workspace",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "m",
+        handler: () => {
+          closeAllModals();
+          setShowModelPicker(true);
+        },
+        requiresLeader: true,
+        description: "Open Model Picker",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "a",
+        handler: () => {
+          closeAllModals();
+          setShowAgentPicker(true);
+        },
+        requiresLeader: true,
+        description: "Open Agent Picker",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "t",
+        handler: () => {
+          closeAllModals();
+          setShowThemes(true);
+        },
+        requiresLeader: true,
+        description: "Open Theme Picker",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "c",
+        handler: () => {
+          closeAllModals();
+          setShowConfig(true);
+        },
+        requiresLeader: true,
+        description: "Open Config",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "h",
+        handler: () => {
+          closeAllModals();
+          setShowHelp(true);
+        },
+        requiresLeader: true,
+        description: "Open Help Dialog",
+        category: "navigation",
+      })
+    );
+
+    // Secondary action shortcuts (require selected frame)
+    unregisterFns.push(
+      registerShortcut({
+        key: "n",
+        handler: () => {
+          if (selectedFrame === "sessions") {
+            setShowNewSessionForm(true);
+          } else if (selectedFrame === "projects") {
+            setShowNewProjectForm(true);
+          }
+        },
+        requiresFrame: selectedFrame || undefined,
+        description: "New (Project/Session)",
+        category: "action",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "e",
+        handler: () => {
+          if (selectedFrame === "sessions" && currentSession) {
+            setSidebarEditMode(true);
+          }
+        },
+        requiresFrame: "sessions",
+        description: "Edit Session",
+        category: "action",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "d",
+        handler: () => {
+          if (selectedFrame === "sessions" && currentSession) {
+            if (confirm("Are you sure you want to delete this session?")) {
+              deleteSession(currentSession.id);
+            }
+          }
+        },
+        requiresFrame: "sessions",
+        description: "Delete Session",
+        category: "action",
+      })
+    );
+
+    // Modal-specific shortcuts (work when modal is open)
+    unregisterFns.push(
+      registerShortcut({
+        key: "n",
+        handler: () => {
+          setShowSessionPicker(false);
+          setShowNewSessionForm(true);
+        },
+        requiresModal: "session",
+        description: "New Session",
+        category: "action",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "e",
+        handler: () => {
+          sessionPickerEditControls.current?.enterEditMode();
+        },
+        requiresModal: "session",
+        description: "Edit Session",
+        category: "action",
+      })
+    );
+
+    return () => {
+      unregisterFns.forEach((fn) => fn());
+    };
+  }, [
+    registerShortcut,
+    selectFrame,
+    selectedFrame,
+    currentSession,
+    setShowModelPicker,
+    setShowAgentPicker,
+    setShowThemes,
+    setShowConfig,
+    setShowHelp,
+    setShowNewSessionForm,
+    setShowNewProjectForm,
+    setSidebarEditMode,
+    deleteSession,
+    setShowSessionPicker,
+    setShowProjectPicker,
+    closeAllModals,
+    sessionPickerEditControls,
+  ]);
+
+  useLayoutEffect(() => {
+    if (showSessionPicker) {
+      setActiveModal("session");
+      return;
+    }
+
+    if (showProjectPicker) {
+      setActiveModal("project");
+      return;
+    }
+
+    if (showAgentPicker) {
+      setActiveModal("agent");
+      return;
+    }
+
+    if (showModelPicker) {
+      setActiveModal("model");
+      return;
+    }
+
+    if (showThemes) {
+      setActiveModal("theme");
+      return;
+    }
+
+    if (showConfig) {
+      setActiveModal("config");
+      return;
+    }
+
+    if (showCommandPicker) {
+      setActiveModal("command");
+      return;
+    }
+
+    setActiveModal(null);
+  }, [
+    showSessionPicker,
+    showProjectPicker,
+    showAgentPicker,
+    showModelPicker,
+    showThemes,
+    showConfig,
+    showCommandPicker,
+    setActiveModal,
+  ]);
+
+  useEffect(() => {
+    if (!showConfig) {
+      return;
+    }
+
+    let canceled = false;
+    setConfigData(null);
+
+    (async () => {
+      try {
+        const config = await openCodeService.getConfig();
+        if (!canceled) {
+          setConfigData(JSON.stringify(config, null, 2));
+        }
+      } catch (error) {
+        if (process.env.NODE_ENV !== "production") {
+          console.error("Failed to load config:", error);
+        }
+        if (!canceled) {
+          setConfigData("Unable to load configuration.");
+        }
+      }
+    })();
+
+    return () => {
+      canceled = true;
+    };
+  }, [showConfig]);
+
+  // Handle frame navigation and actions
+  useEffect(() => {
+    if (selectedFrame === "projects") {
+      // Scroll to projects section - it's in the sidebar
+      const projectsHeading = Array.from(document.querySelectorAll('h3')).find(h => h.textContent === 'Projects');
+      if (projectsHeading) {
+        projectsHeading.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    } else if (selectedFrame === "sessions") {
+      // Scroll to sessions section - it's in the sidebar
+      const sessionsHeading = Array.from(document.querySelectorAll('h3')).find(h => h.textContent === 'Sessions');
+      if (sessionsHeading) {
+        sessionsHeading.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    } else if (selectedFrame === "files") {
+      // Switch to files tab
+      setActiveTab("files");
+    } else if (selectedFrame === "workspace") {
+      // Switch to workspace tab and focus on input area
+      setActiveTab("workspace");
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+        }
+      }, 100);
+    }
+  }, [selectedFrame]);
+
+  // Handle secondary actions based on selected frame
+  useEffect(() => {
+    const handleFrameAction = (action: string) => {
+      if (!selectedFrame) return;
+
+      switch (selectedFrame) {
+        case "sessions":
+          if (action === "new") {
+            setShowNewSessionForm(true);
+          } else if (action === "edit") {
+            // Enable edit mode for current session
+            if (currentSession) {
+              setSidebarEditMode(true);
+            }
+          } else if (action === "delete") {
+            // Delete current session
+            if (currentSession && confirm("Are you sure you want to delete this session?")) {
+              deleteSession(currentSession.id);
+            }
+          }
+          break;
+        case "projects":
+          if (action === "new") {
+            setShowNewProjectForm(true);
+          }
+          break;
+      }
+      
+      // Clear frame selection after action
+      selectFrame(null);
+    };
+
+    // Listen for frame actions (this will be triggered by keyboard shortcuts)
+    const handleFrameActionEvent = (event: CustomEvent) => {
+      handleFrameAction(event.detail.action);
+    };
+
+    window.addEventListener("frame-action", handleFrameActionEvent as EventListener);
+    
+    return () => {
+      window.removeEventListener("frame-action", handleFrameActionEvent as EventListener);
+    };
+  }, [selectedFrame, currentSession, deleteSession, selectFrame]);
 
   const customCommandSuggestions = useMemo<Command[]>(() => {
     if (!commands || commands.length === 0) return [];
@@ -900,15 +1343,28 @@ function OpenCodeChatTUI() {
         }
         break;
       case "help":
+        setInput("");
+        closeAllModals();
         setShowHelp(true);
         break;
       case "themes":
+        setInput("");
+        closeAllModals();
         setShowThemes(true);
         break;
       case "sessions":
+        setInput("");
+        closeAllModals();
         setShowSessionPicker(true);
         break;
+      case "project":
+        setInput("");
+        closeAllModals();
+        setShowProjectPicker(true);
+        break;
       case "agents":
+        setInput("");
+        closeAllModals();
         setShowAgentPicker(true);
         break;
       case "undo":
@@ -1536,12 +1992,16 @@ function OpenCodeChatTUI() {
   };
 
   const handleSidebarSelectAll = () => {
-    const projectSessions = sessions.filter(
+    const projectSessions = filteredSessions.filter(
       (session) =>
         session.projectID === currentProject?.id ||
         session.directory === currentProject?.worktree,
     );
     setSelectedSidebarSessionIds(new Set(projectSessions.map((s) => s.id)));
+  };
+
+  const handleSidebarClearSelection = () => {
+    setSelectedSidebarSessionIds(new Set());
   };
 
   const handleSidebarBulkDelete = async () => {
@@ -1561,6 +2021,62 @@ function OpenCodeChatTUI() {
         await loadSessions();
         setSelectedSidebarSessionIds(new Set());
         setSidebarEditMode(false);
+      } catch (err) {
+        console.error("Failed to delete sessions:", err);
+      }
+    }
+  };
+
+  // Mobile edit mode handlers
+  const handleMobileEditToggle = () => {
+    if (mobileEditMode) {
+      setSelectedMobileSessionIds(new Set());
+    }
+    setMobileEditMode(!mobileEditMode);
+  };
+
+  const handleMobileSessionToggle = (sessionId: string) => {
+    setSelectedMobileSessionIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(sessionId)) {
+        next.delete(sessionId);
+      } else {
+        next.add(sessionId);
+      }
+      return next;
+    });
+  };
+
+  const handleMobileSelectAll = () => {
+    const projectSessions = filteredSessions.filter(
+      (session) =>
+        session.projectID === currentProject?.id ||
+        session.directory === currentProject?.worktree,
+    );
+    setSelectedMobileSessionIds(new Set(projectSessions.map((s) => s.id)));
+  };
+
+  const handleMobileClearSelection = () => {
+    setSelectedMobileSessionIds(new Set());
+  };
+
+  const handleMobileBulkDelete = async () => {
+    const count = selectedMobileSessionIds.size;
+    if (count === 0) return;
+
+    if (
+      confirm(
+        `Are you sure you want to delete ${count} session${count > 1 ? "s" : ""}?`,
+      )
+    ) {
+      try {
+        const deletePromises = Array.from(selectedMobileSessionIds).map((id) =>
+          deleteSession(id),
+        );
+        await Promise.allSettled(deletePromises);
+        await loadSessions();
+        setSelectedMobileSessionIds(new Set());
+        setMobileEditMode(false);
       } catch (err) {
         console.error("Failed to delete sessions:", err);
       }
@@ -1624,10 +2140,37 @@ function OpenCodeChatTUI() {
       } else if (showMentionSuggestions) {
         e.preventDefault();
         setShowMentionSuggestions(false);
-      } else if (currentSessionBusy && !isMobile) {
-        // On desktop, ESC aborts the running agent
+      } else if (keyboardState.leaderActive) {
+        // Deactivate leader mode if it's active
         e.preventDefault();
-        handleAbort();
+        // This will be handled by the keyboard manager
+      } else {
+        // Handle double ESC for agent interruption (desktop only)
+        const now = Date.now();
+        const timeSinceLastEsc = now - lastEscTimeRef.current;
+        
+        if (timeSinceLastEsc < 500 && currentSessionBusy && !isMobile) {
+          // Double ESC detected - interrupt agent
+          e.preventDefault();
+          handleAbort();
+          lastEscTimeRef.current = 0; // Reset timer
+        } else {
+          // Single ESC - blur focused element or prepare for double ESC
+          lastEscTimeRef.current = now;
+          
+          // Blur any focused element that's not the body
+          const activeElement = document.activeElement as HTMLElement;
+          if (activeElement && activeElement !== document.body) {
+            activeElement.blur();
+          }
+          
+          // Clear the timer after the threshold
+          setTimeout(() => {
+            if (lastEscTimeRef.current === now) {
+              lastEscTimeRef.current = 0;
+            }
+          }, 500);
+        }
       }
     }
   };
@@ -2099,14 +2642,9 @@ function OpenCodeChatTUI() {
           <Button
             variant="foreground0"
             box="round"
-            onClick={async () => {
-              try {
-                const config = await openCodeService.getConfig();
-                setConfigData(JSON.stringify(config, null, 2));
-                setShowConfig(true);
-              } catch (error) {
-                console.error("Failed to fetch config:", error);
-              }
+            onClick={() => {
+              closeAllModals();
+              setShowConfig(true);
             }}
             size="small"
             className="border-none whitespace-nowrap"
@@ -2234,33 +2772,54 @@ function OpenCodeChatTUI() {
                     </div>
                   ) : (
                     <>
+                      {/* Sidebar Search Input */}
+                      <div className="mb-2">
+                        <SessionSearchInput
+                          value={sessionSearchQuery}
+                          onChange={setSessionSearchQuery}
+                          onClear={() => setSessionSearchQuery("")}
+                        />
+                      </div>
                       {sidebarEditMode && (
                         <>
-                          <div className="flex items-center justify-between gap-2 px-2 py-2 bg-theme-background-alt rounded mb-2">
+                           <div className="flex items-center justify-between gap-2 p-2 bg-theme-background-alt rounded mb-2">
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="foreground1"
+                                box="round"
+                                size="small"
+                                onClick={handleSidebarSelectAll}
+                              >
+                                Select All
+                              </Button>
+                              <Button
+                                variant="foreground2"
+                                box="round"
+                                size="small"
+                                onClick={handleSidebarClearSelection}
+                                disabled={selectedSidebarSessionIds.size === 0}
+                              >
+                                Clear
+                              </Button>
+                            </div>
                              <Button
-                               variant="foreground1"
+                               variant="foreground2"
                                box="round"
                                size="small"
-                               onClick={handleSidebarSelectAll}
-                             >
-                              Select All
-                            </Button>
-                             <Button
-                               variant="error"
-                               box="round"
-                               size="small"
-                              onClick={handleSidebarBulkDelete}
-                              disabled={selectedSidebarSessionIds.size === 0}
-                              className="sidebar-delete-button"
-                            >
-                              Delete ({selectedSidebarSessionIds.size})
-                            </Button>
+                               onClick={handleSidebarBulkDelete}
+                               disabled={selectedSidebarSessionIds.size === 0}
+                               className={`sidebar-delete-button ${selectedSidebarSessionIds.size > 0 ? 'dangerous-bulk-delete' : ''}`}
+                              >
+                                <span className={selectedSidebarSessionIds.size > 0 ? 'text-red-500' : ''}>
+                                  Delete{selectedSidebarSessionIds.size > 0 ? ` (${selectedSidebarSessionIds.size})` : ""}
+                                </span>
+                             </Button>
                           </div>
                           <Separator className="mb-2" />
                         </>
                       )}
-                      <div className="flex-1 overflow-y-auto scrollbar space-y-2 min-h-0">
-                        {sessions
+                      <div className="flex-1 overflow-y-auto scrollbar space-y-2 min-h-0" data-sessions-list>
+                        {filteredSessions
                           .filter(
                             (session) =>
                               session.projectID === currentProject?.id ||
@@ -2277,14 +2836,21 @@ function OpenCodeChatTUI() {
                                 key={session.id}
                                 className="p-2 cursor-pointer transition-colors rounded"
                                 style={{
-                                  backgroundColor:
-                                    !sidebarEditMode && isSelected
+                                  backgroundColor: sidebarEditMode
+                                    ? isChecked
+                                      ? "rgba(from var(--theme-primary) r g b / 0.15)"
+                                      : "var(--theme-background)"
+                                    : isSelected
                                       ? "var(--theme-primary)"
                                       : "var(--theme-background)",
-                                  color:
-                                    !sidebarEditMode && isSelected
+                                  color: sidebarEditMode
+                                    ? "var(--theme-foreground)"
+                                    : isSelected
                                       ? "var(--theme-background)"
                                       : "var(--theme-foreground)",
+                                  border: sidebarEditMode
+                                    ? `1px solid ${isChecked ? "var(--theme-primary)" : "var(--theme-borderSubtle)"}`
+                                    : "1px solid transparent",
                                 }}
                                 onClick={() =>
                                   sidebarEditMode
@@ -2292,13 +2858,28 @@ function OpenCodeChatTUI() {
                                     : handleSessionSwitch(session.id)
                                 }
                                 onMouseEnter={(e) => {
-                                  if (!isSelected || sidebarEditMode) {
+                                  if (sidebarEditMode) {
+                                    if (!isChecked) {
+                                      e.currentTarget.style.backgroundColor =
+                                        "var(--theme-backgroundAlt)";
+                                    }
+                                    return;
+                                  }
+
+                                  if (!isSelected) {
                                     e.currentTarget.style.backgroundColor =
                                       "var(--theme-backgroundAlt)";
                                   }
                                 }}
                                 onMouseLeave={(e) => {
-                                  if (!isSelected || sidebarEditMode) {
+                                  if (sidebarEditMode) {
+                                    e.currentTarget.style.backgroundColor = isChecked
+                                      ? "rgba(from var(--theme-primary) r g b / 0.15)"
+                                      : "var(--theme-background)";
+                                    return;
+                                  }
+
+                                  if (!isSelected) {
                                     e.currentTarget.style.backgroundColor =
                                       "var(--theme-background)";
                                   }
@@ -2608,78 +3189,214 @@ function OpenCodeChatTUI() {
 
               {/* Sessions Section */}
               <div className="flex flex-col flex-1 min-h-0">
-                <div className="flex justify-between items-center mb-2">
+                <div className="flex justify-between items-center mb-2 gap-2">
                   <h3 className="text-sm font-medium">Sessions</h3>
-                  <Button
-                    variant="foreground0"
-                    box="round"
-                    onClick={() => {
-                      setIsMobileSidebarOpen(false);
-                      setNewSessionTitle("");
-                      setShowNewSessionForm(true);
-                    }}
-                    size="small"
-                    disabled={!currentProject}
-                  >
-                    New Session
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="foreground1"
+                      box="round"
+                      onClick={handleMobileEditToggle}
+                      size="small"
+                      disabled={!currentProject}
+                    >
+                      {mobileEditMode ? "Done" : "Edit"}
+                    </Button>
+                    <Button
+                      variant="foreground0"
+                      box="round"
+                      onClick={() => {
+                        setIsMobileSidebarOpen(false);
+                        setNewSessionTitle("");
+                        setShowNewSessionForm(true);
+                      }}
+                      size="small"
+                      disabled={!currentProject}
+                    >
+                      New Session
+                    </Button>
+                  </div>
                 </div>
                 <Separator className="mb-2" />
+                
+                {/* Mobile Search Input */}
+                {currentProject && (
+                  <div className="mb-2">
+                    <SessionSearchInput
+                      value={sessionSearchQuery}
+                      onChange={setSessionSearchQuery}
+                      onClear={() => setSessionSearchQuery("")}
+                    />
+                  </div>
+                )}
+                
                 {!currentProject ? (
                   <div className="flex-1 flex items-center justify-center text-sm text-theme-muted text-center px-4">
                     Select a project, or use New Project to add a git directory
                   </div>
                 ) : (
                   <>
-                    <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
-                      {sessions
-                        .filter(
-                          (session) =>
-                            session.projectID === currentProject?.id ||
-                            session.directory === currentProject?.worktree,
-                        )
-                        .map((session) => {
-                          const isSelected = currentSession?.id === session.id;
-                          return (
-                            <div
-                              key={session.id}
-                              className="p-2 cursor-pointer transition-colors rounded"
-                              style={{
-                                backgroundColor: isSelected
-                                  ? "var(--theme-primary)"
-                                  : "var(--theme-background)",
-                                color: isSelected
-                                  ? "var(--theme-background)"
-                                  : "var(--theme-foreground)",
-                              }}
-                              onClick={() => {
-                                handleSessionSwitch(session.id);
-                                setIsMobileSidebarOpen(false);
-                              }}
-                              onMouseEnter={(e) => {
-                                if (!isSelected) {
-                                  e.currentTarget.style.backgroundColor =
-                                    "var(--theme-backgroundAlt)";
-                                }
-                              }}
-                              onMouseLeave={(e) => {
-                                if (!isSelected) {
-                                  e.currentTarget.style.backgroundColor =
-                                    "var(--theme-background)";
-                                }
-                              }}
+                    {/* Bulk delete controls */}
+                    {mobileEditMode && (
+                      <>
+                        <div className="flex items-center justify-between gap-2 px-2 py-2 bg-theme-background-alt rounded mb-2">
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="foreground1"
+                              box="round"
+                              size="small"
+                              onClick={handleMobileSelectAll}
                             >
-                              <div className="font-medium text-sm truncate">
-                                {session.title}
+                              Select All
+                            </Button>
+                            <Button
+                              variant="foreground2"
+                              box="round"
+                              size="small"
+                              onClick={handleMobileClearSelection}
+                              disabled={selectedMobileSessionIds.size === 0}
+                            >
+                              Clear
+                            </Button>
+                          </div>
+                          <Button
+                            variant="error"
+                            box="round"
+                            size="small"
+                            onClick={handleMobileBulkDelete}
+                            disabled={selectedMobileSessionIds.size === 0}
+                             >
+                               <span className={selectedSidebarSessionIds.size > 1 ? 'text-red-500' : ''}>
+                                 Delete{selectedSidebarSessionIds.size > 0 ? ` (${selectedSidebarSessionIds.size})` : ""}
+                               </span>
+                             </Button>
+                        </div>
+                        <Separator className="mb-2" />
+                      </>
+                    )}
+
+                    {(() => {
+                      const projectSessions = filteredSessions.filter(
+                        (session) =>
+                          session.projectID === currentProject?.id ||
+                          session.directory === currentProject?.worktree,
+                      );
+                      
+                      if (projectSessions.length === 0 && sessionSearchQuery) {
+                        return (
+                          <div className="flex-1 flex flex-col items-center justify-center text-sm text-theme-muted text-center px-4 gap-2">
+                            <div>No sessions found matching "{sessionSearchQuery}"</div>
+                            <Button
+                              variant="foreground1"
+                              box="round"
+                              size="small"
+                              onClick={() => setSessionSearchQuery("")}
+                            >
+                              Clear search
+                            </Button>
+                          </div>
+                        );
+                      }
+                      
+                      if (projectSessions.length === 0) {
+                        return (
+                          <div className="flex-1 flex items-center justify-center text-sm text-theme-muted text-center px-4">
+                            No sessions yet. Create one above.
+                          </div>
+                        );
+                      }
+                      
+                      return (
+                        <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
+                          {projectSessions.map((session) => {
+                            const isSelected = currentSession?.id === session.id;
+                            const isChecked = selectedMobileSessionIds.has(session.id);
+                            return (
+                              <div
+                                key={session.id}
+                                className={`p-2 cursor-pointer transition-colors rounded ${
+                                  mobileEditMode ? "flex items-start gap-2" : ""
+                                }`}
+                                style={{
+                                  backgroundColor: mobileEditMode
+                                    ? isChecked
+                                      ? "rgba(from var(--theme-primary) r g b / 0.15)"
+                                      : "var(--theme-background)"
+                                    : isSelected
+                                      ? "var(--theme-primary)"
+                                      : "var(--theme-background)",
+                                  color: mobileEditMode
+                                    ? "var(--theme-foreground)"
+                                    : isSelected
+                                      ? "var(--theme-background)"
+                                      : "var(--theme-foreground)",
+                                  border: mobileEditMode
+                                    ? `1px solid ${isChecked ? "var(--theme-primary)" : "var(--theme-borderSubtle)"}`
+                                    : "1px solid transparent",
+                                }}
+                                onClick={() => {
+                                  if (mobileEditMode) {
+                                    handleMobileSessionToggle(session.id);
+                                  } else {
+                                    handleSessionSwitch(session.id);
+                                    setIsMobileSidebarOpen(false);
+                                  }
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (mobileEditMode) {
+                                    if (!isChecked) {
+                                      e.currentTarget.style.backgroundColor =
+                                        "var(--theme-backgroundAlt)";
+                                    }
+                                    return;
+                                  }
+
+                                  if (!isSelected) {
+                                    e.currentTarget.style.backgroundColor =
+                                      "var(--theme-backgroundAlt)";
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (mobileEditMode) {
+                                    e.currentTarget.style.backgroundColor = isChecked
+                                      ? "rgba(from var(--theme-primary) r g b / 0.15)"
+                                      : "var(--theme-background)";
+                                    return;
+                                  }
+
+                                  if (!isSelected) {
+                                    e.currentTarget.style.backgroundColor =
+                                      "var(--theme-background)";
+                                  }
+                                }}
+                              >
+                                {mobileEditMode && (
+                                  <div
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="mt-1 flex-shrink-0"
+                                  >
+                                    <Checkbox
+                                      checked={isChecked}
+                                      onChange={() =>
+                                        handleMobileSessionToggle(session.id)
+                                      }
+                                    />
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-sm truncate">
+                                    {session.title}
+                                  </div>
+                                  <div className="text-xs opacity-70 truncate">
+                                    {session.createdAt?.toLocaleDateString() ||
+                                      "Unknown"}
+                                  </div>
+                                </div>
                               </div>
-                              <div className="text-xs opacity-70">
-                                {session.createdAt?.toLocaleDateString() ||
-                                  "Unknown"}
-                              </div>
-                            </div>
-                          );
-                        })}
-                    </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </>
                 )}
               </div>
@@ -2804,41 +3521,56 @@ function OpenCodeChatTUI() {
                           />
                         ) : (
                           <>
-                            <img
+                             <img
                               src="data:image/svg+xml,%3csvg%20width='234'%20height='42'%20viewBox='0%200%20234%2042'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M18%2030H6V18H18V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M18%2012H6V30H18V12ZM24%2036H0V6H24V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M48%2030H36V18H48V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M36%2030H48V12H36V30ZM54%2036H36V42H30V6H54V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M84%2024V30H66V24H84Z'%20fill='%234B4646'/%3e%3cpath%20d='M84%2024H66V30H84V36H60V6H84V24ZM66%2018H78V12H66V18Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M108%2036H96V18H108V36Z'%20fill='%234B4646'/%3e%3cpath%20d='M108%2012H96V36H90V6H108V12ZM114%2036H108V12H114V36Z'%20fill='%23B7B1B1'/%3e%3cpath%20d='M144%2030H126V18H144V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M144%2012H126V30H144V36H120V6H144V12Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M168%2030H156V18H168V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M168%2012H156V30H168V12ZM174%2036H150V6H174V36Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M198%2030H186V18H198V30Z'%20fill='%234B4646'/%3e%3cpath%20d='M198%2012H186V30H198V12ZM204%2036H180V6H198V0H204V36Z'%20fill='%23F1ECEC'/%3e%3cpath%20d='M234%2024V30H216V24H234Z'%20fill='%234B4646'/%3e%3cpath%20d='M216%2012V18H228V12H216ZM234%2024H216V30H234V36H210V6H234V24Z'%20fill='%23F1ECEC'/%3e%3c/svg%3e"
                               alt="OpenCode logo dark"
-                              className="mx-auto mb-4 h-16 w-auto"
+                              className="mx-auto mb-6 h-16 w-auto"
                             />
-                            <Pre
-                              size="small"
-                              className="break-words whitespace-pre-wrap overflow-wrap-anywhere mb-4 text-theme-foreground opacity-80"
-                            >
-                              {!currentProject
-                                ? "Select a project from the sidebar to get started, or create a new session to begin."
-                                : "Send a message to start a new session. Use @ to reference files, / for commands, and Tab to switch agents."}
-                            </Pre>
+                            {!currentProject ? (
+                              <div className="space-y-4">
+                                <h2 className="text-xl font-semibold text-theme-foreground mb-4">
+                                  Welcome to OpenCode
+                                </h2>
+                                <div className="text-theme-foreground opacity-90 space-y-3 max-w-2xl mx-auto">
+                                  <p className="text-base">
+                                    Navigate quickly using the{" "}
+                                    <kbd className="px-2 py-1 bg-theme-background rounded border border-theme-primary text-theme-primary font-mono text-sm">
+                                      Space
+                                    </kbd>{" "}
+                                    leader key
+                                  </p>
+                                  <p className="text-sm opacity-80">
+                                    Press{" "}
+                                    <kbd className="px-2 py-1 bg-theme-background rounded border border-theme-primary text-theme-primary font-mono text-xs">
+                                      Space
+                                    </kbd>{" "}
+                                    now to see all available shortcuts
+                                  </p>
+                                </div>
+                              </div>
+                            ) : (
+                              <Pre
+                                size="small"
+                                className="break-words whitespace-pre-wrap overflow-wrap-anywhere text-theme-foreground opacity-80"
+                              >
+                                Send a message to start a new session. Use @ to reference files, / for commands, and Tab to switch agents.
+                              </Pre>
+                            )}
                           </>
                         )}
-                        <div className="flex gap-2 justify-center flex-wrap">
-                          {!currentProject && (
-                            <Badge
-                              variant="foreground0"
-                              cap="round"
-                              className="text-xs"
-                            >
-                              Step 1: Select a project →
-                            </Badge>
-                          )}
-                          {currentProject && !currentSession && (
-                            <Badge
-                              variant="foreground0"
-                              cap="round"
-                              className="text-xs"
-                            >
-                              Step 2: Create or select a session →
-                            </Badge>
-                          )}
-                        </div>
+                         {currentProject && (
+                          <div className="flex gap-2 justify-center flex-wrap mt-4">
+                            {!currentSession && (
+                              <Badge
+                                variant="foreground0"
+                                cap="round"
+                                className="text-xs"
+                              >
+                                Create or select a session →
+                              </Badge>
+                            )}
+                          </div>
+                        )}
                       </View>
                     </div>
                   )}
@@ -2964,7 +3696,10 @@ function OpenCodeChatTUI() {
                   <div className="flex items-center gap-2 text-sm text-theme-foreground flex-wrap">
                     <span className="font-medium">Model:</span>
                     <button
-                      onClick={() => setShowModelPicker(true)}
+                      onClick={() => {
+                        closeAllModals();
+                        setShowModelPicker(true);
+                      }}
                       className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none"
                       style={{
                         background: "none",
@@ -2982,7 +3717,10 @@ function OpenCodeChatTUI() {
                     <span className="text-theme-muted">•</span>
                     <span className="font-medium">Session:</span>
                     <button
-                      onClick={() => setShowSessionPicker(true)}
+                      onClick={() => {
+                        closeAllModals();
+                        setShowSessionPicker(true);
+                      }}
                       className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none"
                       style={{
                         background: "none",
@@ -3855,6 +4593,19 @@ function OpenCodeChatTUI() {
         </Dialog>
       )}
 
+      {/* Project Picker */}
+      {showProjectPicker && (
+        <ProjectPicker
+          projects={projects}
+          currentProject={currentProject}
+          onSelect={(project) => {
+            switchProject(project);
+            setShowProjectPicker(false);
+          }}
+          onClose={() => setShowProjectPicker(false)}
+        />
+      )}
+
       {/* Agent Picker */}
       {showAgentPicker && (
         <AgentPicker
@@ -3869,7 +4620,7 @@ function OpenCodeChatTUI() {
       {/* Session Picker */}
       {showSessionPicker && (
         <SessionPicker
-          sessions={sessions.filter(
+          sessions={filteredSessions.filter(
             (s) =>
               s.projectID === currentProject?.id ||
               s.directory === currentProject?.worktree,
@@ -3877,7 +4628,19 @@ function OpenCodeChatTUI() {
           currentSession={currentSession}
           onSelect={switchSession}
           onBulkDelete={handleBulkDeleteClick}
-          onClose={() => setShowSessionPicker(false)}
+          onNewSession={() => setShowNewSessionForm(true)}
+          onClose={() => {
+            setShowSessionPicker(false);
+            setSpacePassthrough(false);
+          }}
+          searchQuery={sessionSearchQuery}
+          onSearchChange={setSessionSearchQuery}
+          filters={sessionFilters}
+          onFiltersChange={setSessionFilters}
+          onRegisterEditControls={(controls) => {
+            sessionPickerEditControls.current = controls;
+          }}
+          onEditModeChange={handleSessionPickerEditModeChange}
         />
       )}
 
@@ -3991,6 +4754,9 @@ function OpenCodeChatTUI() {
       {/* PWA Components */}
       <InstallPrompt />
       <PWAReloadPrompt />
+      
+      {/* Keyboard Shortcuts Indicator */}
+      <KeyboardIndicator keyboardState={keyboardState} />
     </View>
   );
 }

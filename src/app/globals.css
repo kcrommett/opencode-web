@@ -202,6 +202,7 @@ button[is-="button"]:disabled,
 [is-="button"]:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  text-decoration: none !important;
 }
 
 /* ============================================================
@@ -942,6 +943,10 @@ pre.whitespace-pre-wrap {
   transition: opacity 0.2s, color 0.2s, background-color 0.2s;
 }
 
+.delete-button-bulk {
+  color: var(--theme-foreground);
+}
+
 .delete-button-neutral:hover {
   opacity: 1;
   color: var(--theme-error, #ef4444);
@@ -949,7 +954,7 @@ pre.whitespace-pre-wrap {
 }
 
 .delete-button-bulk:hover {
-  color: var(--theme-error, #ef4444);
+  color: var(--theme-foreground);
   background-color: color-mix(in srgb, var(--theme-error, #ef4444) 10%, transparent);
 }
 
@@ -960,4 +965,72 @@ pre.whitespace-pre-wrap {
 
 .delete-button-confirm:hover {
   background-color: color-mix(in srgb, var(--theme-error, #ef4444) 90%, black);
+}
+
+/* Dangerous bulk delete styling */
+.dangerous-bulk-delete {
+  color: #ff0000 !important;
+}
+
+/* Checkbox styling overrides */
+input[type="checkbox"][is-="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  border: 1px solid var(--theme-border, var(--theme-primary));
+  border-radius: 0;
+  background-color: var(--theme-background);
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+input[type="checkbox"][is-="checkbox"]::before,
+input[type="checkbox"][is-="checkbox"]::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 8px;
+  width: 1px;
+  height: 12px;
+  background-color: var(--theme-primary);
+  transform-origin: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+input[type="checkbox"][is-="checkbox"]::before {
+  transform: rotate(45deg);
+}
+
+input[type="checkbox"][is-="checkbox"]::after {
+  transform: rotate(-45deg);
+}
+
+input[type="checkbox"][is-="checkbox"]:hover {
+  background-color: rgba(from var(--theme-primary) r g b / 0.08);
+  border-color: var(--theme-primary);
+}
+
+input[type="checkbox"][is-="checkbox"]:focus-visible {
+  outline: 2px solid rgba(from var(--theme-primary) r g b / 0.4);
+  outline-offset: 2px;
+}
+
+input[type="checkbox"][is-="checkbox"]:checked {
+  background-color: var(--theme-background);
+  border-color: var(--theme-primary);
+}
+
+input[type="checkbox"][is-="checkbox"]:checked::before,
+input[type="checkbox"][is-="checkbox"]:checked::after {
+  opacity: 1;
+}
+
+input[type="checkbox"][is-="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
