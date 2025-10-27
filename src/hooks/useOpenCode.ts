@@ -343,6 +343,10 @@ export function useOpenCode() {
   const [messageQueue, setMessageQueue] = useState<Message[]>([]);
   const messageQueueRef = useRef<Message[]>([]);
   const [isProcessingQueue, setIsProcessingQueue] = useState(false);
+
+  // Frame state management for keyboard navigation
+  const [selectedFrame, setSelectedFrame] = useState<string | null>(null);
+  const frameTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [customCommands, setCustomCommands] = useState<
     Array<{ name: string; description: string; template: string }>
   >([]);
@@ -1976,6 +1980,43 @@ export function useOpenCode() {
     }
   }, [loading, isStreaming, currentSessionBusy, messageQueue.length, isProcessingQueue, processNextInQueue]);
 
+  // Frame state management functions
+  const selectFrame = useCallback((frame: string | null) => {
+    if (frameTimeoutRef.current) {
+      clearTimeout(frameTimeoutRef.current);
+      frameTimeoutRef.current = null;
+    }
+
+    setSelectedFrame(frame);
+
+    // Auto-clear frame selection after 3 seconds if no action is taken
+    if (frame) {
+      frameTimeoutRef.current = setTimeout(() => {
+        setSelectedFrame(null);
+      }, 3000);
+    }
+  }, []);
+
+  // Frame actions registry - maps frame names to their available actions
+  const frameActions = useMemo(() => ({
+    // Projects frame actions
+    projects: () => {
+      // This will be populated by the keyboard manager when the frame is selected
+    },
+    // Sessions frame actions  
+    sessions: () => {
+      // This will be populated by the keyboard manager when the frame is selected
+    },
+    // Files frame actions
+    files: () => {
+      // This will be populated by the keyboard manager when the frame is selected
+    },
+    // Workspace frame actions
+    workspace: () => {
+      // This will be populated by the keyboard manager when the frame is selected
+    },
+  }), []);
+
   const loadProjects = useCallback(async () => {
     if (loadedProjectsRef.current) return;
     try {
@@ -3070,5 +3111,9 @@ export function useOpenCode() {
     clearQueue,
     processNextInQueue,
     isProcessingQueue,
+    // Frame state management for keyboard navigation
+    selectedFrame,
+    selectFrame,
+    frameActions,
   };
 }

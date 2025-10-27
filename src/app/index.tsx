@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import {
   Button,
   Input,
@@ -19,6 +19,7 @@ import { CommandPicker } from "@/app/_components/ui/command-picker";
 import { AgentPicker } from "@/app/_components/ui/agent-picker";
 import { SessionPicker } from "@/app/_components/ui/session-picker";
 import { SessionSearchInput } from "@/app/_components/ui/session-search";
+import { ProjectPicker } from "@/app/_components/ui/project-picker";
 import { PermissionModal } from "@/app/_components/ui/permission-modal";
 import { MessagePart } from "@/app/_components/message";
 import type {
@@ -44,6 +45,8 @@ import {
   addLineNumbers,
 } from "@/lib/highlight";
 import { useIsMobile } from "@/lib/breakpoints";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { KeyboardIndicator } from "@/app/_components/ui";
 import "highlight.js/styles/github-dark.css";
 
 type ProjectItem = {
@@ -453,6 +456,7 @@ function OpenCodeChatTUI() {
   const [selectedMobileSessionIds, setSelectedMobileSessionIds] = useState<
     Set<string>
   >(new Set());
+  const lastEscTimeRef = useRef<number>(0);
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("opencode-active-tab") || "workspace";
@@ -480,6 +484,7 @@ function OpenCodeChatTUI() {
   const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
   const [showAgentPicker, setShowAgentPicker] = useState(false);
   const [showSessionPicker, setShowSessionPicker] = useState(false);
+  const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [selectedModelIndex, setSelectedModelIndex] = useState(0);
   const [showDetails, setShowDetails] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -617,8 +622,320 @@ function OpenCodeChatTUI() {
     clearQueue,
     processNextInQueue: _processNextInQueue,
     isProcessingQueue: _isProcessingQueue,
+    // Frame state for keyboard navigation
+    selectedFrame,
+    selectFrame,
+    frameActions,
   } = useOpenCodeContext();
   const { currentTheme, changeTheme } = useTheme(config?.theme);
+
+  // Initialize keyboard shortcuts
+  const { keyboardState, registerShortcut, setActiveModal } = useKeyboardShortcuts();
+
+  // Close all modals - ensures only one modal is open at a time
+  const closeAllModals = useCallback(() => {
+    setShowCommandPicker(false);
+    setShowAgentPicker(false);
+    setShowSessionPicker(false);
+    setShowProjectPicker(false);
+    setShowConfig(false);
+    setShowModelPicker(false);
+    setShowThemes(false);
+    setShowHelp(false);
+    setShowOnboarding(false);
+  }, []);
+
+  // Register keyboard shortcuts for frame navigation
+  useEffect(() => {
+    const unregisterFns: (() => void)[] = [];
+
+    // Frame navigation shortcuts (require leader key)
+    unregisterFns.push(
+      registerShortcut({
+        key: "p",
+        handler: () => {
+          closeAllModals();
+          setShowProjectPicker(true);
+        },
+        requiresLeader: true,
+        description: "Open Project Picker",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "s",
+        handler: () => {
+          closeAllModals();
+          setShowSessionPicker(true);
+        },
+        requiresLeader: true,
+        description: "Open Session Picker",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "f",
+        handler: () => {
+          closeAllModals();
+          selectFrame("files");
+        },
+        requiresLeader: true,
+        description: "Navigate to Files",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "w",
+        handler: () => {
+          closeAllModals();
+          selectFrame("workspace");
+        },
+        requiresLeader: true,
+        description: "Navigate to Workspace",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "m",
+        handler: () => {
+          closeAllModals();
+          setShowModelPicker(true);
+        },
+        requiresLeader: true,
+        description: "Open Model Picker",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "a",
+        handler: () => {
+          closeAllModals();
+          setShowAgentPicker(true);
+        },
+        requiresLeader: true,
+        description: "Open Agent Picker",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "t",
+        handler: () => {
+          closeAllModals();
+          setShowThemes(true);
+        },
+        requiresLeader: true,
+        description: "Open Theme Picker",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "c",
+        handler: () => {
+          closeAllModals();
+          setShowConfig(true);
+        },
+        requiresLeader: true,
+        description: "Open Config",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "h",
+        handler: () => {
+          closeAllModals();
+          setShowHelp(true);
+        },
+        requiresLeader: true,
+        description: "Open Help Dialog",
+        category: "navigation",
+      })
+    );
+
+    // Secondary action shortcuts (require selected frame)
+    unregisterFns.push(
+      registerShortcut({
+        key: "n",
+        handler: () => {
+          if (selectedFrame === "sessions") {
+            setShowNewSessionForm(true);
+          } else if (selectedFrame === "projects") {
+            setShowNewProjectForm(true);
+          }
+        },
+        requiresFrame: selectedFrame || undefined,
+        description: "New (Project/Session)",
+        category: "action",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "e",
+        handler: () => {
+          if (selectedFrame === "sessions" && currentSession) {
+            setSidebarEditMode(true);
+          }
+        },
+        requiresFrame: "sessions",
+        description: "Edit Session",
+        category: "action",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "d",
+        handler: () => {
+          if (selectedFrame === "sessions" && currentSession) {
+            if (confirm("Are you sure you want to delete this session?")) {
+              deleteSession(currentSession.id);
+            }
+          }
+        },
+        requiresFrame: "sessions",
+        description: "Delete Session",
+        category: "action",
+      })
+    );
+
+    // Modal-specific shortcuts (work when modal is open)
+    unregisterFns.push(
+      registerShortcut({
+        key: "n",
+        handler: () => {
+          setShowSessionPicker(false);
+          setShowNewSessionForm(true);
+        },
+        requiresModal: "session",
+        description: "New Session",
+        category: "action",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "e",
+        handler: () => {
+          if (currentSession) {
+            setSidebarEditMode(true);
+            setShowSessionPicker(false);
+          }
+        },
+        requiresModal: "session",
+        description: "Edit Session",
+        category: "action",
+      })
+    );
+
+    return () => {
+      unregisterFns.forEach((fn) => fn());
+    };
+  }, [
+    registerShortcut,
+    selectFrame,
+    selectedFrame,
+    currentSession,
+    setShowModelPicker,
+    setShowAgentPicker,
+    setShowThemes,
+    setShowConfig,
+    setShowHelp,
+    setShowNewSessionForm,
+    setShowNewProjectForm,
+    setSidebarEditMode,
+    deleteSession,
+    setShowSessionPicker,
+    setShowProjectPicker,
+    closeAllModals,
+  ]);
+
+  // Handle frame navigation and actions
+  useEffect(() => {
+    if (selectedFrame === "projects") {
+      // Scroll to projects section - it's in the sidebar
+      const projectsHeading = Array.from(document.querySelectorAll('h3')).find(h => h.textContent === 'Projects');
+      if (projectsHeading) {
+        projectsHeading.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    } else if (selectedFrame === "sessions") {
+      // Scroll to sessions section - it's in the sidebar
+      const sessionsHeading = Array.from(document.querySelectorAll('h3')).find(h => h.textContent === 'Sessions');
+      if (sessionsHeading) {
+        sessionsHeading.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    } else if (selectedFrame === "files") {
+      // Switch to files tab
+      setActiveTab("files");
+    } else if (selectedFrame === "workspace") {
+      // Switch to workspace tab and focus on input area
+      setActiveTab("workspace");
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+        }
+      }, 100);
+    }
+  }, [selectedFrame]);
+
+  // Handle secondary actions based on selected frame
+  useEffect(() => {
+    const handleFrameAction = (action: string) => {
+      if (!selectedFrame) return;
+
+      switch (selectedFrame) {
+        case "sessions":
+          if (action === "new") {
+            setShowNewSessionForm(true);
+          } else if (action === "edit") {
+            // Enable edit mode for current session
+            if (currentSession) {
+              setSidebarEditMode(true);
+            }
+          } else if (action === "delete") {
+            // Delete current session
+            if (currentSession && confirm("Are you sure you want to delete this session?")) {
+              deleteSession(currentSession.id);
+            }
+          }
+          break;
+        case "projects":
+          if (action === "new") {
+            setShowNewProjectForm(true);
+          }
+          break;
+      }
+      
+      // Clear frame selection after action
+      selectFrame(null);
+    };
+
+    // Listen for frame actions (this will be triggered by keyboard shortcuts)
+    const handleFrameActionEvent = (event: CustomEvent) => {
+      handleFrameAction(event.detail.action);
+    };
+
+    window.addEventListener("frame-action", handleFrameActionEvent as EventListener);
+    
+    return () => {
+      window.removeEventListener("frame-action", handleFrameActionEvent as EventListener);
+    };
+  }, [selectedFrame, currentSession, deleteSession, selectFrame]);
 
   const customCommandSuggestions = useMemo<Command[]>(() => {
     if (!commands || commands.length === 0) return [];
@@ -910,15 +1227,28 @@ function OpenCodeChatTUI() {
         }
         break;
       case "help":
+        setInput("");
+        closeAllModals();
         setShowHelp(true);
         break;
       case "themes":
+        setInput("");
+        closeAllModals();
         setShowThemes(true);
         break;
       case "sessions":
+        setInput("");
+        closeAllModals();
         setShowSessionPicker(true);
         break;
+      case "project":
+        setInput("");
+        closeAllModals();
+        setShowProjectPicker(true);
+        break;
       case "agents":
+        setInput("");
+        closeAllModals();
         setShowAgentPicker(true);
         break;
       case "undo":
@@ -1686,10 +2016,37 @@ function OpenCodeChatTUI() {
       } else if (showMentionSuggestions) {
         e.preventDefault();
         setShowMentionSuggestions(false);
-      } else if (currentSessionBusy && !isMobile) {
-        // On desktop, ESC aborts the running agent
+      } else if (keyboardState.leaderActive) {
+        // Deactivate leader mode if it's active
         e.preventDefault();
-        handleAbort();
+        // This will be handled by the keyboard manager
+      } else {
+        // Handle double ESC for agent interruption (desktop only)
+        const now = Date.now();
+        const timeSinceLastEsc = now - lastEscTimeRef.current;
+        
+        if (timeSinceLastEsc < 500 && currentSessionBusy && !isMobile) {
+          // Double ESC detected - interrupt agent
+          e.preventDefault();
+          handleAbort();
+          lastEscTimeRef.current = 0; // Reset timer
+        } else {
+          // Single ESC - blur focused element or prepare for double ESC
+          lastEscTimeRef.current = now;
+          
+          // Blur any focused element that's not the body
+          const activeElement = document.activeElement as HTMLElement;
+          if (activeElement && activeElement !== document.body) {
+            activeElement.blur();
+          }
+          
+          // Clear the timer after the threshold
+          setTimeout(() => {
+            if (lastEscTimeRef.current === now) {
+              lastEscTimeRef.current = 0;
+            }
+          }, 500);
+        }
       }
     }
   };
@@ -2165,6 +2522,7 @@ function OpenCodeChatTUI() {
               try {
                 const config = await openCodeService.getConfig();
                 setConfigData(JSON.stringify(config, null, 2));
+                closeAllModals();
                 setShowConfig(true);
               } catch (error) {
                 console.error("Failed to fetch config:", error);
@@ -3133,7 +3491,10 @@ function OpenCodeChatTUI() {
                   <div className="flex items-center gap-2 text-sm text-theme-foreground flex-wrap">
                     <span className="font-medium">Model:</span>
                     <button
-                      onClick={() => setShowModelPicker(true)}
+                      onClick={() => {
+                        closeAllModals();
+                        setShowModelPicker(true);
+                      }}
                       className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none"
                       style={{
                         background: "none",
@@ -3151,7 +3512,10 @@ function OpenCodeChatTUI() {
                     <span className="text-theme-muted">•</span>
                     <span className="font-medium">Session:</span>
                     <button
-                      onClick={() => setShowSessionPicker(true)}
+                      onClick={() => {
+                        closeAllModals();
+                        setShowSessionPicker(true);
+                      }}
                       className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none"
                       style={{
                         background: "none",
@@ -4164,6 +4528,9 @@ function OpenCodeChatTUI() {
       {/* PWA Components */}
       <InstallPrompt />
       <PWAReloadPrompt />
+      
+      {/* Keyboard Shortcuts Indicator */}
+      <KeyboardIndicator keyboardState={keyboardState} />
     </View>
   );
 }

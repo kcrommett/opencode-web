@@ -10,6 +10,7 @@ export const COMMANDS: Command[] = [
   { name: "new", description: "Start a new session", category: "session" },
   { name: "clear", description: "Clear current session", category: "session" },
   { name: "sessions", description: "View all sessions", category: "session" },
+  { name: "project", description: "Switch projects", category: "other" },
   { name: "models", description: "Open model picker", category: "model" },
   {
     name: "model",
