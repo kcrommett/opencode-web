@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "dev": "vite dev --host",
-    "build": "vite build",
+    "build": "bun ./script/vite-build.ts",
     "build:release": "bun ./script/build.ts",
     "build:npm": "bun ./script/build-npm.ts",
     "start": "bun server.ts",
