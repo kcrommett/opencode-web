@@ -1565,16 +1565,6 @@ export function useOpenCode() {
         if (response.error) {
           throw new Error(response.error);
         }
-        const responseData = response.data as { info?: { id?: string } };
-        const messageId = responseData?.info?.id;
-
-        if (!messageId) {
-          debugLog(
-            "[SendMessage] No message ID in response, SSE will handle updates",
-          );
-          // Don't throw error - SSE events will populate the message
-          return;
-        }
         const session = response.data as unknown as
           | {
               id: string;
@@ -1585,7 +1575,7 @@ export function useOpenCode() {
               updatedAt?: string | number;
             }
           | undefined;
-        if (!session) {
+        if (!session?.id) {
           throw new Error("Failed to create session");
         }
 
