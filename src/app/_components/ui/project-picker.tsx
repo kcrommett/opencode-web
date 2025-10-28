@@ -1,5 +1,6 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { Badge, Separator, Button, Dialog, View } from "./index";
+import { ProjectSearchInput } from "./project-search";
 
 interface ProjectItem {
   id: string;
@@ -22,12 +23,42 @@ export const ProjectPicker: React.FC<ProjectPickerProps> = ({
   onSelect,
   onClose,
 }) => {
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(() => {
     // Initialize with current project's index if it exists
     const currentIndex = projects.findIndex((p) => p.id === currentProject?.id);
     return currentIndex >= 0 ? currentIndex : 0;
   });
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const searchInputRef = useRef<{ focus: () => void }>(null);
+
+  // Filter projects based on search query
+  const filteredProjects = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return projects;
+    }
+    return projects.filter((project) =>
+      project.worktree.toLowerCase().includes(searchQuery.trim().toLowerCase())
+    );
+  }, [projects, searchQuery]);
+
+  // Focus search input when modal opens
+  useEffect(() => {
+    // Focus search input after a short delay to ensure modal is rendered
+    const timer = setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Reset selectedIndex when filteredProjects changes
+  useEffect(() => {
+    if (filteredProjects.length > 0) {
+      setSelectedIndex(0);
+    } else {
+      setSelectedIndex(-1);
+    }
+  }, [filteredProjects]);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -46,14 +77,14 @@ export const ProjectPicker: React.FC<ProjectPickerProps> = ({
         onClose();
       } else if (e.key === "ArrowDown") {
         e.preventDefault();
-        setSelectedIndex((prev) => Math.min(prev + 1, projects.length - 1));
+        setSelectedIndex((prev) => Math.min(prev + 1, filteredProjects.length - 1));
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         setSelectedIndex((prev) => Math.max(prev - 1, 0));
       } else if (e.key === "Enter") {
         e.preventDefault();
-        if (projects[selectedIndex]) {
-          onSelect(projects[selectedIndex]);
+        if (filteredProjects[selectedIndex]) {
+          onSelect(filteredProjects[selectedIndex]);
           onClose();
         }
       }
@@ -61,7 +92,7 @@ export const ProjectPicker: React.FC<ProjectPickerProps> = ({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, selectedIndex, projects, onSelect]);
+  }, [onClose, selectedIndex, filteredProjects, onSelect]);
 
   return (
     <Dialog open onClose={onClose}>
@@ -74,8 +105,15 @@ export const ProjectPicker: React.FC<ProjectPickerProps> = ({
           borderWidth: "1px",
         }}
       >
-        <div className="p-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold">Projects</h2>
+        <div className="p-4">
+          <h2 className="text-lg font-bold mb-3">Projects</h2>
+          <ProjectSearchInput
+            ref={searchInputRef}
+            value={searchQuery}
+            onChange={setSearchQuery}
+            onClear={() => setSearchQuery("")}
+            placeholder="Search projects..."
+          />
         </div>
 
         <Separator />
@@ -85,8 +123,12 @@ export const ProjectPicker: React.FC<ProjectPickerProps> = ({
             <div className="text-center text-sm py-4 opacity-70">
               No projects yet. Create one with /init.
             </div>
+          ) : filteredProjects.length === 0 ? (
+            <div className="text-center text-sm py-4 opacity-70">
+              No projects found
+            </div>
           ) : (
-            projects.map((project, index) => {
+            filteredProjects.map((project, index) => {
               const isCurrent = currentProject?.id === project.id;
               const isHighlighted = index === selectedIndex;
               return (
