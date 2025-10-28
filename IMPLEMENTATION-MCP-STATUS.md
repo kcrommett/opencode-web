@@ -122,6 +122,10 @@ The component maps MCP server statuses to visual badges:
 | `disabled` | warning | Yellow/Orange |
 | `failed` | error | Red |
 
+### Aggregation Logic (Header Indicator)
+
+The summary badge now excludes `disabled` servers from the denominator so `MCP X/Y` reflects active (non-disabled) servers. Disabled servers are still displayed in the tooltip and appended as `(<n> disabled)` when present. If all servers are disabled, denominator falls back to total and indicator is gray. Failed servers always force a red indicator and are included in the denominator.
+
 ## Integration Points
 
 The component can be added to:
