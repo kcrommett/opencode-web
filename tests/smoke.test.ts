@@ -6,6 +6,7 @@ import {
   addLineNumbers,
 } from "@/lib/highlight";
 import { getOpencodeServerUrl } from "@/lib/opencode-config";
+import { getCommandSuggestions, completeCommand, Command } from "@/lib/commands";
 
 describe("highlight utilities", () => {
   describe("detectLanguage", () => {
@@ -80,6 +81,121 @@ describe("opencode-config", () => {
       delete process.env.VITE_OPENCODE_SERVER_URL;
       (globalThis as typeof globalThis & { __OPENCODE_SERVER_URL__?: string }).__OPENCODE_SERVER_URL__ = "https://global.com";
       expect(getOpencodeServerUrl()).toBe("https://global.com");
+    });
+  });
+});
+
+describe("command suggestions", () => {
+  describe("getCommandSuggestions", () => {
+    it("prioritizes command name matches over description matches", () => {
+      const suggestions = getCommandSuggestions("/ses");
+      expect(suggestions[0].name).toBe("sessions");
+    });
+
+    it("handles exact command name matches", () => {
+      const suggestions = getCommandSuggestions("/new");
+      expect(suggestions[0].name).toBe("new");
+      expect(suggestions.length).toBe(1);
+    });
+
+    it("returns description matches when no name matches exist", () => {
+      // "session" (full word) should still prioritize /sessions first, then /new (description)
+      const suggestions = getCommandSuggestions("/session");
+      expect(suggestions[0].name).toBe("sessions");
+      expect(suggestions.some((cmd) => cmd.name === "new")).toBe(true);
+    });
+
+    it("handles mixed-case input correctly", () => {
+      const suggestions = getCommandSuggestions("/Ses");
+      expect(suggestions[0].name).toBe("sessions");
+    });
+
+    it("returns all commands for empty query", () => {
+      const suggestions = getCommandSuggestions("/");
+      expect(suggestions.length).toBe(19);
+    });
+
+    it("returns empty array for non-command input", () => {
+      const suggestions = getCommandSuggestions("not a command");
+      expect(suggestions).toEqual([]);
+    });
+
+    it("does not return duplicate commands", () => {
+      const suggestions = getCommandSuggestions("/s");
+      const names = suggestions.map((cmd) => cmd.name);
+      const uniqueNames = new Set(names);
+      expect(names.length).toBe(uniqueNames.size);
+    });
+
+    it("handles custom commands with name priority", () => {
+      const customCommands: Command[] = [
+        {
+          name: "custom-session",
+          description: "Custom session command",
+          category: "custom",
+          custom: true,
+        },
+        {
+          name: "test",
+          description: "Contains session in description",
+          category: "custom",
+          custom: true,
+        },
+      ];
+      const suggestions = getCommandSuggestions("/ses", customCommands);
+      
+      // Both custom-session and sessions should be name matches and come first
+      const nameMatches = suggestions.filter((cmd) =>
+        cmd.name.toLowerCase().startsWith("ses")
+      );
+      expect(nameMatches.length).toBeGreaterThan(0);
+      
+      // test should come after name matches (it only matches in description)
+      const customSessionIndex = suggestions.findIndex(
+        (cmd) => cmd.name === "custom-session"
+      );
+      const testIndex = suggestions.findIndex((cmd) => cmd.name === "test");
+      expect(customSessionIndex).toBeLessThan(testIndex);
+    });
+
+    it("preserves category ordering within match groups", () => {
+      // Get suggestions that should maintain their relative order
+      const suggestions = getCommandSuggestions("/");
+      const newIndex = suggestions.findIndex((cmd) => cmd.name === "new");
+      const clearIndex = suggestions.findIndex((cmd) => cmd.name === "clear");
+      const sessionsIndex = suggestions.findIndex((cmd) => cmd.name === "sessions");
+      
+      // These are all session category commands in the original order
+      expect(newIndex).toBeLessThan(clearIndex);
+      expect(clearIndex).toBeLessThan(sessionsIndex);
+    });
+  });
+
+  describe("completeCommand", () => {
+    it("completes unique prefix matches", () => {
+      expect(completeCommand("/ses")).toBe("/sessions");
+      expect(completeCommand("/se")).toBe("/sessions");
+    });
+
+    it("returns null for ambiguous matches", () => {
+      expect(completeCommand("/s")).toBe(null);
+    });
+
+    it("returns null for non-command input", () => {
+      expect(completeCommand("not a command")).toBe(null);
+    });
+
+    it("completes to common prefix for multiple matches", () => {
+      // /mod matches both "model" and "models"
+      // Common prefix is "model", which is longer than "mod"
+      expect(completeCommand("/mod")).toBe("/model");
+    });
+
+    it("works with custom commands", () => {
+      const customCommands: Command[] = [
+        { name: "custom", description: "Custom command", category: "custom", custom: true },
+      ];
+      expect(completeCommand("/cus", customCommands)).toBe("/custom");
     });
   });
 });
