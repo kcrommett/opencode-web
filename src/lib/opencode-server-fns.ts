@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import * as httpApi from "./opencode-http-api";
-import { Agent } from "../types/opencode";
+import type { Agent, Part } from "../types/opencode";
 
 export const getAgents = createServerFn({ method: "GET" }).handler(async () => {
   return httpApi.getAgents();
@@ -77,6 +77,7 @@ export const sendMessage = createServerFn({ method: "POST" })
       modelID?: string;
       directory?: string;
       agent?: Agent;
+      parts?: Part[];
     }) => data,
   )
   .handler(async ({ data }) => {
@@ -87,6 +88,7 @@ export const sendMessage = createServerFn({ method: "POST" })
       data.modelID,
       data.directory,
       data.agent,
+      data.parts,
     );
   });
 
