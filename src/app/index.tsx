@@ -541,70 +541,7 @@ function OpenCodeChatTUI() {
     return false;
   });
   const [isResizing, setIsResizing] = useState(false);
-  const [mcpStatus, setMcpStatus] = useState<Record<string, "connected" | "failed" | "disabled"> | null>(null);
-  const [mcpStatusLoading, setMcpStatusLoading] = useState(false);
-  const [mcpStatusError, setMcpStatusError] = useState<string | null>(null);
   const isMobile = useIsMobile();
-  const mcpAggregated = useMemo(() => {
-    if (mcpStatusLoading) {
-      return {
-        colorClass: 'bg-yellow-500',
-        badgeVariant: 'foreground1' as const,
-        text: 'MCP…',
-        title: 'Loading MCP status...'
-      };
-    }
-    if (mcpStatusError) {
-      return {
-        colorClass: 'bg-red-500',
-        badgeVariant: 'foreground0' as const,
-        text: 'MCP Error',
-        title: `MCP status error: ${mcpStatusError}`
-      };
-    }
-    if (!mcpStatus) {
-      return {
-        colorClass: 'bg-gray-400',
-        badgeVariant: 'foreground1' as const,
-        text: 'MCP 0/0',
-        title: 'No MCP servers reported'
-      };
-    }
-    const entries = Object.entries(mcpStatus);
-    let connected = 0;
-    let failed = 0;
-    let disabled = 0;
-    for (const [, value] of entries) {
-      if (value === 'connected') connected++;
-      else if (value === 'failed') failed++;
-      else if (value === 'disabled') disabled++;
-    }
-    // Exclude disabled from denominator so ratio reflects active servers
-    const activeTotal = entries.length - disabled;
-    const denominator = activeTotal > 0 ? activeTotal : entries.length;
-
-    let colorClass = 'bg-green-500';
-    let badgeVariant: 'background2' | 'foreground0' | 'foreground1' | 'foreground2' = 'background2';
-    if (failed > 0) {
-      colorClass = 'bg-red-500';
-      badgeVariant = 'foreground0';
-    } else if (connected === 0 && activeTotal > 0) {
-      colorClass = 'bg-yellow-500';
-      badgeVariant = 'foreground1';
-    } else if (disabled > 0 && activeTotal === 0) {
-      // All disabled
-      colorClass = 'bg-gray-400';
-      badgeVariant = 'foreground1';
-    }
-
-    const text = `MCP ${connected}/${denominator}` +
-      (failed > 0 ? ` (${failed} failed)` : disabled > 0 ? ` (${disabled} disabled)` : '');
-    const title = entries.map(([name, status]) => `${name}: ${status}`).join(', ');
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[MCP] Aggregated:', { connected, failed, disabled, denominator: activeTotal > 0 ? activeTotal : entries.length, text });
-    }
-    return { colorClass, badgeVariant, text, title };
-  }, [mcpStatus, mcpStatusLoading, mcpStatusError]);
 
   const selectedFileName = selectedFile?.split("/").pop() ?? null;
   const fileTextContent = fileContent?.text ?? null;
@@ -720,8 +657,69 @@ function OpenCodeChatTUI() {
     selectedFrame,
     selectFrame,
     refreshStatusAll,
+    sidebarStatus,
   } = useOpenCodeContext();
   const { currentTheme, changeTheme } = useTheme(config?.theme);
+
+  // MCP status aggregation for header badge
+  const mcpAggregated = useMemo(() => {
+    const { mcpStatus, mcpStatusLoading, mcpStatusError } = sidebarStatus;
+    
+    if (mcpStatusLoading) {
+      return {
+        colorClass: 'bg-yellow-500',
+        badgeVariant: 'foreground1' as const,
+        text: 'MCP…',
+        title: 'Loading MCP status...'
+      };
+    }
+    if (mcpStatusError) {
+      return {
+        colorClass: 'bg-red-500',
+        badgeVariant: 'foreground0' as const,
+        text: 'MCP Error',
+        title: `MCP status error: ${mcpStatusError}`
+      };
+    }
+    if (!mcpStatus) {
+      return {
+        colorClass: 'bg-gray-400',
+        badgeVariant: 'foreground1' as const,
+        text: 'MCP (0 Connected)',
+        title: 'No MCP servers reported'
+      };
+    }
+    const entries = Object.entries(mcpStatus);
+    let connected = 0;
+    let failed = 0;
+    let disabled = 0;
+    for (const [, value] of entries) {
+      if (value === 'connected') connected++;
+      else if (value === 'failed') failed++;
+      else if (value === 'disabled') disabled++;
+    }
+
+    let colorClass = 'bg-green-500';
+    let badgeVariant: 'background2' | 'foreground0' | 'foreground1' | 'foreground2' = 'background2';
+    if (failed > 0) {
+      colorClass = 'bg-red-500';
+      badgeVariant = 'foreground0';
+    } else if (connected === 0 && entries.length - disabled > 0) {
+      colorClass = 'bg-yellow-500';
+      badgeVariant = 'foreground1';
+    } else if (disabled > 0 && entries.length === disabled) {
+      // All disabled
+      colorClass = 'bg-gray-400';
+      badgeVariant = 'foreground1';
+    }
+
+    const text = `MCP (${connected} Connected)`;
+    const title = entries.map(([name, status]) => `${name}: ${status}`).join(', ');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[MCP] Aggregated:', { connected, failed, disabled, text });
+    }
+    return { colorClass, badgeVariant, text, title };
+  }, [sidebarStatus]);
 
   // Initialize keyboard shortcuts
   const {
@@ -2648,33 +2646,6 @@ function OpenCodeChatTUI() {
     };
     void restoreFilesTab();
   }, [isHydrated, activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Load MCP server status once hydrated
-  useEffect(() => {
-    if (!isHydrated) return;
-    let canceled = false;
-    setMcpStatusLoading(true);
-    setMcpStatusError(null);
-    (async () => {
-      try {
-         const result = await openCodeService.getMcpStatus();
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[MCP] Raw status response:', result.data);
-        }
-        if (!canceled) {
-          setMcpStatus(result.data || null);
-        }
-      } catch (error) {
-        if (!canceled) {
-          setMcpStatusError(handleOpencodeError(error));
-        }
-      } finally {
-        if (!canceled) setMcpStatusLoading(false);
-      }
-    })();
-    return () => {
-      canceled = true;
-    };
-  }, [isHydrated]);
 
   if (!isHydrated) {
     return (
