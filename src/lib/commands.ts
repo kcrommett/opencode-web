@@ -37,6 +37,17 @@ export const COMMANDS: Command[] = [
   { name: "editor", description: "Open editor", category: "other" },
 ];
 
+/**
+ * Returns command suggestions prioritizing exact command name matches over description matches.
+ * 
+ * Priority order:
+ * 1. Commands whose names start with the query (e.g., "/ses" -> "/sessions")
+ * 2. Commands whose descriptions contain the query (e.g., "/session" -> "/new")
+ * 
+ * @param input - The user input string (e.g., "/ses")
+ * @param customCommands - Optional custom commands to include in suggestions
+ * @returns Array of matching commands, prioritized by name matches first
+ */
 export function getCommandSuggestions(input: string, customCommands: Command[] = []): Command[] {
   const trimmed = input.trim();
   if (!trimmed.startsWith("/")) return [];
@@ -46,11 +57,17 @@ export function getCommandSuggestions(input: string, customCommands: Command[] =
   
   if (!query) return allCommands;
 
-  return allCommands.filter(
-    (cmd) =>
-      cmd.name.toLowerCase().startsWith(query) ||
-      cmd.description.toLowerCase().includes(query),
+  // Two-pass filtering: prioritize name matches over description matches
+  const nameMatches = allCommands.filter((cmd) =>
+    cmd.name.toLowerCase().startsWith(query)
   );
+
+  const descriptionMatches = allCommands.filter((cmd) =>
+    !cmd.name.toLowerCase().startsWith(query) &&
+    cmd.description.toLowerCase().includes(query)
+  );
+
+  return [...nameMatches, ...descriptionMatches];
 }
 
 export function completeCommand(input: string, customCommands: Command[] = []): string | null {
