@@ -1204,26 +1204,27 @@ function OpenCodeChatTUI() {
       !showModelPicker &&
       !showAgentPicker &&
       !showSessionPicker &&
-      textareaRef.current
+      textareaRef.current &&
+      currentSession
     ) {
       const timer = setTimeout(() => {
         textareaRef.current?.focus();
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [showModelPicker, showAgentPicker, showSessionPicker]);
+  }, [showModelPicker, showAgentPicker, showSessionPicker, currentSession]);
 
   useEffect(() => {
-    if (textareaRef.current && isHydrated) {
+    if (textareaRef.current && isHydrated && currentSession) {
       textareaRef.current.focus();
     }
   }, [isHydrated, currentSession?.id]);
 
   useEffect(() => {
-    if (!loading && textareaRef.current) {
+    if (!loading && textareaRef.current && currentSession) {
       textareaRef.current.focus();
     }
-  }, [loading]);
+  }, [loading, currentSession]);
 
   const handleShellCommand = async (command: string) => {
     if (!currentSession) {
