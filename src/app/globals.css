@@ -797,6 +797,11 @@ textarea::placeholder {
   border-color: rgb(from var(--theme-error) r g b / 0.3);
 }
 
+.status-card.pending {
+  background-color: rgb(from var(--theme-muted) r g b / 0.1);
+  border-color: rgb(from var(--theme-muted) r g b / 0.3);
+}
+
 /* Status Badge Variants */
 .status-badge-success {
   --badge-color: var(--theme-success) !important;
