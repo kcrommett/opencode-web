@@ -32,10 +32,13 @@ import { SessionSearchInput } from "@/app/_components/ui/session-search";
 import { ProjectPicker } from "@/app/_components/ui/project-picker";
 import { PermissionModal } from "@/app/_components/ui/permission-modal";
 import { MessagePart } from "@/app/_components/message";
+import { ImagePreview } from "@/app/_components/ui/image-preview";
 import type {
   FileContentData,
   MentionSuggestion,
   Agent,
+  ImageAttachment,
+  Part,
 } from "@/types/opencode";
 import { FileIcon } from "@/app/_components/files/file-icon";
 import { useOpenCodeContext } from "@/contexts/OpenCodeContext";
@@ -54,10 +57,18 @@ import {
   isImageFile,
   addLineNumbers,
 } from "@/lib/highlight";
+import {
+  convertImageToBase64,
+  validateImageSize,
+  formatFileSize,
+  isImageFile as isAttachmentImageFile,
+} from "@/lib/image-utils";
 import { useIsMobile } from "@/lib/breakpoints";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { KeyboardIndicator } from "@/app/_components/ui";
 import "highlight.js/styles/github-dark.css";
+
+const MAX_IMAGE_SIZE_MB = 10;
 
 type ProjectItem = {
   id: string;
@@ -444,6 +455,9 @@ export const Route = createFileRoute("/")({
 
 function OpenCodeChatTUI() {
   const [input, setInput] = useState("");
+  const [imageAttachments, setImageAttachments] = useState<ImageAttachment[]>([]);
+  const [isHandlingImageUpload, setIsHandlingImageUpload] = useState(false);
+  const [isDraggingOverInput, setIsDraggingOverInput] = useState(false);
   const [newSessionTitle, setNewSessionTitle] = useState("");
   const [showNewProjectForm, setShowNewProjectForm] = useState(false);
   const [newProjectDirectory, setNewProjectDirectory] = useState("");
@@ -591,6 +605,7 @@ function OpenCodeChatTUI() {
     recentModels,
     openHelp,
     openThemes,
+    showToast,
     isConnected,
     sseConnectionState,
     isHydrated,
@@ -1067,49 +1082,87 @@ function OpenCodeChatTUI() {
   // Removed automatic session creation to prevent spam
 
   const handleSend = async () => {
-    if (!input.trim()) return;
+    if (isHandlingImageUpload) {
+      await showToast("Still processing images. Please wait a moment.", "info");
+      return;
+    }
 
     const messageText = input;
+    const trimmedText = messageText.trim();
+    const attachmentsToSend = imageAttachments.map((attachment) => ({
+      ...attachment,
+    }));
+    const hasAttachments = attachmentsToSend.length > 0;
+    const hasText = trimmedText.length > 0;
+
+    if (!hasText && !hasAttachments) {
+      return;
+    }
+
+    if (!hasAttachments) {
+      const parsed = parseCommand(messageText, commands);
+
+      if (parsed.type === "slash") {
+        setInput("");
+        await handleCommand(messageText);
+        return;
+      }
+
+      if (parsed.type === "shell") {
+        setInput("");
+        await handleShellCommand(parsed.command || "");
+        return;
+      }
+    }
+
     setInput("");
+    if (hasAttachments) {
+      setImageAttachments([]);
+    }
+
+    const messageParts: Part[] = [];
+
+    if (hasText) {
+      messageParts.push({
+        type: "text",
+        text: messageText,
+      });
+    }
+
+    attachmentsToSend.forEach((attachment) => {
+      messageParts.push({
+        type: "file",
+        path: attachment.name,
+        name: attachment.name,
+        mimeType: attachment.mimeType,
+        size: attachment.size,
+        content: attachment.dataUrl,
+        origin: attachment.origin,
+      } as Part);
+    });
 
     try {
-      // Ensure we have a session - create one if needed and get the session object
       let session = currentSession;
       if (!session) {
         session = await createSession({ title: "opencode-web session" });
         await loadSessions();
       }
 
-      const parsed = parseCommand(messageText, commands);
-
-      // Handle commands immediately (don't queue)
-      if (parsed.type === "slash") {
-        await handleCommand(messageText);
-        return;
-      } else if (parsed.type === "shell") {
-        await handleShellCommand(parsed.command || "");
-        return;
-      }
-
-      // Check if agent is currently busy
       const isBusy = loading || isStreaming || currentSessionBusy;
 
       if (isBusy) {
-        // ADD TO QUEUE instead of blocking
         const queuedMessage = {
           id: `queued-${Date.now()}`,
           type: "user" as const,
           content: messageText,
+          parts: messageParts,
           timestamp: new Date(),
           queued: true,
           optimistic: true,
         };
         addToQueue(queuedMessage);
-
-        // Show visual feedback
         setMessages((prev) => [...prev, queuedMessage]);
       } else {
-        // Process immediately
         const pendingId = `user-${Date.now()}`;
         setMessages((prev) => [
           ...prev,
@@ -1117,19 +1170,20 @@ function OpenCodeChatTUI() {
             id: pendingId,
             type: "user" as const,
             content: messageText,
+            parts: messageParts,
             timestamp: new Date(),
             optimistic: true,
           },
         ]);
 
         try {
-          await sendMessage(
-            messageText,
-            selectedModel?.providerID,
-            selectedModel?.modelID,
-            session,
-            currentAgent ?? undefined,
-          );
+          await sendMessage(messageText, {
+            providerID: selectedModel?.providerID,
+            modelID: selectedModel?.modelID,
+            sessionOverride: session,
+            agent: currentAgent ?? undefined,
+            parts: messageParts,
+          });
         } catch (error) {
           setMessages((prev) =>
             prev.map((msg) =>
@@ -1143,6 +1197,9 @@ function OpenCodeChatTUI() {
       await loadSessions();
     } catch (err) {
       console.error("Failed to send message:", err);
+      if (attachmentsToSend.length > 0) {
+        setImageAttachments((prev) => [...attachmentsToSend, ...prev]);
+      }
     }
   };
 
@@ -2253,6 +2310,156 @@ function OpenCodeChatTUI() {
     } else {
       setShowMentionSuggestions(false);
     }
+  };
+
+  const removeImageAttachment = useCallback((id: string) => {
+    setImageAttachments((prev) =>
+      prev.filter((attachment) => attachment.id !== id),
+    );
+  }, []);
+
+  const handleImageAttachments = useCallback(
+    async (files: File[], origin: "paste" | "drop") => {
+      if (files.length === 0) return;
+
+      setIsHandlingImageUpload(true);
+
+      try {
+        const processed = await Promise.all(
+          files.map(async (file, index) => {
+            if (!validateImageSize(file, MAX_IMAGE_SIZE_MB)) {
+              await showToast(
+                `${file.name || "Image"} is ${formatFileSize(file.size)}. Maximum size is ${MAX_IMAGE_SIZE_MB} MB.`,
+                "error",
+              );
+              return null;
+            }
+
+            try {
+              const dataUrl = await convertImageToBase64(file);
+              const mimeType =
+                file.type ||
+                dataUrl.match(/^data:([^;]+);/)?.[1] ||
+                "application/octet-stream";
+              const extension =
+                mimeType.split("/")[1]?.split("+")[0] || "png";
+              const prefix = origin === "paste" ? "pasted-image" : "dropped-image";
+              const safeName =
+                file.name && file.name.trim().length > 0
+                  ? file.name
+                  : `${prefix}-${Date.now()}-${index + 1}.${extension}`;
+
+              const attachment: ImageAttachment = {
+                id:
+                  typeof crypto !== "undefined" && "randomUUID" in crypto
+                    ? crypto.randomUUID()
+                    : `image-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                name: safeName,
+                mimeType,
+                size: file.size,
+                dataUrl,
+                origin,
+              };
+
+              return attachment;
+            } catch (error) {
+              console.error("Failed to convert image to base64:", error);
+              await showToast(
+                `Failed to read ${file.name || "image file"}.`,
+                "error",
+              );
+              return null;
+            }
+          }),
+        );
+
+        const validAttachments = processed.filter(
+          (attachment): attachment is ImageAttachment => Boolean(attachment),
+        );
+
+        if (validAttachments.length > 0) {
+          setImageAttachments((prev) => [...prev, ...validAttachments]);
+        }
+      } finally {
+        setIsHandlingImageUpload(false);
+      }
+    },
+    [showToast],
+  );
+
+  const handlePaste = async (
+    event: React.ClipboardEvent<HTMLTextAreaElement>,
+  ) => {
+    const items = Array.from(event.clipboardData?.items ?? []);
+    if (items.length === 0) return;
+
+    const imageFiles: File[] = [];
+
+    items.forEach((item) => {
+      if (item.kind !== "file") return;
+      const file = item.getAsFile();
+      if (!file) return;
+      if (isAttachmentImageFile(file)) {
+        imageFiles.push(file);
+      }
+    });
+
+    if (imageFiles.length === 0) {
+      if (items.some((item) => item.kind === "file")) {
+        await showToast(
+          "Only PNG, JPEG, GIF, and WebP images are supported.",
+          "warning",
+        );
+      }
+      return;
+    }
+
+    event.preventDefault();
+    await handleImageAttachments(imageFiles, "paste");
+  };
+
+  const handleDragEnter = (event: React.DragEvent<HTMLTextAreaElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDraggingOverInput(true);
+  };
+
+  const handleDragOver = (event: React.DragEvent<HTMLTextAreaElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "copy";
+    setIsDraggingOverInput(true);
+  };
+
+  const handleDragLeave = (event: React.DragEvent<HTMLTextAreaElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const nextTarget = event.relatedTarget as Node | null;
+    if (nextTarget && event.currentTarget.contains(nextTarget)) {
+      return;
+    }
+    setIsDraggingOverInput(false);
+  };
+
+  const handleDrop = async (event: React.DragEvent<HTMLTextAreaElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDraggingOverInput(false);
+
+    const files = Array.from(event.dataTransfer?.files ?? []);
+    if (files.length === 0) return;
+
+    const imageFiles = files.filter((file) => isAttachmentImageFile(file));
+
+    if (imageFiles.length === 0) {
+      await showToast(
+        "Only PNG, JPEG, GIF, and WebP images are supported.",
+        "warning",
+      );
+      return;
+    }
+
+    await handleImageAttachments(imageFiles, "drop");
   };
 
   const handleCommandSelect = (command: Command) => {
@@ -3816,11 +4023,54 @@ function OpenCodeChatTUI() {
                         selectedIndex={selectedCommandIndex}
                       />
                     )}
+                    {isHandlingImageUpload && (
+                      <div
+                        className="mb-2 rounded border border-theme-border bg-theme-background-alt px-3 py-2 text-xs text-theme-muted"
+                        role="status"
+                      >
+                        Processing images...
+                      </div>
+                    )}
+                    {imageAttachments.length > 0 && (
+                      <div
+                        className="mb-2 rounded border border-theme-border bg-theme-background-alt/70 p-3"
+                        aria-live="polite"
+                      >
+                        <div className="mb-2 flex items-center justify-between text-xs text-theme-muted">
+                          <span>
+                            {imageAttachments.length} image
+                            {imageAttachments.length > 1 ? "s" : ""} attached
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setImageAttachments([])}
+                            className="rounded px-2 py-1 text-[11px] uppercase tracking-wide text-theme-muted transition-colors hover:text-theme-foreground disabled:opacity-60"
+                            disabled={isHandlingImageUpload}
+                          >
+                            Clear all
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                          {imageAttachments.map((attachment) => (
+                            <ImagePreview
+                              key={attachment.id}
+                              attachment={attachment}
+                              onRemove={removeImageAttachment}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <Textarea
                       ref={textareaRef}
                       value={input}
                       onChange={(e) => handleInputChange(e.target.value)}
                       onKeyDown={handleKeyDown}
+                      onPaste={handlePaste}
+                      onDrop={handleDrop}
+                      onDragEnter={handleDragEnter}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
                       placeholder={
                         currentSessionBusy && !isMobile
                           ? "Agent running... Press ESC to stop, or type to queue a message"
@@ -3828,7 +4078,11 @@ function OpenCodeChatTUI() {
                       }
                       rows={2}
                       size="large"
-                      className="w-full bg-theme-background text-theme-foreground border-theme-primary resize-none"
+                      className={`w-full bg-theme-background text-theme-foreground border-theme-primary resize-none ${
+                        isDraggingOverInput
+                          ? "border-2 border-dashed border-theme-primary/80"
+                          : ""
+                      }`}
                     />
                     {showMentionSuggestions &&
                       mentionSuggestions.length > 0 && (

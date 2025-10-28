@@ -4,7 +4,7 @@ import {
   OpencodeEvent,
   SSEConnectionState,
 } from "./opencode-events";
-import { Agent } from "../types/opencode";
+import type { Agent, Part } from "../types/opencode";
 
 const isDevMode = process.env.NODE_ENV !== "production";
 const devLog = (...args: unknown[]) => {
@@ -105,10 +105,11 @@ export const openCodeService = {
     modelID = "claude-3-5-sonnet-20241022",
     directory?: string,
     agent?: Agent,
+    parts?: Part[],
   ) {
     try {
       const response = await serverFns.sendMessage({
-        data: { sessionId, content, providerID, modelID, directory, agent },
+        data: { sessionId, content, providerID, modelID, directory, agent, parts },
       });
       return { data: response, error: null };
     } catch (error) {

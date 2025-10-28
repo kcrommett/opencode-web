@@ -107,3 +107,12 @@ export interface SessionUsageTotals {
 export type MentionSuggestion =
   | { type: "agent"; name: string; description?: string; label: string }
   | { type: "file"; path: string; label: string };
+
+export interface ImageAttachment {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  dataUrl: string;
+  origin: "paste" | "drop";
+}

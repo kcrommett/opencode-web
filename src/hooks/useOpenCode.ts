@@ -492,7 +492,16 @@ export function useOpenCode() {
   // Placeholder - will be properly defined after sendMessage
   const processNextInQueueRef = useRef<(() => Promise<void>) | null>(null);
 
+  interface SendMessageOptions {
+    providerID?: string;
+    modelID?: string;
+    sessionOverride?: Session;
+    agent?: Agent;
+    parts?: Part[];
+  }
+
   const normalizeProject = useCallback((project: unknown): Project | null => {
+
     if (!project || typeof project !== "object") return null;
     const value = project as {
       id?: string;
@@ -1697,13 +1706,15 @@ export function useOpenCode() {
   );
 
   const sendMessage = useCallback(
-    async (
-      content: string,
-      providerID?: string,
-      modelID?: string,
-      sessionOverride?: Session,
-      agent?: Agent,
-    ) => {
+    async (content: string, options: SendMessageOptions = {}) => {
+      const {
+        providerID,
+        modelID,
+        sessionOverride,
+        agent,
+        parts,
+      } = options;
+
       const targetSession = sessionOverride || currentSession;
       if (!targetSession) {
         throw new Error("No active session");
@@ -1776,6 +1787,7 @@ export function useOpenCode() {
           effectiveModelID,
           currentProject?.worktree,
           effectiveAgent || undefined,
+          parts,
         );
 
         if (response.error) {
@@ -1811,17 +1823,20 @@ export function useOpenCode() {
             updated[optimisticIndex]?.type === "user" &&
             "optimistic" in updated[optimisticIndex]
           ) {
+            const optimisticMessage = updated[optimisticIndex];
             updated[optimisticIndex] = {
-              ...updated[optimisticIndex],
+              ...optimisticMessage,
               id: messageId,
               content: expandedContent,
+              parts: parts ?? optimisticMessage.parts,
               optimistic: false,
             };
           } else {
             updated.push({
               id: messageId,
-              type: "user",
+              type: "user" as const,
               content: expandedContent,
+              parts,
               timestamp: new Date(),
             });
           }
@@ -1918,13 +1933,13 @@ export function useOpenCode() {
       });
 
       // Send the queued message
-      await sendMessage(
-        nextMessage.content,
-        selectedModel?.providerID,
-        selectedModel?.modelID,
-        currentSession ?? undefined,
-        currentAgent ?? undefined,
-      );
+      await sendMessage(nextMessage.content, {
+        providerID: selectedModel?.providerID,
+        modelID: selectedModel?.modelID,
+        sessionOverride: currentSession ?? undefined,
+        agent: currentAgent ?? undefined,
+        parts: nextMessage.parts,
+      });
     } catch (error) {
       console.error("[Queue] Failed to process queued message:", error);
       // Re-add to front of queue on error
@@ -2988,13 +3003,12 @@ export function useOpenCode() {
 
       const commandModel = cmd.model || getAgentModel(config, commandAgent || null);
 
-      return sendMessage(
-        prompt,
-        commandModel?.providerID,
-        commandModel?.modelID,
-        currentSession || undefined,
-        commandAgent || currentAgent || undefined,
-      );
+      return sendMessage(prompt, {
+        providerID: commandModel?.providerID,
+        modelID: commandModel?.modelID,
+        sessionOverride: currentSession || undefined,
+        agent: commandAgent || currentAgent || undefined,
+      });
     },
     [currentSession, agents, currentAgent, config, sendMessage],
   );
