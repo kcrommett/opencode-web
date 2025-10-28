@@ -189,20 +189,22 @@ export function useKeyboardShortcutsWithContext() {
 
   // Handle double ESC for agent interruption (desktop only)
   useEffect(() => {
-    const handleDoubleEsc = () => {
-      if (keyboardState.lastEscapeTime && !isMobile && currentSessionBusy && currentSession) {
-        abortSession(currentSession.id);
-        showToast("Agent interrupted");
-      }
-    };
-
-    if (keyboardState.lastEscapeTime) {
-      const timer = setTimeout(() => {
-        handleDoubleEsc();
-      }, 500);
-      return () => clearTimeout(timer);
+    if (!keyboardState.doubleEscapeTime) {
+      return;
     }
-  }, [keyboardState.lastEscapeTime, isMobile, currentSessionBusy, currentSession, abortSession, showToast]);
+
+    if (!isMobile && currentSessionBusy && currentSession) {
+      showToast("Interrupting agent…");
+      void abortSession(currentSession.id).catch(() => {
+        showToast("Failed to interrupt agent");
+      });
+      return;
+    }
+
+    if (!isMobile && currentSession && !currentSessionBusy) {
+      showToast("No running agent to interrupt");
+    }
+  }, [keyboardState.doubleEscapeTime, isMobile, currentSessionBusy, currentSession, abortSession, showToast]);
 
   return {
     keyboardState,

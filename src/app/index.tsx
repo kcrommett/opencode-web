@@ -701,6 +701,36 @@ function OpenCodeChatTUI() {
     }
   }, [showSessionPicker, setSpacePassthrough]);
 
+  useEffect(() => {
+    if (!keyboardState.doubleEscapeTime) {
+      return;
+    }
+
+    if (abortInFlight) {
+      showToast("Agent interrupt already in progress");
+      return;
+    }
+
+    if (currentSessionBusy && currentSession?.id) {
+      showToast("Interrupting agent…");
+      void abortSession(currentSession.id).catch(() => {
+        showToast("Failed to interrupt agent");
+      });
+      return;
+    }
+
+    if (currentSession && !currentSessionBusy) {
+      showToast("No running agent to interrupt");
+    }
+  }, [
+    keyboardState.doubleEscapeTime,
+    abortInFlight,
+    currentSessionBusy,
+    currentSession,
+    abortSession,
+    showToast,
+  ]);
+
   // Register keyboard shortcuts for frame navigation
   useEffect(() => {
     const unregisterFns: (() => void)[] = [];
