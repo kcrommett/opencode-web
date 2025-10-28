@@ -1172,11 +1172,9 @@ function OpenCodeChatTUI() {
     });
 
     try {
-      let session = currentSession;
-      if (!session) {
-        session = await createSession({ title: "opencode-web session" });
-        await loadSessions();
-      }
+      // Session creation is now handled by sendMessage hook (issue #59)
+      // Only pass sessionOverride if we have a currentSession
+      const sessionOverride = currentSession || undefined;
 
       const isBusy = loading || isStreaming || currentSessionBusy;
 
@@ -1210,7 +1208,7 @@ function OpenCodeChatTUI() {
           await sendMessage(messageText, {
             providerID: selectedModel?.providerID,
             modelID: selectedModel?.modelID,
-            sessionOverride: session,
+            sessionOverride,
             agent: currentAgent ?? undefined,
             parts: messageParts,
           });

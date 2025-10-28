@@ -1702,9 +1702,18 @@ export function useOpenCode() {
         parts,
       } = options;
 
-      const targetSession = sessionOverride || currentSession;
+      // Auto-create session if none exists (issue #59)
+      let targetSession = sessionOverride || currentSession;
       if (!targetSession) {
-        throw new Error("No active session");
+        if (process.env.NODE_ENV !== "production") {
+          console.log("[SendMessage] No active session, auto-creating with blank title");
+        }
+        try {
+          targetSession = await createSession({ title: "" });
+        } catch (error) {
+          console.error("[SendMessage] Failed to auto-create session:", error);
+          throw new Error("Failed to create session: " + handleOpencodeError(error));
+        }
       }
 
       markSessionRunning(targetSession.id);
@@ -1858,6 +1867,7 @@ export function useOpenCode() {
       selectedModel,
       currentAgent,
       config,
+      createSession,
       markSessionRunning,
       markSessionIdle,
     ],
