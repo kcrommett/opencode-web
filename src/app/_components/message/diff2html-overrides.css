@@ -69,6 +69,34 @@
 .d2h-code-line-ctn {
   font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
+
+/* Tighten vertical spacing without changing layout */
+.d2h-code-side-line,
+.d2h-code-line {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  line-height: 1.2 !important;
+}
+.d2h-code-line-prefix,
+.d2h-code-line-ctn { line-height: 1.2 !important; }
+
+/* Side-by-side: remove the stagger spacing completely */
+.d2h-file-side-diff .d2h-diff-tbody > tr > td {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+.d2h-file-side-diff .d2h-code-side-line,
+.d2h-file-side-diff .d2h-code-side-linenumber {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  line-height: 1.15 !important;
+}
+.d2h-file-side-diff .d2h-code-side-line .d2h-code-line-prefix,
+.d2h-file-side-diff .d2h-code-side-line .d2h-code-line-ctn {
+  line-height: 1.15 !important;
+}
 .d2h-ins .d2h-code-line-ctn,
 .d2h-ins .d2h-code-side-line {
   background: var(--d2h-added-bg) !important;
@@ -80,6 +108,10 @@
   color: var(--d2h-removed) !important;
 }
 .d2h-cntx .d2h-code-line-ctn { background: var(--d2h-context-bg) !important; color: var(--d2h-context) !important; }
+
+/* Prevent extra blank lines if diff2html inserts <br> after lines */
+.d2h-code-side-line br,
+.d2h-code-line br { display: none !important; }
 
 /* Line numbers */
 .d2h-code-linenumber { background: var(--d2h-line-no) !important; color: var(--d2h-fg) !important; }
