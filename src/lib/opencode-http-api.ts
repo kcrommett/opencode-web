@@ -636,3 +636,11 @@ export async function setAuth(
   }
   return response.json();
 }
+
+export async function getMcpStatus() {
+  const response = await fetch(buildUrl("/mcp"));
+  if (!response.ok) {
+    throw new Error(`Failed to get MCP status: ${response.statusText}`);
+  }
+  return response.json();
+}

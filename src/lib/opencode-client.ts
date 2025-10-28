@@ -621,6 +621,15 @@ export const openCodeService = {
       throw error;
     }
   },
+
+  async getMcpStatus() {
+    try {
+      const response = await serverFns.getMcpStatus();
+      return { data: response };
+    } catch (error) {
+      throw error;
+    }
+  },
 };
 
 export function handleOpencodeError(error: unknown): string {

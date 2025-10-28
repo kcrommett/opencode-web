@@ -107,3 +107,9 @@ export interface SessionUsageTotals {
 export type MentionSuggestion =
   | { type: "agent"; name: string; description?: string; label: string }
   | { type: "file"; path: string; label: string };
+
+export type McpServerStatus = "connected" | "failed" | "disabled";
+
+export interface McpStatusResponse {
+  [serverName: string]: McpServerStatus;
+}

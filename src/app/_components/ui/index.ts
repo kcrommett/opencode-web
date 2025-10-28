@@ -14,6 +14,7 @@ export { MobileSidebar } from "./mobile-sidebar";
 export { HamburgerMenu } from "./hamburger-menu";
 export { KeyboardIndicator } from "./keyboard-indicator";
 export { ProjectPicker } from "./project-picker";
+export { McpStatus } from "./mcp-status";
 
 // PWA Components
 export { InstallPrompt } from "./install-prompt";
