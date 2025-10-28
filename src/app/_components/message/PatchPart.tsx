@@ -1,6 +1,8 @@
 import { useState } from "react";
 import type { Part } from "@/types/opencode";
 import { Badge } from "../ui";
+import { DiffPart } from "./DiffPart";
+import { extractDiffMetadata } from "@/lib/tool-helpers";
 
 interface PatchPartProps {
   part: Part;
@@ -11,21 +13,9 @@ export function PatchPart({ part }: PatchPartProps) {
 
   if (part.type !== "patch") return null;
 
-  const rawDiff =
-    typeof part.diff === "string"
-      ? part.diff
-      : typeof part.content === "string"
-        ? part.content
-        : "";
-  const diff = rawDiff.trim().length > 0 ? rawDiff : "";
-
-  const candidateFiles = (part as { files?: unknown }).files;
-  const fileList = Array.isArray(candidateFiles)
-    ? candidateFiles.map((file) => String(file))
-    : [];
-
-  const hasDiff = diff.trim().length > 0;
-  const hasFiles = fileList.length > 0;
+  const metadata = extractDiffMetadata(part);
+  const hasDiff = Boolean(metadata?.raw && metadata.raw.trim().length > 0);
+  const hasFiles = Boolean(metadata?.files && metadata.files.length > 0);
   const contentId = part.id ? `patch-${part.id}` : undefined;
 
   const toggle = () => {
@@ -51,32 +41,21 @@ export function PatchPart({ part }: PatchPartProps) {
         {(hasFiles || hasDiff) && (
           <Badge variant="foreground0" cap="round" className="text-xs">
             {hasFiles
-              ? `${fileList.length} ${fileList.length === 1 ? "file" : "files"}`
-              : `${diff.length} chars`}
+              ? `${metadata!.files!.length} ${metadata!.files!.length === 1 ? "file" : "files"}`
+              : `${metadata!.raw!.length} chars`}
           </Badge>
         )}
       </button>
       {isExpanded && (
-        <div
-          id={contentId}
-          className="border-t border-theme-border p-3 bg-theme-background space-y-2"
-        >
-          {hasDiff && (
-            <pre className="text-xs font-mono whitespace-pre-wrap break-words">
-              {diff}
-            </pre>
-          )}
-          {!hasDiff && hasFiles && (
-            <ul className="text-xs font-mono leading-relaxed opacity-80">
-              {fileList.map((file) => (
-                <li key={file}>{file}</li>
-              ))}
-            </ul>
-          )}
-          {!hasDiff && !hasFiles && (
-            <p className="text-xs opacity-70">
+        <div id={contentId} className="border-t border-theme-border bg-theme-background">
+          {metadata ? (
+            <div className="p-2">
+              <DiffPart diff={metadata} toolName="edit" hideHeader />
+            </div>
+          ) : (
+            <div className="p-3 text-xs opacity-70">
               No file diff details were returned for this message.
-            </p>
+            </div>
           )}
         </div>
       )}

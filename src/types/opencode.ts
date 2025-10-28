@@ -16,6 +16,14 @@ export interface Part {
   [key: string]: unknown;
 }
 
+export interface DiffMetadata {
+  raw?: string;
+  files?: string[];
+  additions?: number;
+  deletions?: number;
+  hasParsedDiff?: boolean;
+}
+
 export interface ToolPartDetail {
   tool: string;
   status: "pending" | "running" | "completed" | "error";
@@ -35,6 +43,7 @@ export interface ToolPartDetail {
   };
   path?: string;
   provider?: string;
+  diff?: DiffMetadata;
 }
 
 export interface PermissionState {

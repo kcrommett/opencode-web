@@ -1,0 +1,96 @@
+/* Diff2Html overrides to match OpenCode Web theme */
+
+.diff2html-wrapper,
+.d2h-wrapper {
+  --d2h-bg: var(--theme-background);
+  --d2h-bg-alt: var(--theme-backgroundAlt);
+  --d2h-fg: var(--theme-foreground);
+  --d2h-border: var(--theme-border);
+  --d2h-added-bg: var(--theme-diffAddedBg);
+  --d2h-removed-bg: var(--theme-diffRemovedBg);
+  --d2h-context-bg: var(--theme-diffContextBg);
+  --d2h-added: var(--theme-diffAdded);
+  --d2h-removed: var(--theme-diffRemoved);
+  --d2h-context: var(--theme-diffContext);
+  --d2h-hunk: var(--theme-diffHunkHeader);
+  --d2h-line-no: var(--theme-diffLineNumber);
+  --d2h-line-no-added: var(--theme-diffAddedLineNumberBg);
+  --d2h-line-no-removed: var(--theme-diffRemovedLineNumberBg);
+
+  /* Soften or remove any table borders pulled in by global table styles */
+  --table-border-color: transparent;
+  --table-divider-color: transparent;
+  --table-outline-color: transparent;
+
+  /* Disable default line-number background */
+  --d2h-line-no: transparent;
+}
+
+.diff2html-wrapper,
+.d2h-wrapper {
+  background: var(--d2h-bg);
+  color: var(--d2h-fg);
+}
+
+/* Remove default borders/outlines that look like misaligned grid lines */
+.d2h-diff-table,
+.d2h-diff-table tbody tr td,
+.d2h-diff-table tbody tr th,
+.d2h-code-line,
+.d2h-code-side-linenumber,
+.d2h-code-linenumber,
+.d2h-info,
+.d2h-file-name {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* File header */
+.d2h-file-header {
+  background: var(--d2h-bg-alt) !important;
+  color: var(--d2h-fg) !important;
+  border: 1px solid var(--d2h-border) !important;
+  border-radius: 6px;
+}
+.d2h-file-wrapper {
+  border: 1px solid var(--d2h-border) !important;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--d2h-bg-alt) !important;
+}
+
+/* Hunk header */
+.d2h-info {
+  background: var(--d2h-bg-alt) !important;
+  color: var(--d2h-hunk) !important;
+}
+
+/* Code lines */
+.d2h-code-line-ctn {
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+.d2h-ins .d2h-code-line-ctn,
+.d2h-ins .d2h-code-side-line {
+  background: var(--d2h-added-bg) !important;
+  color: var(--d2h-added) !important;
+}
+.d2h-del .d2h-code-line-ctn,
+.d2h-del .d2h-code-side-line {
+  background: var(--d2h-removed-bg) !important;
+  color: var(--d2h-removed) !important;
+}
+.d2h-cntx .d2h-code-line-ctn { background: var(--d2h-context-bg) !important; color: var(--d2h-context) !important; }
+
+/* Line numbers */
+.d2h-code-linenumber { background: var(--d2h-line-no) !important; color: var(--d2h-fg) !important; }
+.d2h-ins .d2h-code-linenumber { background: var(--d2h-line-no-added) !important; }
+.d2h-del .d2h-code-linenumber { background: var(--d2h-line-no-removed) !important; }
+
+/* Side-by-side column borders removed */
+.d2h-file-side-diff .d2h-diff-tbody > tr > td { border: none !important; }
+
+/* (Spacing tweaks reverted) */
+
+/* Reduce link color intensity in file list */
+.d2h-file-list a { color: var(--theme-primary); text-decoration: none; }
+.d2h-file-list a:hover { text-decoration: underline; }

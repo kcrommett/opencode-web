@@ -6,6 +6,7 @@ import {
   TOOL_STATUS_LABELS,
   formatDuration,
 } from "@/lib/tool-helpers";
+import { DiffPart } from "./DiffPart";
 
 interface ToolPartProps {
   part: Part;
@@ -20,9 +21,14 @@ export function ToolPart({ part, showDetails }: ToolPartProps) {
   if (part.type !== "tool") return null;
 
   const normalized = normalizeToolPart(part);
-  const { tool, status, input, output, error, state, path } = normalized;
+  const { tool, status, input, output, error, state, path, diff } = normalized;
+  const resolvedPath =
+    typeof path === "string" && path.trim().length > 0 ? path.trim() : undefined;
+  const fileName =
+    resolvedPath?.split(/[\\/]/).filter(Boolean).pop() ?? resolvedPath;
 
   const statusLabel = TOOL_STATUS_LABELS[status] || status;
+
   const duration = state?.timings?.duration;
 
   const getStatusIcon = () => {
@@ -80,9 +86,12 @@ export function ToolPart({ part, showDetails }: ToolPartProps) {
           </Badge>
         </div>
         <div className="flex items-center gap-2 text-xs opacity-70 shrink-0">
-          {path && (
-            <span className="font-mono truncate max-w-[200px] sm:max-w-xs" title={path}>
-              {path.split("/").pop()}
+          {resolvedPath && (
+            <span
+              className="font-mono truncate max-w-[200px] sm:max-w-xs"
+              title={resolvedPath}
+            >
+              {fileName}
             </span>
           )}
           {duration !== undefined && (
@@ -94,10 +103,17 @@ export function ToolPart({ part, showDetails }: ToolPartProps) {
       {/* Input Section */}
       {showDetails && input !== undefined && (
         <div className="border-t border-theme-border">
-          <Button
-            variant="background2"
-            className="w-full px-3 py-2 flex items-center justify-between text-left hover:bg-theme-background-alt transition-colors"
+          <div
+            role="button"
+            tabIndex={0}
+            className="w-full px-3 py-2 flex items-center justify-between text-left hover:bg-theme-background-alt transition-colors cursor-pointer"
             onClick={() => setShowInput(!showInput)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setShowInput((v) => !v);
+              }
+            }}
             aria-expanded={showInput}
           >
             <span className="text-xs font-medium opacity-70">
@@ -115,7 +131,7 @@ export function ToolPart({ part, showDetails }: ToolPartProps) {
             >
               {copiedField === "input" ? "✓" : "⧉"}
             </Button>
-          </Button>
+          </div>
           {showInput && (
             <div className="px-3 pb-3">
               <pre className="text-xs font-mono whitespace-pre-wrap break-words bg-theme-background p-2 rounded max-h-[400px] overflow-auto">
@@ -129,10 +145,17 @@ export function ToolPart({ part, showDetails }: ToolPartProps) {
       {/* Output/Error Section */}
       {(output !== undefined || error) && (
         <div className="border-t border-theme-border">
-          <Button
-            variant="background2"
-            className="w-full px-3 py-2 flex items-center justify-between text-left hover:bg-theme-background-alt transition-colors"
+          <div
+            role="button"
+            tabIndex={0}
+            className="w-full px-3 py-2 flex items-center justify-between text-left hover:bg-theme-background-alt transition-colors cursor-pointer"
             onClick={() => setShowOutput(!showOutput)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setShowOutput((v) => !v);
+              }
+            }}
             aria-expanded={showOutput}
           >
             <span className="text-xs font-medium opacity-70">
@@ -151,7 +174,7 @@ export function ToolPart({ part, showDetails }: ToolPartProps) {
             >
               {copiedField === "output" ? "✓" : "⧉"}
             </Button>
-          </Button>
+          </div>
           {showOutput && (
             <div className="px-3 pb-3">
               {error?.message ? (
@@ -177,6 +200,15 @@ export function ToolPart({ part, showDetails }: ToolPartProps) {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Diff Section */}
+      {diff && (
+        <div className="border-t border-theme-border">
+          <div className="p-2">
+            <DiffPart diff={diff} toolName={tool} />
+          </div>
         </div>
       )}
     </div>
