@@ -44,3 +44,4 @@ packages/opencode-web/*.tgz
 # temporary files
 temp/
 tmp/
+bun.lock
