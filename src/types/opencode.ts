@@ -16,6 +16,27 @@ export interface Part {
   [key: string]: unknown;
 }
 
+export interface ToolPartDetail {
+  tool: string;
+  status: "pending" | "running" | "completed" | "error";
+  input?: unknown;
+  output?: unknown;
+  error?: {
+    message?: string;
+    stack?: string;
+  };
+  state?: {
+    status?: string;
+    timings?: {
+      startTime?: number;
+      endTime?: number;
+      duration?: number;
+    };
+  };
+  path?: string;
+  provider?: string;
+}
+
 export interface PermissionState {
   id: string;
   sessionID: string;
