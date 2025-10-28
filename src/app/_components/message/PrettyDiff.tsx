@@ -16,7 +16,7 @@ function looksUnified(diff: string) {
 }
 
 export function PrettyDiff({ diffText }: PrettyDiffProps) {
-  const [view, setView] = useState<"line-by-line" | "side-by-side">("line-by-line");
+  const [view, setView] = useState<"line-by-line" | "side-by-side">("side-by-side");
   const [open, setOpen] = useState<Set<number>>(new Set([0]));
 
   const content = useMemo(() => {

@@ -554,6 +554,15 @@ function OpenCodeChatTUI() {
     }
     return false;
   });
+  const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("opencode-left-sidebar-open");
+      if (stored !== null) {
+        return stored === "true";
+      }
+    }
+    return true;
+  });
   const [isResizing, setIsResizing] = useState(false);
   const isMobile = useIsMobile();
 
@@ -2763,7 +2772,17 @@ function OpenCodeChatTUI() {
   }, [sessionUsage]);
 
   const handleTabChange = (tab: string) => {
+    // If clicking the same tab that's already active, toggle sidebar visibility
+    if (tab === activeTab && isLeftSidebarOpen) {
+      setIsLeftSidebarOpen(false);
+      setActiveTab(""); // Clear active tab when hiding sidebar
+      return;
+    }
+    
+    // Otherwise, switch tabs and ensure sidebar is open
     setActiveTab(tab);
+    setIsLeftSidebarOpen(true);
+    
     if (tab === "files") {
       if (files.length === 0) {
         void handleDirectoryOpen(fileDirectory || ".");
@@ -2818,6 +2837,12 @@ function OpenCodeChatTUI() {
       localStorage.setItem("opencode-status-sidebar-open", String(isStatusSidebarOpen));
     }
   }, [isStatusSidebarOpen]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("opencode-left-sidebar-open", String(isLeftSidebarOpen));
+    }
+  }, [isLeftSidebarOpen]);
 
   useEffect(() => {
     if (isStatusSidebarOpen) {
@@ -2906,27 +2931,27 @@ function OpenCodeChatTUI() {
       }}
     >
       {/* Top Bar */}
-      <div className="px-2 sm:px-4 py-2 flex items-center justify-between bg-theme-background-alt flex-shrink-0 gap-2">
+      <div className="px-2 sm:px-4 py-2 flex items-center justify-between bg-theme-background-alt flex-shrink-0 gap-2 min-h-[48px]">
         {isConnected === false && (
           <div className="absolute top-0 left-0 right-0 px-2 py-1 text-center text-xs bg-theme-error text-theme-background z-50">
             Disconnected from OpenCode server
           </div>
         )}
-        <div className="flex items-center gap-1 sm:gap-2 lg:gap-4 flex-1 min-w-0">
+        <div className="flex items-center gap-1 sm:gap-2 lg:gap-4 overflow-hidden">
           <HamburgerMenu
             isOpen={isMobileSidebarOpen}
             onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
           />
-          <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+          <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto scrollbar-hide">
             <Badge
               variant="foreground1"
               cap="round"
-              className="whitespace-nowrap"
+              className="whitespace-nowrap flex-shrink-0"
             >
               opencode web
             </Badge>
             {isConnected !== null && (
-              <div className="flex items-center gap-1 sm:gap-2">
+              <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                 <div
                   className={`connection-indicator ${isConnected ? "connected" : "disconnected"}`}
                 />
@@ -2978,7 +3003,7 @@ function OpenCodeChatTUI() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-1 sm:gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
             <SidebarTabs
               tabs={[
                 { id: "workspace", label: "Workspace" },
@@ -2988,7 +3013,7 @@ function OpenCodeChatTUI() {
               onTabChange={handleTabChange}
             />
             <Button
-              variant={isStatusSidebarOpen ? "foreground1" : "foreground0"}
+              variant={isStatusSidebarOpen ? "foreground0" : "foreground1"}
               box="round"
               size="small"
               className="hidden md:inline-flex"
@@ -3039,11 +3064,12 @@ function OpenCodeChatTUI() {
       {/* Main Content */}
       <div className="flex-1 min-w-0 flex overflow-hidden gap-0">
         {/* Desktop Sidebar - hidden on mobile */}
-        <View
-          box="square"
-          className="hidden md:flex flex-col p-4 bg-theme-background-alt relative"
-          style={{ width: `${sidebarWidth}px` }}
-        >
+        {isLeftSidebarOpen && (
+          <View
+            box="square"
+            className="hidden md:flex flex-col p-4 bg-theme-background-alt relative"
+            style={{ width: `${sidebarWidth}px` }}
+          >
           <div
             className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-theme-primary transition-colors z-10"
             onMouseDown={handleResizeStart}
@@ -3476,6 +3502,7 @@ function OpenCodeChatTUI() {
             )}
           </div>
         </View>
+        )}
 
         {/* Mobile Sidebar Drawer */}
         <MobileSidebar
@@ -4546,24 +4573,14 @@ function OpenCodeChatTUI() {
           >
             <div className="flex items-center justify-between px-4 py-2">
               <h3 className="text-sm font-medium">Status</h3>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="foreground1"
-                  box="round"
-                  size="small"
-                  onClick={() => void refreshStatusAll()}
-                >
-                  Refresh
-                </Button>
-                <Button
-                  variant="foreground0"
-                  box="round"
-                  size="small"
-                  onClick={() => setIsStatusSidebarOpen(false)}
-                >
-                  Hide
-                </Button>
-              </div>
+              <Button
+                variant="foreground1"
+                box="round"
+                size="small"
+                onClick={() => void refreshStatusAll()}
+              >
+                Refresh
+              </Button>
             </div>
             <Separator />
             <div className="flex-1 overflow-y-auto space-y-3 px-4 py-3">
