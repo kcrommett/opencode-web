@@ -1,9 +1,9 @@
 import React, { useState } from "react";
 import { useOpenCodeContext } from "@/contexts/OpenCodeContext";
 import { Badge } from "./badge";
+import { StatusBadge } from "./status-badge";
 import { Button } from "./button";
 import { Separator } from "./separator";
-import { LspDiagnosticsSummary } from "@/types/opencode";
 
 export const LspStatusPanel: React.FC = () => {
   const { sidebarStatus } = useOpenCodeContext();
@@ -55,15 +55,20 @@ export const LspStatusPanel: React.FC = () => {
 
   const getSeverityBadge = (count: number, severity: string) => {
     if (count === 0) return null;
-    
-    const variant = severity === "errors" ? "error" : 
-                   severity === "warnings" ? "warning" : 
-                   severity === "infos" ? "info" : "background1";
-    
+
+    const statusMap: Record<string, "error" | "warning" | "info" | "pending"> = {
+      errors: "error",
+      warnings: "warning",
+      infos: "info",
+      hints: "pending",
+    };
+
+    const status = statusMap[severity] ?? "info";
+
     return (
-      <Badge key={severity} variant={variant} cap="round">
+      <StatusBadge key={severity} status={status}>
         {count} {severity.slice(0, -1)}
-      </Badge>
+      </StatusBadge>
     );
   };
 
@@ -143,24 +148,24 @@ export const LspStatusPanel: React.FC = () => {
 
               <div className="flex flex-wrap gap-2">
                 {summary.errors > 0 && (
-                  <Badge variant="error" cap="round">
+                  <StatusBadge status="error">
                     {summary.errors} error{summary.errors !== 1 ? "s" : ""}
-                  </Badge>
+                  </StatusBadge>
                 )}
                 {summary.warnings > 0 && (
-                  <Badge variant="warning" cap="round">
+                  <StatusBadge status="warning">
                     {summary.warnings} warning{summary.warnings !== 1 ? "s" : ""}
-                  </Badge>
+                  </StatusBadge>
                 )}
                 {summary.infos > 0 && (
-                  <Badge variant="info" cap="round">
+                  <StatusBadge status="info">
                     {summary.infos} info{summary.infos !== 1 ? "s" : ""}
-                  </Badge>
+                  </StatusBadge>
                 )}
                 {summary.hints > 0 && (
-                  <Badge variant="background1" cap="round">
+                  <StatusBadge status="pending">
                     {summary.hints} hint{summary.hints !== 1 ? "s" : ""}
-                  </Badge>
+                  </StatusBadge>
                 )}
               </div>
 

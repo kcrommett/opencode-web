@@ -108,15 +108,10 @@ export type MentionSuggestion =
   | { type: "agent"; name: string; description?: string; label: string }
   | { type: "file"; path: string; label: string };
 
-/**
- * MCP Server status information
- */
-export interface McpServer {
-  id: string;
-  name: string;
-  status: "connected" | "connecting" | "disconnected" | "error";
-  lastChecked: Date;
-  description?: string;
+export type McpServerStatus = "connected" | "failed" | "disabled";
+
+export interface McpStatusResponse {
+  [serverName: string]: McpServerStatus;
 }
 
 /**
@@ -154,10 +149,19 @@ export interface SessionContext {
   title?: string;
   agentName?: string;
   modelId?: string;
+  modelName?: string;
   messageCount: number;
   activeSince?: Date;
   lastActivity?: Date;
   tokenUsage?: SessionUsageTotals;
+  tokensUsed?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  reasoningTokens?: number;
+  cacheTokens?: {
+    read: number;
+    write: number;
+  };
   isStreaming: boolean;
   lastError?: string | null;
 }
@@ -167,7 +171,9 @@ export interface SessionContext {
  */
 export interface SidebarStatusState {
   sessionContext: SessionContext;
-  mcpServers: McpServer[];
+  mcpStatus: McpStatusResponse | null;
+  mcpStatusLoading: boolean;
+  mcpStatusError: string | null;
   lspDiagnostics: Record<string, LspDiagnosticsSummary>;
   gitStatus: GitStatus;
 }

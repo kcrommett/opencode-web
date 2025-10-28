@@ -1,4 +1,4 @@
-import React, { useState, useEffect, KeyboardEvent } from "react";
+import React, { KeyboardEvent } from "react";
 import { Button } from "./button";
 
 export interface SidebarTab {
@@ -20,15 +20,6 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
   onTabChange,
   className = "",
 }) => {
-  const [focusedIndex, setFocusedIndex] = useState(0);
-
-  useEffect(() => {
-    const activeIndex = tabs.findIndex((tab) => tab.id === activeTab);
-    if (activeIndex !== -1) {
-      setFocusedIndex(activeIndex);
-    }
-  }, [activeTab, tabs]);
-
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const enabledTabs = tabs.filter((tab) => !tab.disabled);
     const currentEnabledIndex = enabledTabs.findIndex((tab) => tab.id === activeTab);
@@ -70,7 +61,7 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
       className={`flex gap-1 ${className}`}
       onKeyDown={handleKeyDown}
     >
-      {tabs.map((tab, index) => (
+      {tabs.map((tab) => (
         <Button
           key={tab.id}
           id={`sidebar-tab-${tab.id}`}

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useOpenCodeContext } from "@/contexts/OpenCodeContext";
 import { Badge } from "./badge";
+import { StatusBadge } from "./status-badge";
 import { Button } from "./button";
 import { Separator } from "./separator";
 
@@ -38,8 +39,6 @@ export const ModifiedFilesPanel: React.FC = () => {
     if (files.length === 0) return null;
 
     const isExpanded = expandedSections.has(sectionKey);
-    const displayFiles = isExpanded ? files : files.slice(0, 5);
-
     return (
       <div className="space-y-2">
         <div 
@@ -106,14 +105,14 @@ export const ModifiedFilesPanel: React.FC = () => {
               {gitStatus.branch}
             </Badge>
             {gitStatus.ahead && gitStatus.ahead > 0 && (
-              <Badge variant="success" cap="round">
+              <StatusBadge status="success">
                 ↑{gitStatus.ahead}
-              </Badge>
+              </StatusBadge>
             )}
             {gitStatus.behind && gitStatus.behind > 0 && (
-              <Badge variant="warning" cap="round">
+              <StatusBadge status="warning">
                 ↓{gitStatus.behind}
-              </Badge>
+              </StatusBadge>
             )}
           </div>
         </div>

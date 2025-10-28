@@ -5,6 +5,7 @@ import { getAgentModel, getDefaultModel } from "@/lib/config";
 import { parseCommand, ParsedCommand } from "@/lib/commandParser";
 import { shouldDecodeAsText as checkIfText } from "@/lib/mime-utils";
 import { searchSessions, SessionFilters } from "@/lib/session-index";
+import { normalizeDiagnostics } from "@/lib/status-utils";
 import type {
   Agent,
   FileContentData,
@@ -15,10 +16,6 @@ import type {
   Command,
   SessionUsageTotals,
   SidebarStatusState,
-  SessionContext,
-  McpServer,
-  LspDiagnosticsSummary,
-  GitStatus,
 } from "@/types/opencode";
 
 const isDevEnvironment = process.env.NODE_ENV !== "production";
@@ -258,6 +255,7 @@ interface FileResponse {
   modifiedAt?: string;
 }
 
+
 export function useOpenCode() {
   debugLog("🔥 useOpenCode hook INITIALIZED");
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
@@ -369,8 +367,18 @@ export function useOpenCode() {
       id: "",
       messageCount: 0,
       isStreaming: false,
+      tokensUsed: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      reasoningTokens: 0,
+      cacheTokens: {
+        read: 0,
+        write: 0,
+      },
     },
-    mcpServers: [],
+    mcpStatus: null,
+    mcpStatusLoading: false,
+    mcpStatusError: null,
     lspDiagnostics: {},
     gitStatus: {
       staged: [],
@@ -382,8 +390,11 @@ export function useOpenCode() {
   });
 
   // Polling intervals
-  const mcpPollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const gitStatusDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const sessionContextUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const previousSessionUsageRef = useRef(sessionUsage);
+  const previousSessionIdRef = useRef<string | null>(null);
+  const hasLoadedInitialMcpStatusRef = useRef(false);
 
   const [loadedModels, setLoadedModels] = useState(false);
   const [loadedConfig, setLoadedConfig] = useState(false);
@@ -485,23 +496,30 @@ export function useOpenCode() {
 
   // Sidebar status refresh functions
   const refreshMcpStatus = useCallback(async () => {
+    setSidebarStatus((prev) => ({
+      ...prev,
+      mcpStatusLoading: true,
+      mcpStatusError: null,
+    }));
+
     try {
       const response = await openCodeService.getMcpStatus();
-      const mcpData = response.data as { servers?: McpServer[] } | undefined;
-      
-      if (mcpData?.servers) {
-        setSidebarStatus((prev) => ({
-          ...prev,
-          mcpServers: mcpData.servers!.map(server => ({
-            ...server,
-            lastChecked: new Date(),
-          })),
-        }));
-      }
+      setSidebarStatus((prev) => ({
+        ...prev,
+        mcpStatus: response.data ?? null,
+        mcpStatusLoading: false,
+        mcpStatusError: null,
+      }));
     } catch (error) {
       if (isDevEnvironment) {
         console.error("Failed to refresh MCP status:", error);
       }
+      setSidebarStatus((prev) => ({
+        ...prev,
+        mcpStatusLoading: false,
+        mcpStatusError:
+          error instanceof Error ? error.message : "Failed to load MCP status",
+      }));
     }
   }, []);
 
@@ -541,6 +559,10 @@ export function useOpenCode() {
       }
     }
   }, [currentProject?.worktree]);
+
+  const refreshStatusAll = useCallback(async () => {
+    await Promise.all([refreshMcpStatus(), refreshGitStatus()]);
+  }, [refreshMcpStatus, refreshGitStatus]);
 
   // Queue management functions
   const addToQueue = useCallback((message: Message) => {
@@ -920,6 +942,83 @@ export function useOpenCode() {
         loadedMessages.forEach((msg) => seenMessageIdsRef.current.add(msg.id));
         setMessages(loadedMessages);
 
+        const toNumber = (value: unknown): number =>
+          typeof value === "number" && Number.isFinite(value) ? value : 0;
+
+        const usageTotalsBase = activeMessages.reduce<SessionUsageTotals>(
+          (acc, msg) => {
+            const tokenRecord = msg.metadata?.tokens as Record<string, unknown> | undefined;
+            if (!tokenRecord) {
+              return acc;
+            }
+
+            const cacheRecord =
+              typeof tokenRecord.cache === "object" && tokenRecord.cache !== null
+                ? (tokenRecord.cache as Record<string, unknown>)
+                : undefined;
+
+            const cacheReadValue =
+              cacheRecord !== undefined
+                ? toNumber(cacheRecord.read)
+                : toNumber(tokenRecord.cacheRead);
+            const cacheWriteValue =
+              cacheRecord !== undefined
+                ? toNumber(cacheRecord.write)
+                : toNumber(tokenRecord.cacheWrite);
+
+            const totalFromRecord = toNumber(tokenRecord.totalTokens);
+
+            return {
+              input: acc.input + toNumber(tokenRecord.input),
+              output: acc.output + toNumber(tokenRecord.output),
+              reasoning: acc.reasoning + toNumber(tokenRecord.reasoning),
+              cacheRead: acc.cacheRead + cacheReadValue,
+              cacheWrite: acc.cacheWrite + cacheWriteValue,
+              totalTokens: acc.totalTokens + totalFromRecord,
+            };
+          },
+          {
+            input: 0,
+            output: 0,
+            reasoning: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+            totalTokens: 0,
+          },
+        );
+
+        const totalsWithSum: SessionUsageTotals = {
+          ...usageTotalsBase,
+          totalTokens:
+            usageTotalsBase.totalTokens > 0
+              ? usageTotalsBase.totalTokens
+              : usageTotalsBase.input +
+                usageTotalsBase.output +
+                usageTotalsBase.reasoning +
+                usageTotalsBase.cacheRead +
+                usageTotalsBase.cacheWrite,
+        };
+
+        setSessionUsage((prev) => {
+          const previousTotals = prev.get(sessionId);
+          const totalsChanged =
+            !previousTotals ||
+            previousTotals.input !== totalsWithSum.input ||
+            previousTotals.output !== totalsWithSum.output ||
+            previousTotals.reasoning !== totalsWithSum.reasoning ||
+            previousTotals.cacheRead !== totalsWithSum.cacheRead ||
+            previousTotals.cacheWrite !== totalsWithSum.cacheWrite ||
+            previousTotals.totalTokens !== totalsWithSum.totalTokens;
+
+          if (!totalsChanged) {
+            return prev;
+          }
+
+          const next = new Map(prev);
+          next.set(sessionId, totalsWithSum);
+          return next;
+        });
+
         const lastAssistantMessage = [...loadedMessages]
           .reverse()
           .find((msg) => msg.type === "assistant" && msg.metadata?.model);
@@ -1010,16 +1109,49 @@ export function useOpenCode() {
             setCurrentSession((prev) =>
               prev?.id === sessionInfo.id ? { ...prev, ...sessionInfo } : prev,
             );
-            
+
+            const sessionTime = (sessionInfo as {
+              time?: { created?: string | number; updated?: string | number };
+            }).time;
+            const updatedAt =
+              sessionInfo.updatedAt ?? sessionTime?.updated ?? null;
+            const createdAt =
+              sessionInfo.createdAt ?? sessionTime?.created ?? null;
+
             // Update session context with new info
-            setSidebarStatus((prev) => ({
-              ...prev,
-              sessionContext: {
-                ...prev.sessionContext,
-                title: sessionInfo.title ?? prev.sessionContext.title,
-                lastActivity: sessionInfo.updatedAt ? new Date(sessionInfo.updatedAt) : prev.sessionContext.lastActivity,
-              },
-            }));
+            setSidebarStatus((prev) => {
+              const previousContext = prev.sessionContext;
+
+              const parseDateValue = (input: unknown): Date | undefined => {
+                if (input instanceof Date) return input;
+                if (typeof input === "string" || typeof input === "number") {
+                  const parsed = new Date(input);
+                  if (!Number.isNaN(parsed.getTime())) {
+                    return parsed;
+                  }
+                }
+                return undefined;
+              };
+
+              const activeSinceDate =
+                createdAt !== null ? parseDateValue(createdAt) : undefined;
+              const lastActivityDate =
+                updatedAt !== null ? parseDateValue(updatedAt) : undefined;
+
+              return {
+                ...prev,
+                sessionContext: {
+                  ...previousContext,
+                  title: sessionInfo.title ?? previousContext.title,
+                  activeSince: activeSinceDate ?? previousContext.activeSince,
+                  lastActivity: lastActivityDate ?? previousContext.lastActivity,
+                  messageCount:
+                    typeof sessionInfo.messageCount === "number"
+                      ? sessionInfo.messageCount
+                      : previousContext.messageCount,
+                },
+              };
+            });
           }
           break;
         }
@@ -1551,22 +1683,14 @@ export function useOpenCode() {
         }
 
         case "lsp.client.diagnostics": {
-          const { serverID, label, errors, warnings, infos, hints, path } = event.properties;
-          
-          if (serverID) {
+          const summary = normalizeDiagnostics(event.properties as Record<string, unknown>);
+          if (summary && typeof (event.properties as Record<string, unknown>).serverID === 'string') {
+            const serverID = (event.properties as Record<string, unknown>).serverID as string;
             setSidebarStatus((prev) => ({
               ...prev,
               lspDiagnostics: {
                 ...prev.lspDiagnostics,
-                [serverID]: {
-                  label: typeof label === 'string' ? label : serverID,
-                  errors: typeof errors === 'number' ? errors : 0,
-                  warnings: typeof warnings === 'number' ? warnings : 0,
-                  infos: typeof infos === 'number' ? infos : 0,
-                  hints: typeof hints === 'number' ? hints : 0,
-                  lastPath: typeof path === 'string' ? path : undefined,
-                  updatedAt: new Date(),
-                },
+                [serverID]: summary,
               },
             }));
           }
@@ -1693,36 +1817,117 @@ export function useOpenCode() {
 
   // Update session context when current session changes
   useEffect(() => {
-    if (currentSession?.id) {
-      const sessionUsageData = sessionUsage.get(currentSession.id);
-      const isSessionActive = sessionActivity[currentSession.id]?.running ?? false;
-      
-      setSidebarStatus((prev) => ({
-        ...prev,
-        sessionContext: {
-          id: currentSession.id,
-          title: currentSession.title,
-          agentName: currentAgent?.name,
-          modelId: selectedModel?.modelID,
-          messageCount: messages.length,
-          activeSince: currentSession.createdAt,
-          lastActivity: currentSession.updatedAt,
-          tokenUsage: sessionUsageData,
-          isStreaming: isStreaming,
-          lastError: null, // Will be set by session.error events
-        },
-      }));
+    if (!currentSession?.id) {
+      previousSessionIdRef.current = null;
+      if (sessionContextUpdateTimeoutRef.current) {
+        clearTimeout(sessionContextUpdateTimeoutRef.current);
+        sessionContextUpdateTimeoutRef.current = null;
+      }
+      return;
     }
+
+    const sameSession = previousSessionIdRef.current === currentSession.id;
+    const usageChanged = previousSessionUsageRef.current !== sessionUsage;
+    previousSessionUsageRef.current = sessionUsage;
+    previousSessionIdRef.current = currentSession.id;
+
+    const scheduleUpdate = () => {
+      setSidebarStatus((prev) => {
+        const previousContext = prev.sessionContext;
+        const sessionUsageData = sessionUsage.get(currentSession.id);
+        const tokensUsed =
+          sessionUsageData?.totalTokens ??
+          previousContext.tokensUsed ??
+          0;
+        const cacheRead =
+          sessionUsageData?.cacheRead ??
+          previousContext.cacheTokens?.read ??
+          0;
+        const cacheWrite =
+          sessionUsageData?.cacheWrite ??
+          previousContext.cacheTokens?.write ??
+          0;
+
+        return {
+          ...prev,
+          sessionContext: {
+            ...previousContext,
+            id: currentSession.id,
+            title: currentSession.title ?? previousContext.title,
+            agentName: currentAgent?.name ?? previousContext.agentName,
+            modelId:
+              selectedModel?.modelID ??
+              sessionModelMap[currentSession.id]?.modelID ??
+              previousContext.modelId,
+            modelName:
+              selectedModel?.name ??
+              sessionModelMap[currentSession.id]?.name ??
+              previousContext.modelName,
+            messageCount:
+              currentSession.messageCount ??
+              messages.length ??
+              previousContext.messageCount,
+            activeSince: currentSession.createdAt ?? previousContext.activeSince,
+            lastActivity:
+              currentSession.updatedAt ?? previousContext.lastActivity,
+            tokenUsage: sessionUsageData ?? previousContext.tokenUsage,
+            tokensUsed,
+            inputTokens:
+              sessionUsageData?.input ?? previousContext.inputTokens,
+            outputTokens:
+              sessionUsageData?.output ?? previousContext.outputTokens,
+            reasoningTokens:
+              sessionUsageData?.reasoning ??
+              previousContext.reasoningTokens,
+            cacheTokens: {
+              read: cacheRead,
+              write: cacheWrite,
+            },
+            isStreaming,
+            lastError:
+              previousContext.id && previousContext.id !== currentSession.id
+                ? null
+                : previousContext.lastError ?? null,
+          },
+        };
+      });
+    };
+
+    if (sessionContextUpdateTimeoutRef.current) {
+      clearTimeout(sessionContextUpdateTimeoutRef.current);
+      sessionContextUpdateTimeoutRef.current = null;
+    }
+
+    const delay = usageChanged && sameSession ? 200 : 0;
+
+    if (delay > 0) {
+      sessionContextUpdateTimeoutRef.current = setTimeout(() => {
+        scheduleUpdate();
+        sessionContextUpdateTimeoutRef.current = null;
+      }, delay);
+    } else {
+      scheduleUpdate();
+    }
+
+    return () => {
+      if (sessionContextUpdateTimeoutRef.current) {
+        clearTimeout(sessionContextUpdateTimeoutRef.current);
+        sessionContextUpdateTimeoutRef.current = null;
+      }
+    };
   }, [
     currentSession?.id,
     currentSession?.title,
     currentSession?.createdAt,
     currentSession?.updatedAt,
+    currentSession?.messageCount,
     currentAgent?.name,
     selectedModel?.modelID,
+    selectedModel?.name,
+    selectedModel?.providerID,
+    sessionModelMap,
     messages.length,
     sessionUsage,
-    sessionActivity,
     isStreaming,
   ]);
 
@@ -2942,24 +3147,19 @@ export function useOpenCode() {
     }
   }, [currentProject, loadSessions]);
 
-  // MCP status polling
+  // MCP status initial load
   useEffect(() => {
-    if (!isConnected || !isHydrated) return;
+    if (!isHydrated || !isConnected) {
+      hasLoadedInitialMcpStatusRef.current = false;
+      return;
+    }
 
-    // Initial MCP status load
+    if (hasLoadedInitialMcpStatusRef.current) {
+      return;
+    }
+
+    hasLoadedInitialMcpStatusRef.current = true;
     refreshMcpStatus();
-
-    // Set up polling interval
-    mcpPollingIntervalRef.current = setInterval(() => {
-      refreshMcpStatus();
-    }, 5000); // Poll every 5 seconds
-
-    return () => {
-      if (mcpPollingIntervalRef.current) {
-        clearInterval(mcpPollingIntervalRef.current);
-        mcpPollingIntervalRef.current = null;
-      }
-    };
   }, [isConnected, isHydrated, refreshMcpStatus]);
 
   // Initial git status load when project changes
@@ -3303,5 +3503,6 @@ export function useOpenCode() {
     sidebarStatus,
     refreshMcpStatus,
     refreshGitStatus,
+    refreshStatusAll,
   };
 }

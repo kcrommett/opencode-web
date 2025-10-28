@@ -169,11 +169,11 @@ export const readFile = createServerFn({ method: "GET" })
     return httpApi.readFile(data.filePath, data.directory);
   });
 
-export const getFileStatus = createServerFn({ method: "GET" }).handler(
-  async () => {
-    return httpApi.getFileStatus();
-  },
-);
+export const getFileStatus = createServerFn({ method: "GET" })
+  .inputValidator((data?: { directory?: string }) => data ?? {})
+  .handler(async ({ data }) => {
+    return httpApi.getFileStatus(data.directory);
+  });
 
 export const respondToPermission = createServerFn({ method: "POST" })
   .inputValidator(

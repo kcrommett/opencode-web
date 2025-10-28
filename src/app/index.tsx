@@ -21,6 +21,7 @@ import {
   InstallPrompt,
   PWAReloadPrompt,
   Checkbox,
+
 } from "@/app/_components/ui";
 import { SidebarTabs } from "@/app/_components/ui/sidebar-tabs";
 import { SessionContextPanel } from "@/app/_components/ui/session-context-panel";
@@ -44,7 +45,7 @@ import type {
 } from "@/types/opencode";
 import { FileIcon } from "@/app/_components/files/file-icon";
 import { useOpenCodeContext } from "@/contexts/OpenCodeContext";
-import { openCodeService } from "@/lib/opencode-client";
+import { openCodeService, handleOpencodeError } from "@/lib/opencode-client";
 import { parseCommand } from "@/lib/commandParser";
 import {
   getCommandSuggestions,
@@ -472,7 +473,13 @@ function OpenCodeChatTUI() {
   const lastEscTimeRef = useRef<number>(0);
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("opencode-active-tab") || "workspace";
+      const storedTab = localStorage.getItem("opencode-active-tab");
+      if (storedTab === "status") {
+        return "workspace";
+      }
+      if (storedTab) {
+        return storedTab;
+      }
     }
     return "workspace";
   });
@@ -524,8 +531,80 @@ function OpenCodeChatTUI() {
     }
     return 320;
   });
+  const [isStatusSidebarOpen, setIsStatusSidebarOpen] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("opencode-status-sidebar-open");
+      if (stored !== null) {
+        return stored === "true";
+      }
+    }
+    return false;
+  });
   const [isResizing, setIsResizing] = useState(false);
+  const [mcpStatus, setMcpStatus] = useState<Record<string, "connected" | "failed" | "disabled"> | null>(null);
+  const [mcpStatusLoading, setMcpStatusLoading] = useState(false);
+  const [mcpStatusError, setMcpStatusError] = useState<string | null>(null);
   const isMobile = useIsMobile();
+  const mcpAggregated = useMemo(() => {
+    if (mcpStatusLoading) {
+      return {
+        colorClass: 'bg-yellow-500',
+        badgeVariant: 'foreground1' as const,
+        text: 'MCP…',
+        title: 'Loading MCP status...'
+      };
+    }
+    if (mcpStatusError) {
+      return {
+        colorClass: 'bg-red-500',
+        badgeVariant: 'foreground0' as const,
+        text: 'MCP Error',
+        title: `MCP status error: ${mcpStatusError}`
+      };
+    }
+    if (!mcpStatus) {
+      return {
+        colorClass: 'bg-gray-400',
+        badgeVariant: 'foreground1' as const,
+        text: 'MCP 0/0',
+        title: 'No MCP servers reported'
+      };
+    }
+    const entries = Object.entries(mcpStatus);
+    let connected = 0;
+    let failed = 0;
+    let disabled = 0;
+    for (const [, value] of entries) {
+      if (value === 'connected') connected++;
+      else if (value === 'failed') failed++;
+      else if (value === 'disabled') disabled++;
+    }
+    // Exclude disabled from denominator so ratio reflects active servers
+    const activeTotal = entries.length - disabled;
+    const denominator = activeTotal > 0 ? activeTotal : entries.length;
+
+    let colorClass = 'bg-green-500';
+    let badgeVariant: 'background2' | 'foreground0' | 'foreground1' | 'foreground2' = 'background2';
+    if (failed > 0) {
+      colorClass = 'bg-red-500';
+      badgeVariant = 'foreground0';
+    } else if (connected === 0 && activeTotal > 0) {
+      colorClass = 'bg-yellow-500';
+      badgeVariant = 'foreground1';
+    } else if (disabled > 0 && activeTotal === 0) {
+      // All disabled
+      colorClass = 'bg-gray-400';
+      badgeVariant = 'foreground1';
+    }
+
+    const text = `MCP ${connected}/${denominator}` +
+      (failed > 0 ? ` (${failed} failed)` : disabled > 0 ? ` (${disabled} disabled)` : '');
+    const title = entries.map(([name, status]) => `${name}: ${status}`).join(', ');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[MCP] Aggregated:', { connected, failed, disabled, denominator: activeTotal > 0 ? activeTotal : entries.length, text });
+    }
+    return { colorClass, badgeVariant, text, title };
+  }, [mcpStatus, mcpStatusLoading, mcpStatusError]);
 
   const selectedFileName = selectedFile?.split("/").pop() ?? null;
   const fileTextContent = fileContent?.text ?? null;
@@ -640,6 +719,7 @@ function OpenCodeChatTUI() {
     // Frame state for keyboard navigation
     selectedFrame,
     selectFrame,
+    refreshStatusAll,
   } = useOpenCodeContext();
   const { currentTheme, changeTheme } = useTheme(config?.theme);
 
@@ -813,6 +893,19 @@ function OpenCodeChatTUI() {
       })
     );
 
+    unregisterFns.push(
+      registerShortcut({
+        key: "x",
+        handler: () => {
+          closeAllModals();
+          setIsStatusSidebarOpen((prev) => !prev);
+        },
+        requiresLeader: true,
+        description: "Toggle Status Sidebar",
+        category: "navigation",
+      })
+    );
+
     // Secondary action shortcuts (require selected frame)
     unregisterFns.push(
       registerShortcut({
@@ -906,6 +999,7 @@ function OpenCodeChatTUI() {
     setShowSessionPicker,
     setShowProjectPicker,
     closeAllModals,
+    setIsStatusSidebarOpen,
     sessionPickerEditControls,
   ]);
 
@@ -1081,8 +1175,14 @@ function OpenCodeChatTUI() {
       // Ensure we have a session - create one if needed and get the session object
       let session = currentSession;
       if (!session) {
-        session = await createSession({ title: "opencode-web session" });
+        const createdSession = await createSession({ title: "opencode-web session" });
         await loadSessions();
+        session = createdSession ?? currentSession ?? null;
+      }
+
+      if (!session) {
+        console.error("Unable to create or locate a session for sending messages.");
+        return;
       }
 
       const parsed = parseCommand(messageText, commands);
@@ -1132,7 +1232,7 @@ function OpenCodeChatTUI() {
             messageText,
             selectedModel?.providerID,
             selectedModel?.modelID,
-            session,
+            session ?? undefined,
             currentAgent ?? undefined,
           );
         } catch (error) {
@@ -2485,8 +2585,27 @@ function OpenCodeChatTUI() {
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("opencode-status-sidebar-open", String(isStatusSidebarOpen));
+    }
+  }, [isStatusSidebarOpen]);
+
+  useEffect(() => {
+    if (isStatusSidebarOpen) {
+      void refreshStatusAll();
+    }
+  }, [isStatusSidebarOpen, refreshStatusAll]);
+
+  useEffect(() => {
+    if (!isMobile && activeTab === "status") {
+      setActiveTab("workspace");
+    }
+  }, [isMobile, activeTab]);
+
   // Focus file search input when files tab becomes active
   useEffect(() => {
+
     if (activeTab === "files") {
       setTimeout(() => {
         fileSearchInputRef.current?.focus();
@@ -2529,6 +2648,33 @@ function OpenCodeChatTUI() {
     };
     void restoreFilesTab();
   }, [isHydrated, activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Load MCP server status once hydrated
+  useEffect(() => {
+    if (!isHydrated) return;
+    let canceled = false;
+    setMcpStatusLoading(true);
+    setMcpStatusError(null);
+    (async () => {
+      try {
+         const result = await openCodeService.getMcpStatus();
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[MCP] Raw status response:', result.data);
+        }
+        if (!canceled) {
+          setMcpStatus(result.data || null);
+        }
+      } catch (error) {
+        if (!canceled) {
+          setMcpStatusError(handleOpencodeError(error));
+        }
+      } finally {
+        if (!canceled) setMcpStatusLoading(false);
+      }
+    })();
+    return () => {
+      canceled = true;
+    };
+  }, [isHydrated]);
 
   if (!isHydrated) {
     return (
@@ -2612,19 +2758,45 @@ function OpenCodeChatTUI() {
                     </Badge>
                   </div>
                 )}
+                {/* MCP Status */}
+                <div
+                  className="flex items-center gap-1"
+                  title={mcpAggregated.title}
+                >
+                  <div
+                    className={`w-2 h-2 rounded-full ${mcpAggregated.colorClass}`}
+                  />
+                  <Badge
+                    variant={mcpAggregated.badgeVariant}
+                    cap="round"
+                    className="hidden xl:inline text-xs whitespace-nowrap"
+                  >
+                    {mcpAggregated.text}
+                  </Badge>
+                </div>
               </div>
             )}
           </div>
-          <div className="flex gap-1 sm:gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <SidebarTabs
               tabs={[
                 { id: "workspace", label: "Workspace" },
-                { id: "status", label: "Status" },
                 { id: "files", label: "Files" },
               ]}
               activeTab={activeTab}
               onTabChange={handleTabChange}
             />
+            <Button
+              variant={isStatusSidebarOpen ? "foreground1" : "foreground0"}
+              box="round"
+              size="small"
+              className="hidden md:inline-flex"
+              onClick={() => setIsStatusSidebarOpen((prev) => !prev)}
+              aria-pressed={isStatusSidebarOpen}
+              title={isStatusSidebarOpen ? "Hide status sidebar" : "Show status sidebar"}
+            >
+              Status
+            </Button>
           </div>
         </div>
         <div className="hidden md:flex items-center gap-1 sm:gap-2 flex-shrink-0">
@@ -2681,19 +2853,6 @@ function OpenCodeChatTUI() {
             }}
           />
           <div className="flex-1 overflow-hidden">
-            {/* Tab Navigation */}
-            <div className="mb-4">
-              <SidebarTabs
-                tabs={[
-                  { id: "workspace", label: "Workspace" },
-                  { id: "status", label: "Status" },
-                  { id: "files", label: "Files" },
-                ]}
-                activeTab={activeTab}
-                onTabChange={handleTabChange}
-              />
-            </div>
-            
             {/* Tab Panels */}
             {activeTab === "workspace" && (
               <div className="h-full flex flex-col overflow-hidden">
@@ -2961,34 +3120,6 @@ function OpenCodeChatTUI() {
               </div>
             )}
 
-            {activeTab === "status" && (
-              <div className="h-full flex flex-col overflow-hidden">
-                <div className="flex-1 overflow-y-auto space-y-4">
-                  <SessionContextPanel />
-                  <Separator />
-                  <McpStatusPanel />
-                  <Separator />
-                  <LspStatusPanel />
-                  <Separator />
-                  <ModifiedFilesPanel />
-                </div>
-              </div>
-            )}
-
-          {activeTab === "status" && (
-            <div className="h-full flex flex-col overflow-hidden">
-              <div className="flex-1 overflow-y-auto space-y-4">
-                <SessionContextPanel />
-                <Separator />
-                <McpStatusPanel />
-                <Separator />
-                <LspStatusPanel />
-                <Separator />
-                <ModifiedFilesPanel />
-              </div>
-            </div>
-          )}
-
           {activeTab === "files" && (
               <div className="space-y-4 h-full flex flex-col">
                 <View box="square" className="p-2 mb-2 bg-theme-background-alt">
@@ -3183,8 +3314,8 @@ function OpenCodeChatTUI() {
             <SidebarTabs
               tabs={[
                 { id: "workspace", label: "Workspace" },
-                { id: "status", label: "Status" },
                 { id: "files", label: "Files" },
+                { id: "status", label: "Status" },
               ]}
               activeTab={activeTab}
               onTabChange={handleTabChange}
@@ -3526,6 +3657,18 @@ function OpenCodeChatTUI() {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {activeTab === "status" && (
+            <div className="flex-1 overflow-y-auto space-y-3">
+              <SessionContextPanel />
+              <Separator />
+              <McpStatusPanel />
+              <Separator />
+              <LspStatusPanel />
+              <Separator />
+              <ModifiedFilesPanel />
             </div>
           )}
         </MobileSidebar>
@@ -4147,6 +4290,45 @@ function OpenCodeChatTUI() {
             </div>
           )}
         </View>
+        {isStatusSidebarOpen && (
+          <View
+            box="square"
+            className="hidden md:flex flex-col bg-theme-background-alt border-l border-theme-border"
+            style={{ width: "320px" }}
+          >
+            <div className="flex items-center justify-between px-4 py-2">
+              <h3 className="text-sm font-medium">Status</h3>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="foreground1"
+                  box="round"
+                  size="small"
+                  onClick={() => void refreshStatusAll()}
+                >
+                  Refresh
+                </Button>
+                <Button
+                  variant="foreground0"
+                  box="round"
+                  size="small"
+                  onClick={() => setIsStatusSidebarOpen(false)}
+                >
+                  Hide
+                </Button>
+              </div>
+            </div>
+            <Separator />
+            <div className="flex-1 overflow-y-auto space-y-3 px-4 py-3">
+              <SessionContextPanel />
+              <Separator />
+              <McpStatusPanel />
+              <Separator />
+              <LspStatusPanel />
+              <Separator />
+              <ModifiedFilesPanel />
+            </div>
+          </View>
+        )}
       </div>
 
       {showNewProjectForm && (

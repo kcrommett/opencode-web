@@ -103,6 +103,7 @@ providersData: ReturnType<typeof useOpenCode>["providersData"];
   sidebarStatus: ReturnType<typeof useOpenCode>["sidebarStatus"];
   refreshMcpStatus: ReturnType<typeof useOpenCode>["refreshMcpStatus"];
   refreshGitStatus: ReturnType<typeof useOpenCode>["refreshGitStatus"];
+  refreshStatusAll: ReturnType<typeof useOpenCode>["refreshStatusAll"];
 }
 
 const OpenCodeContext = createContext<OpenCodeContextType | undefined>(

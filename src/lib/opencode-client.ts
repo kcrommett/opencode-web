@@ -4,7 +4,7 @@ import {
   OpencodeEvent,
   SSEConnectionState,
 } from "./opencode-events";
-import { Agent } from "../types/opencode";
+import type { Agent, McpStatusResponse, McpServerStatus } from "../types/opencode";
 
 const isDevMode = process.env.NODE_ENV !== "production";
 const devLog = (...args: unknown[]) => {
@@ -12,6 +12,33 @@ const devLog = (...args: unknown[]) => {
 };
 const devError = (...args: unknown[]) => {
   if (isDevMode) console.error(...args);
+};
+
+const isMcpStatus = (value: unknown): value is McpServerStatus =>
+  value === "connected" || value === "failed" || value === "disabled";
+
+const extractMcpStatus = (value: unknown): McpServerStatus | null => {
+  if (isMcpStatus(value)) return value;
+  if (value && typeof value === "object") {
+    const status = (value as { status?: unknown }).status;
+    if (isMcpStatus(status)) return status;
+  }
+  return null;
+};
+
+const normalizeMcpStatusResponse = (
+  input: unknown,
+): McpStatusResponse | null => {
+  if (!input || typeof input !== "object") return null;
+  const normalized: Record<string, McpServerStatus> = {};
+  for (const [name, value] of Object.entries(
+    input as Record<string, unknown>,
+  )) {
+    const status = extractMcpStatus(value);
+    if (status) normalized[name] = status;
+  }
+  if (Object.keys(normalized).length === 0) return null;
+  return normalized;
 };
 
 // SSE client and event handlers
@@ -366,9 +393,11 @@ export const openCodeService = {
     }
   },
 
-  async getFileStatus() {
+  async getFileStatus(directory?: string) {
     try {
-      const response = await serverFns.getFileStatus();
+      const response = await serverFns.getFileStatus({
+        data: directory ? { directory } : {},
+      });
       return { data: response };
     } catch (error) {
       throw error;
@@ -622,17 +651,16 @@ export const openCodeService = {
     }
   },
 
-  /**
-   * Get MCP (Model Context Protocol) server status
-   * Returns connection state and metadata for all configured MCP servers
-   */
-  async getMcpStatus() {
+  async getMcpStatus(): Promise<{ data: McpStatusResponse | null }> {
     try {
       const response = await serverFns.getMcpStatus();
-      return { data: response, error: null };
+      devLog("[OpenCodeService] MCP status (raw):", response);
+      const normalized = normalizeMcpStatusResponse(response);
+      devLog("[OpenCodeService] MCP status (normalized):", normalized);
+      return { data: normalized };
     } catch (error) {
       devError("Error in getMcpStatus:", error);
-      return { data: null, error: handleOpencodeError(error) };
+      throw error;
     }
   },
 };
