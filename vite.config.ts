@@ -31,7 +31,7 @@ export default defineConfig(({ mode }) => {
   return {
     base: basePath,
     server: {
-      port: 3000,
+      port: Number(env.PORT) || 3000,
       allowedHosts,
       // CLI populates process.env before invoking Vite
       proxy: {

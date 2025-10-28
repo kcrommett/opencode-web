@@ -5,6 +5,7 @@ import { getAgentModel, getDefaultModel } from "@/lib/config";
 import { parseCommand, ParsedCommand } from "@/lib/commandParser";
 import { shouldDecodeAsText as checkIfText } from "@/lib/mime-utils";
 import { searchSessions, SessionFilters } from "@/lib/session-index";
+import { normalizeDiagnostics } from "@/lib/status-utils";
 import type {
   Agent,
   FileContentData,
@@ -14,6 +15,7 @@ import type {
   OpencodeConfig,
   Command,
   SessionUsageTotals,
+  SidebarStatusState,
 } from "@/types/opencode";
 
 const isDevEnvironment = process.env.NODE_ENV !== "production";
@@ -253,6 +255,7 @@ interface FileResponse {
   modifiedAt?: string;
 }
 
+
 export function useOpenCode() {
   debugLog("🔥 useOpenCode hook INITIALIZED");
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
@@ -358,6 +361,41 @@ export function useOpenCode() {
   const [currentAgent, setCurrentAgent] = useState<Agent | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
 
+  // Sidebar status state
+  const [sidebarStatus, setSidebarStatus] = useState<SidebarStatusState>({
+    sessionContext: {
+      id: "",
+      messageCount: 0,
+      isStreaming: false,
+      tokensUsed: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      reasoningTokens: 0,
+      cacheTokens: {
+        read: 0,
+        write: 0,
+      },
+    },
+    mcpStatus: null,
+    mcpStatusLoading: false,
+    mcpStatusError: null,
+    lspDiagnostics: {},
+    gitStatus: {
+      staged: [],
+      modified: [],
+      untracked: [],
+      deleted: [],
+      timestamp: new Date(),
+    },
+  });
+
+  // Polling intervals
+  const gitStatusDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const sessionContextUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const previousSessionUsageRef = useRef(sessionUsage);
+  const previousSessionIdRef = useRef<string | null>(null);
+  const hasLoadedInitialMcpStatusRef = useRef(false);
+
   const [loadedModels, setLoadedModels] = useState(false);
   const [loadedConfig, setLoadedConfig] = useState(false);
   const [loadedCustomCommands, setLoadedCustomCommands] = useState(false);
@@ -455,6 +493,76 @@ export function useOpenCode() {
       return next;
     });
   }, []);
+
+  // Sidebar status refresh functions
+  const refreshMcpStatus = useCallback(async () => {
+    setSidebarStatus((prev) => ({
+      ...prev,
+      mcpStatusLoading: true,
+      mcpStatusError: null,
+    }));
+
+    try {
+      const response = await openCodeService.getMcpStatus();
+      setSidebarStatus((prev) => ({
+        ...prev,
+        mcpStatus: response.data ?? null,
+        mcpStatusLoading: false,
+        mcpStatusError: null,
+      }));
+    } catch (error) {
+      if (isDevEnvironment) {
+        console.error("Failed to refresh MCP status:", error);
+      }
+      setSidebarStatus((prev) => ({
+        ...prev,
+        mcpStatusLoading: false,
+        mcpStatusError:
+          error instanceof Error ? error.message : "Failed to load MCP status",
+      }));
+    }
+  }, []);
+
+  const refreshGitStatus = useCallback(async () => {
+    if (!currentProject?.worktree) return;
+    
+    try {
+      const response = await openCodeService.getFileStatus(currentProject.worktree);
+      const gitData = response.data as { 
+        branch?: string;
+        ahead?: number;
+        behind?: number;
+        staged?: string[];
+        modified?: string[];
+        untracked?: string[];
+        deleted?: string[];
+      } | undefined;
+      
+      if (gitData) {
+        setSidebarStatus((prev) => ({
+          ...prev,
+          gitStatus: {
+            branch: gitData.branch,
+            ahead: gitData.ahead,
+            behind: gitData.behind,
+            staged: gitData.staged || [],
+            modified: gitData.modified || [],
+            untracked: gitData.untracked || [],
+            deleted: gitData.deleted || [],
+            timestamp: new Date(),
+          },
+        }));
+      }
+    } catch (error) {
+      if (isDevEnvironment) {
+        console.error("Failed to refresh git status:", error);
+      }
+    }
+  }, [currentProject?.worktree]);
+
+  const refreshStatusAll = useCallback(async () => {
+    await Promise.all([refreshMcpStatus(), refreshGitStatus()]);
+  }, [refreshMcpStatus, refreshGitStatus]);
 
   // Queue management functions
   const addToQueue = useCallback((message: Message) => {
@@ -843,6 +951,83 @@ export function useOpenCode() {
         loadedMessages.forEach((msg) => seenMessageIdsRef.current.add(msg.id));
         setMessages(loadedMessages);
 
+        const toNumber = (value: unknown): number =>
+          typeof value === "number" && Number.isFinite(value) ? value : 0;
+
+        const usageTotalsBase = activeMessages.reduce<SessionUsageTotals>(
+          (acc, msg) => {
+            const tokenRecord = msg.metadata?.tokens as Record<string, unknown> | undefined;
+            if (!tokenRecord) {
+              return acc;
+            }
+
+            const cacheRecord =
+              typeof tokenRecord.cache === "object" && tokenRecord.cache !== null
+                ? (tokenRecord.cache as Record<string, unknown>)
+                : undefined;
+
+            const cacheReadValue =
+              cacheRecord !== undefined
+                ? toNumber(cacheRecord.read)
+                : toNumber(tokenRecord.cacheRead);
+            const cacheWriteValue =
+              cacheRecord !== undefined
+                ? toNumber(cacheRecord.write)
+                : toNumber(tokenRecord.cacheWrite);
+
+            const totalFromRecord = toNumber(tokenRecord.totalTokens);
+
+            return {
+              input: acc.input + toNumber(tokenRecord.input),
+              output: acc.output + toNumber(tokenRecord.output),
+              reasoning: acc.reasoning + toNumber(tokenRecord.reasoning),
+              cacheRead: acc.cacheRead + cacheReadValue,
+              cacheWrite: acc.cacheWrite + cacheWriteValue,
+              totalTokens: acc.totalTokens + totalFromRecord,
+            };
+          },
+          {
+            input: 0,
+            output: 0,
+            reasoning: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+            totalTokens: 0,
+          },
+        );
+
+        const totalsWithSum: SessionUsageTotals = {
+          ...usageTotalsBase,
+          totalTokens:
+            usageTotalsBase.totalTokens > 0
+              ? usageTotalsBase.totalTokens
+              : usageTotalsBase.input +
+                usageTotalsBase.output +
+                usageTotalsBase.reasoning +
+                usageTotalsBase.cacheRead +
+                usageTotalsBase.cacheWrite,
+        };
+
+        setSessionUsage((prev) => {
+          const previousTotals = prev.get(sessionId);
+          const totalsChanged =
+            !previousTotals ||
+            previousTotals.input !== totalsWithSum.input ||
+            previousTotals.output !== totalsWithSum.output ||
+            previousTotals.reasoning !== totalsWithSum.reasoning ||
+            previousTotals.cacheRead !== totalsWithSum.cacheRead ||
+            previousTotals.cacheWrite !== totalsWithSum.cacheWrite ||
+            previousTotals.totalTokens !== totalsWithSum.totalTokens;
+
+          if (!totalsChanged) {
+            return prev;
+          }
+
+          const next = new Map(prev);
+          next.set(sessionId, totalsWithSum);
+          return next;
+        });
+
         const lastAssistantMessage = [...loadedMessages]
           .reverse()
           .find((msg) => msg.type === "assistant" && msg.metadata?.model);
@@ -933,6 +1118,49 @@ export function useOpenCode() {
             setCurrentSession((prev) =>
               prev?.id === sessionInfo.id ? { ...prev, ...sessionInfo } : prev,
             );
+
+            const sessionTime = (sessionInfo as {
+              time?: { created?: string | number; updated?: string | number };
+            }).time;
+            const updatedAt =
+              sessionInfo.updatedAt ?? sessionTime?.updated ?? null;
+            const createdAt =
+              sessionInfo.createdAt ?? sessionTime?.created ?? null;
+
+            // Update session context with new info
+            setSidebarStatus((prev) => {
+              const previousContext = prev.sessionContext;
+
+              const parseDateValue = (input: unknown): Date | undefined => {
+                if (input instanceof Date) return input;
+                if (typeof input === "string" || typeof input === "number") {
+                  const parsed = new Date(input);
+                  if (!Number.isNaN(parsed.getTime())) {
+                    return parsed;
+                  }
+                }
+                return undefined;
+              };
+
+              const activeSinceDate =
+                createdAt !== null ? parseDateValue(createdAt) : undefined;
+              const lastActivityDate =
+                updatedAt !== null ? parseDateValue(updatedAt) : undefined;
+
+              return {
+                ...prev,
+                sessionContext: {
+                  ...previousContext,
+                  title: sessionInfo.title ?? previousContext.title,
+                  activeSince: activeSinceDate ?? previousContext.activeSince,
+                  lastActivity: lastActivityDate ?? previousContext.lastActivity,
+                  messageCount:
+                    typeof sessionInfo.messageCount === "number"
+                      ? sessionInfo.messageCount
+                      : previousContext.messageCount,
+                },
+              };
+            });
           }
           break;
         }
@@ -1014,7 +1242,17 @@ export function useOpenCode() {
           if (sessionId) {
             markSessionIdle(sessionId);
           }
+          
+          // Update session context with error
           if (sessionId && sessionId === activeSession?.id) {
+            setSidebarStatus((prev) => ({
+              ...prev,
+              sessionContext: {
+                ...prev.sessionContext,
+                lastError: typeof error?.message === 'string' ? error.message : 'Unknown error',
+              },
+            }));
+            
             loadMessages(sessionId).catch((loadError) => {
               console.error(
                 "[SSE] Failed to refresh messages after session error:",
@@ -1431,6 +1669,15 @@ export function useOpenCode() {
           const { file, event: fileEvent } = event.properties;
           if (file && fileEvent) {
             debugLog("[SSE] File watcher update:", file, fileEvent);
+            
+            // Trigger git status refresh with debouncing
+            if (gitStatusDebounceRef.current) {
+              clearTimeout(gitStatusDebounceRef.current);
+            }
+            
+            gitStatusDebounceRef.current = setTimeout(() => {
+              refreshGitStatus();
+            }, 1000); // Debounce for 1 second
           }
           break;
         }
@@ -1445,6 +1692,17 @@ export function useOpenCode() {
         }
 
         case "lsp.client.diagnostics": {
+          const summary = normalizeDiagnostics(event.properties as Record<string, unknown>);
+          if (summary && typeof (event.properties as Record<string, unknown>).serverID === 'string') {
+            const serverID = (event.properties as Record<string, unknown>).serverID as string;
+            setSidebarStatus((prev) => ({
+              ...prev,
+              lspDiagnostics: {
+                ...prev.lspDiagnostics,
+                [serverID]: summary,
+              },
+            }));
+          }
           break;
         }
       }
@@ -1478,6 +1736,12 @@ export function useOpenCode() {
         clearTimeout(streamingTimeoutRef.current);
         streamingTimeoutRef.current = null;
       }
+      
+      // Clear git status debounce
+      if (gitStatusDebounceRef.current) {
+        clearTimeout(gitStatusDebounceRef.current);
+        gitStatusDebounceRef.current = null;
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -1487,6 +1751,7 @@ export function useOpenCode() {
     currentWorktree,
     showToast,
     loadMessages,
+    refreshGitStatus,
     // processNextInQueueRef.current is used but doesn't need to be in deps (ref pattern)
     // messageQueue.length is accessed via the ref, not directly
   ]);
@@ -1558,6 +1823,122 @@ export function useOpenCode() {
       setIsProcessingQueue(false);
     }
   }, [currentSession?.id]);
+
+  // Update session context when current session changes
+  useEffect(() => {
+    if (!currentSession?.id) {
+      previousSessionIdRef.current = null;
+      if (sessionContextUpdateTimeoutRef.current) {
+        clearTimeout(sessionContextUpdateTimeoutRef.current);
+        sessionContextUpdateTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    const sameSession = previousSessionIdRef.current === currentSession.id;
+    const usageChanged = previousSessionUsageRef.current !== sessionUsage;
+    previousSessionUsageRef.current = sessionUsage;
+    previousSessionIdRef.current = currentSession.id;
+
+    const scheduleUpdate = () => {
+      setSidebarStatus((prev) => {
+        const previousContext = prev.sessionContext;
+        const sessionUsageData = sessionUsage.get(currentSession.id);
+        const tokensUsed =
+          sessionUsageData?.totalTokens ??
+          previousContext.tokensUsed ??
+          0;
+        const cacheRead =
+          sessionUsageData?.cacheRead ??
+          previousContext.cacheTokens?.read ??
+          0;
+        const cacheWrite =
+          sessionUsageData?.cacheWrite ??
+          previousContext.cacheTokens?.write ??
+          0;
+
+        return {
+          ...prev,
+          sessionContext: {
+            ...previousContext,
+            id: currentSession.id,
+            title: currentSession.title ?? previousContext.title,
+            agentName: currentAgent?.name ?? previousContext.agentName,
+            modelId:
+              selectedModel?.modelID ??
+              sessionModelMap[currentSession.id]?.modelID ??
+              previousContext.modelId,
+            modelName:
+              selectedModel?.name ??
+              sessionModelMap[currentSession.id]?.name ??
+              previousContext.modelName,
+            messageCount:
+              currentSession.messageCount ??
+              messages.length ??
+              previousContext.messageCount,
+            activeSince: currentSession.createdAt ?? previousContext.activeSince,
+            lastActivity:
+              currentSession.updatedAt ?? previousContext.lastActivity,
+            tokenUsage: sessionUsageData ?? previousContext.tokenUsage,
+            tokensUsed,
+            inputTokens:
+              sessionUsageData?.input ?? previousContext.inputTokens,
+            outputTokens:
+              sessionUsageData?.output ?? previousContext.outputTokens,
+            reasoningTokens:
+              sessionUsageData?.reasoning ??
+              previousContext.reasoningTokens,
+            cacheTokens: {
+              read: cacheRead,
+              write: cacheWrite,
+            },
+            isStreaming,
+            lastError:
+              previousContext.id && previousContext.id !== currentSession.id
+                ? null
+                : previousContext.lastError ?? null,
+          },
+        };
+      });
+    };
+
+    if (sessionContextUpdateTimeoutRef.current) {
+      clearTimeout(sessionContextUpdateTimeoutRef.current);
+      sessionContextUpdateTimeoutRef.current = null;
+    }
+
+    const delay = usageChanged && sameSession ? 200 : 0;
+
+    if (delay > 0) {
+      sessionContextUpdateTimeoutRef.current = setTimeout(() => {
+        scheduleUpdate();
+        sessionContextUpdateTimeoutRef.current = null;
+      }, delay);
+    } else {
+      scheduleUpdate();
+    }
+
+    return () => {
+      if (sessionContextUpdateTimeoutRef.current) {
+        clearTimeout(sessionContextUpdateTimeoutRef.current);
+        sessionContextUpdateTimeoutRef.current = null;
+      }
+    };
+  }, [
+    currentSession?.id,
+    currentSession?.title,
+    currentSession?.createdAt,
+    currentSession?.updatedAt,
+    currentSession?.messageCount,
+    currentAgent?.name,
+    selectedModel?.modelID,
+    selectedModel?.name,
+    selectedModel?.providerID,
+    sessionModelMap,
+    messages.length,
+    sessionUsage,
+    isStreaming,
+  ]);
 
   const createSession = useCallback(
     async ({
@@ -2781,6 +3162,28 @@ export function useOpenCode() {
     }
   }, [currentProject, loadSessions]);
 
+  // MCP status initial load
+  useEffect(() => {
+    if (!isHydrated || !isConnected) {
+      hasLoadedInitialMcpStatusRef.current = false;
+      return;
+    }
+
+    if (hasLoadedInitialMcpStatusRef.current) {
+      return;
+    }
+
+    hasLoadedInitialMcpStatusRef.current = true;
+    refreshMcpStatus();
+  }, [isConnected, isHydrated, refreshMcpStatus]);
+
+  // Initial git status load when project changes
+  useEffect(() => {
+    if (currentProject?.worktree && isHydrated) {
+      refreshGitStatus();
+    }
+  }, [currentProject?.worktree, isHydrated, refreshGitStatus]);
+
   const extractTextFromParts = useCallback((parts?: Part[]): string => {
     if (!parts || parts.length === 0) return "";
 
@@ -3110,5 +3513,10 @@ export function useOpenCode() {
     selectedFrame,
     selectFrame,
     frameActions,
+    // Sidebar status state and utilities
+    sidebarStatus,
+    refreshMcpStatus,
+    refreshGitStatus,
+    refreshStatusAll,
   };
 }

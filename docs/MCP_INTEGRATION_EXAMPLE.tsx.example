@@ -1,0 +1,252 @@
+/**
+ * Example: Adding MCP Status to OpenCode Web Header
+ * 
+ * This file demonstrates how to integrate the MCP status display
+ * into the main application header.
+ */
+
+import { useState, useEffect } from "react";
+import { McpStatus } from "@/app/_components/ui";
+import { openCodeService } from "@/lib/opencode-client";
+import type { McpStatusResponse } from "@/types/opencode";
+
+/**
+ * Example 1: Basic Integration in Header
+ * Add this to your main component around line 3483 in src/app/index.tsx
+ */
+function HeaderWithMcpStatus() {
+  const [mcpStatus, setMcpStatus] = useState<McpStatusResponse | null>(null);
+  const [mcpLoading, setMcpLoading] = useState(true);
+  const [mcpError, setMcpError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function fetchMcpStatus() {
+      try {
+        const result = await openCodeService.getMcpStatus();
+        if (mounted) {
+          setMcpStatus(result.data as McpStatusResponse);
+          setMcpError(null);
+        }
+      } catch (error) {
+        if (mounted) {
+          setMcpError(error instanceof Error ? error.message : "Failed to load MCP status");
+        }
+      } finally {
+        if (mounted) {
+          setMcpLoading(false);
+        }
+      }
+    }
+
+    // Initial fetch
+    fetchMcpStatus();
+
+    // Poll every 10 seconds for updates
+    const interval = setInterval(fetchMcpStatus, 10000);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  return (
+    <div className="px-4 py-2 flex justify-between items-center bg-theme-background-alt">
+      <div className="flex items-center gap-2 flex-wrap">
+        {/* Your existing header content */}
+        <span className="text-base font-normal text-theme-foreground">
+          OpenCode Chat Sessions
+        </span>
+      </div>
+
+      {/* MCP Status Display */}
+      <div className="flex items-center gap-2">
+        <McpStatus
+          mcpStatus={mcpStatus}
+          isLoading={mcpLoading}
+          error={mcpError}
+          showLabel={true}
+          className="text-sm"
+        />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Example 2: Compact Version (no label, just badges)
+ * Useful for space-constrained layouts
+ */
+function CompactMcpStatus() {
+  const [mcpStatus, setMcpStatus] = useState<McpStatusResponse | null>(null);
+
+  useEffect(() => {
+    async function fetchMcpStatus() {
+      const result = await openCodeService.getMcpStatus();
+      setMcpStatus(result.data as McpStatusResponse);
+    }
+    fetchMcpStatus();
+  }, []);
+
+  return (
+    <McpStatus
+      mcpStatus={mcpStatus}
+      showLabel={false}
+      className="flex gap-1"
+    />
+  );
+}
+
+/**
+ * Example 3: In Mobile Sidebar
+ * Add this to the MobileSidebar content
+ */
+function MobileSidebarWithMcp() {
+  const [mcpStatus, setMcpStatus] = useState<McpStatusResponse | null>(null);
+
+  useEffect(() => {
+    async function fetchMcpStatus() {
+      const result = await openCodeService.getMcpStatus();
+      setMcpStatus(result.data as McpStatusResponse);
+    }
+    fetchMcpStatus();
+  }, []);
+
+  return (
+    <div className="p-4">
+      <h3 className="text-sm font-semibold mb-2">Server Status</h3>
+      <McpStatus
+        mcpStatus={mcpStatus}
+        showLabel={false}
+        className="mb-4"
+      />
+      {/* Rest of sidebar content */}
+    </div>
+  );
+}
+
+/**
+ * Example 4: Custom Hook for Reusability
+ * Create this hook to reuse MCP status fetching logic
+ */
+function useMcpStatus(pollInterval = 10000) {
+  const [mcpStatus, setMcpStatus] = useState<McpStatusResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function fetchStatus() {
+      try {
+        const result = await openCodeService.getMcpStatus();
+        if (mounted) {
+          setMcpStatus(result.data as McpStatusResponse);
+          setError(null);
+        }
+      } catch (err) {
+        if (mounted) {
+          setError(err instanceof Error ? err.message : "Unknown error");
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchStatus();
+
+    if (pollInterval > 0) {
+      const interval = setInterval(fetchStatus, pollInterval);
+      return () => {
+        mounted = false;
+        clearInterval(interval);
+      };
+    }
+
+    return () => {
+      mounted = false;
+    };
+  }, [pollInterval]);
+
+  return { mcpStatus, loading, error };
+}
+
+/**
+ * Example 5: Using the Custom Hook
+ * Simplest way to add MCP status anywhere
+ */
+function AnyComponentWithMcp() {
+  const { mcpStatus, loading, error } = useMcpStatus();
+
+  return (
+    <div>
+      <McpStatus
+        mcpStatus={mcpStatus}
+        isLoading={loading}
+        error={error}
+      />
+    </div>
+  );
+}
+
+/**
+ * Example 6: Detailed Status Panel
+ * Full status display with server details
+ */
+function DetailedMcpPanel() {
+  const { mcpStatus, loading, error } = useMcpStatus();
+
+  if (loading) return <div>Loading MCP servers...</div>;
+  if (error) return <div className="text-red-500">Error: {error}</div>;
+  if (!mcpStatus || Object.keys(mcpStatus).length === 0) {
+    return <div>No MCP servers configured</div>;
+  }
+
+  return (
+    <div className="border rounded p-4">
+      <h2 className="text-lg font-bold mb-3">MCP Server Status</h2>
+      <div className="space-y-2">
+        {Object.entries(mcpStatus).map(([name, status]) => (
+          <div key={name} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+            <span className="font-medium">{name}</span>
+            <span className={`px-2 py-1 rounded text-xs font-semibold ${
+              status === "connected" ? "bg-green-100 text-green-800" :
+              status === "disabled" ? "bg-yellow-100 text-yellow-800" :
+              "bg-red-100 text-red-800"
+            }`}>
+              {status.toUpperCase()}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Integration Steps:
+ * 
+ * 1. Choose one of the examples above that fits your needs
+ * 2. Copy the relevant code to your component
+ * 3. Import the necessary dependencies
+ * 4. Adjust styling to match your design
+ * 
+ * For the main app integration:
+ * - Open src/app/index.tsx
+ * - Find the header section (around line 3483)
+ * - Add the MCP status state and fetch logic
+ * - Insert the <McpStatus> component in your desired location
+ */
+
+export {
+  HeaderWithMcpStatus,
+  CompactMcpStatus,
+  MobileSidebarWithMcp,
+  useMcpStatus,
+  AnyComponentWithMcp,
+  DetailedMcpPanel,
+};

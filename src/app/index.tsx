@@ -21,7 +21,13 @@ import {
   InstallPrompt,
   PWAReloadPrompt,
   Checkbox,
+
 } from "@/app/_components/ui";
+import { SidebarTabs } from "@/app/_components/ui/sidebar-tabs";
+import { SessionContextPanel } from "@/app/_components/ui/session-context-panel";
+import { McpStatusPanel } from "@/app/_components/ui/mcp-status-panel";
+import { LspStatusPanel } from "@/app/_components/ui/lsp-status-panel";
+import { ModifiedFilesPanel } from "@/app/_components/ui/modified-files-panel";
 import { CommandPicker } from "@/app/_components/ui/command-picker";
 import { AgentPicker } from "@/app/_components/ui/agent-picker";
 import {
@@ -42,7 +48,7 @@ import type {
 } from "@/types/opencode";
 import { FileIcon } from "@/app/_components/files/file-icon";
 import { useOpenCodeContext } from "@/contexts/OpenCodeContext";
-import { openCodeService } from "@/lib/opencode-client";
+import { openCodeService, handleOpencodeError } from "@/lib/opencode-client";
 import { parseCommand } from "@/lib/commandParser";
 import {
   getCommandSuggestions,
@@ -481,7 +487,13 @@ function OpenCodeChatTUI() {
   const lastEscTimeRef = useRef<number>(0);
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("opencode-active-tab") || "workspace";
+      const storedTab = localStorage.getItem("opencode-active-tab");
+      if (storedTab === "status") {
+        return "workspace";
+      }
+      if (storedTab) {
+        return storedTab;
+      }
     }
     return "workspace";
   });
@@ -532,6 +544,15 @@ function OpenCodeChatTUI() {
       return stored ? parseInt(stored, 10) : 320;
     }
     return 320;
+  });
+  const [isStatusSidebarOpen, setIsStatusSidebarOpen] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("opencode-status-sidebar-open");
+      if (stored !== null) {
+        return stored === "true";
+      }
+    }
+    return false;
   });
   const [isResizing, setIsResizing] = useState(false);
   const isMobile = useIsMobile();
@@ -650,8 +671,70 @@ function OpenCodeChatTUI() {
     // Frame state for keyboard navigation
     selectedFrame,
     selectFrame,
+    refreshStatusAll,
+    sidebarStatus,
   } = useOpenCodeContext();
   const { currentTheme, changeTheme } = useTheme(config?.theme);
+
+  // MCP status aggregation for header badge
+  const mcpAggregated = useMemo(() => {
+    const { mcpStatus, mcpStatusLoading, mcpStatusError } = sidebarStatus;
+    
+    if (mcpStatusLoading) {
+      return {
+        colorClass: 'bg-yellow-500',
+        badgeVariant: 'foreground1' as const,
+        text: 'MCP…',
+        title: 'Loading MCP status...'
+      };
+    }
+    if (mcpStatusError) {
+      return {
+        colorClass: 'bg-red-500',
+        badgeVariant: 'foreground0' as const,
+        text: 'MCP Error',
+        title: `MCP status error: ${mcpStatusError}`
+      };
+    }
+    if (!mcpStatus) {
+      return {
+        colorClass: 'bg-gray-400',
+        badgeVariant: 'foreground1' as const,
+        text: 'MCP (0 Connected)',
+        title: 'No MCP servers reported'
+      };
+    }
+    const entries = Object.entries(mcpStatus);
+    let connected = 0;
+    let failed = 0;
+    let disabled = 0;
+    for (const [, value] of entries) {
+      if (value === 'connected') connected++;
+      else if (value === 'failed') failed++;
+      else if (value === 'disabled') disabled++;
+    }
+
+    let colorClass = 'bg-green-500';
+    let badgeVariant: 'background2' | 'foreground0' | 'foreground1' | 'foreground2' = 'background2';
+    if (failed > 0) {
+      colorClass = 'bg-red-500';
+      badgeVariant = 'foreground0';
+    } else if (connected === 0 && entries.length - disabled > 0) {
+      colorClass = 'bg-yellow-500';
+      badgeVariant = 'foreground1';
+    } else if (disabled > 0 && entries.length === disabled) {
+      // All disabled
+      colorClass = 'bg-gray-400';
+      badgeVariant = 'foreground1';
+    }
+
+    const text = `MCP (${connected} Connected)`;
+    const title = entries.map(([name, status]) => `${name}: ${status}`).join(', ');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[MCP] Aggregated:', { connected, failed, disabled, text });
+    }
+    return { colorClass, badgeVariant, text, title };
+  }, [sidebarStatus]);
 
   // Initialize keyboard shortcuts
   const {
@@ -853,6 +936,19 @@ function OpenCodeChatTUI() {
       })
     );
 
+    unregisterFns.push(
+      registerShortcut({
+        key: "x",
+        handler: () => {
+          closeAllModals();
+          setIsStatusSidebarOpen((prev) => !prev);
+        },
+        requiresLeader: true,
+        description: "Toggle Status Sidebar",
+        category: "navigation",
+      })
+    );
+
     // Secondary action shortcuts (require selected frame)
     unregisterFns.push(
       registerShortcut({
@@ -946,6 +1042,7 @@ function OpenCodeChatTUI() {
     setShowSessionPicker,
     setShowProjectPicker,
     closeAllModals,
+    setIsStatusSidebarOpen,
     sessionPickerEditControls,
   ]);
 
@@ -2716,8 +2813,27 @@ function OpenCodeChatTUI() {
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("opencode-status-sidebar-open", String(isStatusSidebarOpen));
+    }
+  }, [isStatusSidebarOpen]);
+
+  useEffect(() => {
+    if (isStatusSidebarOpen) {
+      void refreshStatusAll();
+    }
+  }, [isStatusSidebarOpen, refreshStatusAll]);
+
+  useEffect(() => {
+    if (!isMobile && activeTab === "status") {
+      setActiveTab("workspace");
+    }
+  }, [isMobile, activeTab]);
+
   // Focus file search input when files tab becomes active
   useEffect(() => {
+
     if (activeTab === "files") {
       setTimeout(() => {
         fileSearchInputRef.current?.focus();
@@ -2843,22 +2959,45 @@ function OpenCodeChatTUI() {
                     </Badge>
                   </div>
                 )}
+                {/* MCP Status */}
+                <div
+                  className="flex items-center gap-1"
+                  title={mcpAggregated.title}
+                >
+                  <div
+                    className={`w-2 h-2 rounded-full ${mcpAggregated.colorClass}`}
+                  />
+                  <Badge
+                    variant={mcpAggregated.badgeVariant}
+                    cap="round"
+                    className="hidden xl:inline text-xs whitespace-nowrap"
+                  >
+                    {mcpAggregated.text}
+                  </Badge>
+                </div>
               </div>
             )}
           </div>
-          <div className="flex gap-1 sm:gap-2">
-            {["workspace", "files"].map((tab) => (
-              <Button
-                key={tab}
-                onClick={() => handleTabChange(tab)}
-                variant={activeTab === tab ? "foreground0" : undefined}
-                box="square"
-                size="small"
-                className="capitalize whitespace-nowrap"
-              >
-                {tab}
-              </Button>
-            ))}
+          <div className="flex items-center gap-1 sm:gap-2">
+            <SidebarTabs
+              tabs={[
+                { id: "workspace", label: "Workspace" },
+                { id: "files", label: "Files" },
+              ]}
+              activeTab={activeTab}
+              onTabChange={handleTabChange}
+            />
+            <Button
+              variant={isStatusSidebarOpen ? "foreground1" : "foreground0"}
+              box="round"
+              size="small"
+              className="hidden md:inline-flex"
+              onClick={() => setIsStatusSidebarOpen((prev) => !prev)}
+              aria-pressed={isStatusSidebarOpen}
+              title={isStatusSidebarOpen ? "Hide status sidebar" : "Show status sidebar"}
+            >
+              Status
+            </Button>
           </div>
         </div>
         <div className="hidden md:flex items-center gap-1 sm:gap-2 flex-shrink-0">
@@ -2915,6 +3054,7 @@ function OpenCodeChatTUI() {
             }}
           />
           <div className="flex-1 overflow-hidden">
+            {/* Tab Panels */}
             {activeTab === "workspace" && (
               <div className="h-full flex flex-col overflow-hidden">
                 {/* Projects Section */}
@@ -3181,7 +3321,7 @@ function OpenCodeChatTUI() {
               </div>
             )}
 
-            {activeTab === "files" && (
+          {activeTab === "files" && (
               <div className="space-y-4 h-full flex flex-col">
                 <View box="square" className="p-2 mb-2 bg-theme-background-alt">
                   <div className="flex items-center justify-between">
@@ -3368,6 +3508,19 @@ function OpenCodeChatTUI() {
             >
               Themes
             </Button>
+          </div>
+
+          {/* Mobile Tab Navigation */}
+          <div className="mb-4 flex-shrink-0">
+            <SidebarTabs
+              tabs={[
+                { id: "workspace", label: "Workspace" },
+                { id: "files", label: "Files" },
+                { id: "status", label: "Status" },
+              ]}
+              activeTab={activeTab}
+              onTabChange={handleTabChange}
+            />
           </div>
 
           {activeTab === "workspace" && (
@@ -3705,6 +3858,18 @@ function OpenCodeChatTUI() {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {activeTab === "status" && (
+            <div className="flex-1 overflow-y-auto space-y-3">
+              <SessionContextPanel />
+              <Separator />
+              <McpStatusPanel />
+              <Separator />
+              <LspStatusPanel />
+              <Separator />
+              <ModifiedFilesPanel />
             </div>
           )}
         </MobileSidebar>
@@ -4373,6 +4538,45 @@ function OpenCodeChatTUI() {
             </div>
           )}
         </View>
+        {isStatusSidebarOpen && (
+          <View
+            box="square"
+            className="hidden md:flex flex-col bg-theme-background-alt border-l border-theme-border"
+            style={{ width: "320px" }}
+          >
+            <div className="flex items-center justify-between px-4 py-2">
+              <h3 className="text-sm font-medium">Status</h3>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="foreground1"
+                  box="round"
+                  size="small"
+                  onClick={() => void refreshStatusAll()}
+                >
+                  Refresh
+                </Button>
+                <Button
+                  variant="foreground0"
+                  box="round"
+                  size="small"
+                  onClick={() => setIsStatusSidebarOpen(false)}
+                >
+                  Hide
+                </Button>
+              </div>
+            </div>
+            <Separator />
+            <div className="flex-1 overflow-y-auto space-y-3 px-4 py-3">
+              <SessionContextPanel />
+              <Separator />
+              <McpStatusPanel />
+              <Separator />
+              <LspStatusPanel />
+              <Separator />
+              <ModifiedFilesPanel />
+            </div>
+          </View>
+        )}
       </div>
 
       {showNewProjectForm && (

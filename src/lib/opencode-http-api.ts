@@ -419,8 +419,9 @@ export async function readFile(filePath: string, directory?: string) {
   return data;
 }
 
-export async function getFileStatus() {
-  const response = await fetch(buildUrl("/file/status"));
+export async function getFileStatus(directory?: string) {
+  const params = directory ? { directory } : undefined;
+  const response = await fetch(buildUrl("/file/status", params));
   if (!response.ok) {
     throw new Error(`Failed to get file status: ${response.statusText}`);
   }
@@ -712,6 +713,18 @@ export async function setAuth(
   });
   if (!response.ok) {
     throw new Error(`Failed to set auth: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Get MCP (Model Context Protocol) server status
+ * @returns MCP server status including connection states
+ */
+export async function getMcpStatus() {
+  const response = await fetch(buildUrl("/mcp"));
+  if (!response.ok) {
+    throw new Error(`Failed to get MCP status: ${response.statusText}`);
   }
   return response.json();
 }

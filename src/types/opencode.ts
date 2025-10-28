@@ -121,3 +121,73 @@ export interface ImageAttachment {
   dataUrl: string;
   origin: "paste" | "drop";
 }
+
+export type McpServerStatus = "connected" | "failed" | "disabled";
+
+export interface McpStatusResponse {
+  [serverName: string]: McpServerStatus;
+}
+
+/**
+ * LSP Diagnostics aggregated by server
+ */
+export interface LspDiagnosticsSummary {
+  label: string;
+  errors: number;
+  warnings: number;
+  infos: number;
+  hints: number;
+  lastPath?: string;
+  updatedAt: Date;
+}
+
+/**
+ * Git file status information
+ */
+export interface GitStatus {
+  branch?: string;
+  ahead?: number;
+  behind?: number;
+  staged: string[];
+  modified: string[];
+  untracked: string[];
+  deleted: string[];
+  timestamp: Date;
+}
+
+/**
+ * Session context information for sidebar
+ */
+export interface SessionContext {
+  id: string;
+  title?: string;
+  agentName?: string;
+  modelId?: string;
+  modelName?: string;
+  messageCount: number;
+  activeSince?: Date;
+  lastActivity?: Date;
+  tokenUsage?: SessionUsageTotals;
+  tokensUsed?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  reasoningTokens?: number;
+  cacheTokens?: {
+    read: number;
+    write: number;
+  };
+  isStreaming: boolean;
+  lastError?: string | null;
+}
+
+/**
+ * Complete sidebar status state
+ */
+export interface SidebarStatusState {
+  sessionContext: SessionContext;
+  mcpStatus: McpStatusResponse | null;
+  mcpStatusLoading: boolean;
+  mcpStatusError: string | null;
+  lspDiagnostics: Record<string, LspDiagnosticsSummary>;
+  gitStatus: GitStatus;
+}
