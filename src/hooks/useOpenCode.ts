@@ -14,6 +14,11 @@ import type {
   OpencodeConfig,
   Command,
   SessionUsageTotals,
+  SidebarStatusState,
+  SessionContext,
+  McpServer,
+  LspDiagnosticsSummary,
+  GitStatus,
 } from "@/types/opencode";
 
 const isDevEnvironment = process.env.NODE_ENV !== "production";
@@ -358,6 +363,28 @@ export function useOpenCode() {
   const [currentAgent, setCurrentAgent] = useState<Agent | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
 
+  // Sidebar status state
+  const [sidebarStatus, setSidebarStatus] = useState<SidebarStatusState>({
+    sessionContext: {
+      id: "",
+      messageCount: 0,
+      isStreaming: false,
+    },
+    mcpServers: [],
+    lspDiagnostics: {},
+    gitStatus: {
+      staged: [],
+      modified: [],
+      untracked: [],
+      deleted: [],
+      timestamp: new Date(),
+    },
+  });
+
+  // Polling intervals
+  const mcpPollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const gitStatusDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
   const [loadedModels, setLoadedModels] = useState(false);
   const [loadedConfig, setLoadedConfig] = useState(false);
   const [loadedCustomCommands, setLoadedCustomCommands] = useState(false);
@@ -455,6 +482,65 @@ export function useOpenCode() {
       return next;
     });
   }, []);
+
+  // Sidebar status refresh functions
+  const refreshMcpStatus = useCallback(async () => {
+    try {
+      const response = await openCodeService.getMcpStatus();
+      const mcpData = response.data as { servers?: McpServer[] } | undefined;
+      
+      if (mcpData?.servers) {
+        setSidebarStatus((prev) => ({
+          ...prev,
+          mcpServers: mcpData.servers!.map(server => ({
+            ...server,
+            lastChecked: new Date(),
+          })),
+        }));
+      }
+    } catch (error) {
+      if (isDevEnvironment) {
+        console.error("Failed to refresh MCP status:", error);
+      }
+    }
+  }, []);
+
+  const refreshGitStatus = useCallback(async () => {
+    if (!currentProject?.worktree) return;
+    
+    try {
+      const response = await openCodeService.getFileStatus(currentProject.worktree);
+      const gitData = response.data as { 
+        branch?: string;
+        ahead?: number;
+        behind?: number;
+        staged?: string[];
+        modified?: string[];
+        untracked?: string[];
+        deleted?: string[];
+      } | undefined;
+      
+      if (gitData) {
+        setSidebarStatus((prev) => ({
+          ...prev,
+          gitStatus: {
+            branch: gitData.branch,
+            ahead: gitData.ahead,
+            behind: gitData.behind,
+            staged: gitData.staged || [],
+            modified: gitData.modified || [],
+            untracked: gitData.untracked || [],
+            deleted: gitData.deleted || [],
+            timestamp: new Date(),
+          },
+        }));
+      }
+    } catch (error) {
+      if (isDevEnvironment) {
+        console.error("Failed to refresh git status:", error);
+      }
+    }
+  }, [currentProject?.worktree]);
 
   // Queue management functions
   const addToQueue = useCallback((message: Message) => {
@@ -924,6 +1010,16 @@ export function useOpenCode() {
             setCurrentSession((prev) =>
               prev?.id === sessionInfo.id ? { ...prev, ...sessionInfo } : prev,
             );
+            
+            // Update session context with new info
+            setSidebarStatus((prev) => ({
+              ...prev,
+              sessionContext: {
+                ...prev.sessionContext,
+                title: sessionInfo.title ?? prev.sessionContext.title,
+                lastActivity: sessionInfo.updatedAt ? new Date(sessionInfo.updatedAt) : prev.sessionContext.lastActivity,
+              },
+            }));
           }
           break;
         }
@@ -1005,7 +1101,17 @@ export function useOpenCode() {
           if (sessionId) {
             markSessionIdle(sessionId);
           }
+          
+          // Update session context with error
           if (sessionId && sessionId === activeSession?.id) {
+            setSidebarStatus((prev) => ({
+              ...prev,
+              sessionContext: {
+                ...prev.sessionContext,
+                lastError: typeof error?.message === 'string' ? error.message : 'Unknown error',
+              },
+            }));
+            
             loadMessages(sessionId).catch((loadError) => {
               console.error(
                 "[SSE] Failed to refresh messages after session error:",
@@ -1422,6 +1528,15 @@ export function useOpenCode() {
           const { file, event: fileEvent } = event.properties;
           if (file && fileEvent) {
             debugLog("[SSE] File watcher update:", file, fileEvent);
+            
+            // Trigger git status refresh with debouncing
+            if (gitStatusDebounceRef.current) {
+              clearTimeout(gitStatusDebounceRef.current);
+            }
+            
+            gitStatusDebounceRef.current = setTimeout(() => {
+              refreshGitStatus();
+            }, 1000); // Debounce for 1 second
           }
           break;
         }
@@ -1436,6 +1551,25 @@ export function useOpenCode() {
         }
 
         case "lsp.client.diagnostics": {
+          const { serverID, label, errors, warnings, infos, hints, path } = event.properties;
+          
+          if (serverID) {
+            setSidebarStatus((prev) => ({
+              ...prev,
+              lspDiagnostics: {
+                ...prev.lspDiagnostics,
+                [serverID]: {
+                  label: typeof label === 'string' ? label : serverID,
+                  errors: typeof errors === 'number' ? errors : 0,
+                  warnings: typeof warnings === 'number' ? warnings : 0,
+                  infos: typeof infos === 'number' ? infos : 0,
+                  hints: typeof hints === 'number' ? hints : 0,
+                  lastPath: typeof path === 'string' ? path : undefined,
+                  updatedAt: new Date(),
+                },
+              },
+            }));
+          }
           break;
         }
       }
@@ -1469,6 +1603,12 @@ export function useOpenCode() {
         clearTimeout(streamingTimeoutRef.current);
         streamingTimeoutRef.current = null;
       }
+      
+      // Clear git status debounce
+      if (gitStatusDebounceRef.current) {
+        clearTimeout(gitStatusDebounceRef.current);
+        gitStatusDebounceRef.current = null;
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -1478,6 +1618,7 @@ export function useOpenCode() {
     currentWorktree,
     showToast,
     loadMessages,
+    refreshGitStatus,
     // processNextInQueueRef.current is used but doesn't need to be in deps (ref pattern)
     // messageQueue.length is accessed via the ref, not directly
   ]);
@@ -1549,6 +1690,41 @@ export function useOpenCode() {
       setIsProcessingQueue(false);
     }
   }, [currentSession?.id]);
+
+  // Update session context when current session changes
+  useEffect(() => {
+    if (currentSession?.id) {
+      const sessionUsageData = sessionUsage.get(currentSession.id);
+      const isSessionActive = sessionActivity[currentSession.id]?.running ?? false;
+      
+      setSidebarStatus((prev) => ({
+        ...prev,
+        sessionContext: {
+          id: currentSession.id,
+          title: currentSession.title,
+          agentName: currentAgent?.name,
+          modelId: selectedModel?.modelID,
+          messageCount: messages.length,
+          activeSince: currentSession.createdAt,
+          lastActivity: currentSession.updatedAt,
+          tokenUsage: sessionUsageData,
+          isStreaming: isStreaming,
+          lastError: null, // Will be set by session.error events
+        },
+      }));
+    }
+  }, [
+    currentSession?.id,
+    currentSession?.title,
+    currentSession?.createdAt,
+    currentSession?.updatedAt,
+    currentAgent?.name,
+    selectedModel?.modelID,
+    messages.length,
+    sessionUsage,
+    sessionActivity,
+    isStreaming,
+  ]);
 
   const createSession = useCallback(
     async ({
@@ -2766,6 +2942,33 @@ export function useOpenCode() {
     }
   }, [currentProject, loadSessions]);
 
+  // MCP status polling
+  useEffect(() => {
+    if (!isConnected || !isHydrated) return;
+
+    // Initial MCP status load
+    refreshMcpStatus();
+
+    // Set up polling interval
+    mcpPollingIntervalRef.current = setInterval(() => {
+      refreshMcpStatus();
+    }, 5000); // Poll every 5 seconds
+
+    return () => {
+      if (mcpPollingIntervalRef.current) {
+        clearInterval(mcpPollingIntervalRef.current);
+        mcpPollingIntervalRef.current = null;
+      }
+    };
+  }, [isConnected, isHydrated, refreshMcpStatus]);
+
+  // Initial git status load when project changes
+  useEffect(() => {
+    if (currentProject?.worktree && isHydrated) {
+      refreshGitStatus();
+    }
+  }, [currentProject?.worktree, isHydrated, refreshGitStatus]);
+
   const extractTextFromParts = useCallback((parts?: Part[]): string => {
     if (!parts || parts.length === 0) return "";
 
@@ -3096,5 +3299,9 @@ export function useOpenCode() {
     selectedFrame,
     selectFrame,
     frameActions,
+    // Sidebar status state and utilities
+    sidebarStatus,
+    refreshMcpStatus,
+    refreshGitStatus,
   };
 }

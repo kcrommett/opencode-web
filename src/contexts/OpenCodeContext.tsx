@@ -99,6 +99,10 @@ providersData: ReturnType<typeof useOpenCode>["providersData"];
   selectedFrame: string | null;
   selectFrame: (frame: string | null) => void;
   frameActions: Record<string, () => void>;
+  // Sidebar status state
+  sidebarStatus: ReturnType<typeof useOpenCode>["sidebarStatus"];
+  refreshMcpStatus: ReturnType<typeof useOpenCode>["refreshMcpStatus"];
+  refreshGitStatus: ReturnType<typeof useOpenCode>["refreshGitStatus"];
 }
 
 const OpenCodeContext = createContext<OpenCodeContextType | undefined>(

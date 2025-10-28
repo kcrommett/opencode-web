@@ -22,6 +22,11 @@ import {
   PWAReloadPrompt,
   Checkbox,
 } from "@/app/_components/ui";
+import { SidebarTabs } from "@/app/_components/ui/sidebar-tabs";
+import { SessionContextPanel } from "@/app/_components/ui/session-context-panel";
+import { McpStatusPanel } from "@/app/_components/ui/mcp-status-panel";
+import { LspStatusPanel } from "@/app/_components/ui/lsp-status-panel";
+import { ModifiedFilesPanel } from "@/app/_components/ui/modified-files-panel";
 import { CommandPicker } from "@/app/_components/ui/command-picker";
 import { AgentPicker } from "@/app/_components/ui/agent-picker";
 import {
@@ -2611,18 +2616,15 @@ function OpenCodeChatTUI() {
             )}
           </div>
           <div className="flex gap-1 sm:gap-2">
-            {["workspace", "files"].map((tab) => (
-              <Button
-                key={tab}
-                onClick={() => handleTabChange(tab)}
-                variant={activeTab === tab ? "foreground0" : undefined}
-                box="square"
-                size="small"
-                className="capitalize whitespace-nowrap"
-              >
-                {tab}
-              </Button>
-            ))}
+            <SidebarTabs
+              tabs={[
+                { id: "workspace", label: "Workspace" },
+                { id: "status", label: "Status" },
+                { id: "files", label: "Files" },
+              ]}
+              activeTab={activeTab}
+              onTabChange={handleTabChange}
+            />
           </div>
         </div>
         <div className="hidden md:flex items-center gap-1 sm:gap-2 flex-shrink-0">
@@ -2679,6 +2681,20 @@ function OpenCodeChatTUI() {
             }}
           />
           <div className="flex-1 overflow-hidden">
+            {/* Tab Navigation */}
+            <div className="mb-4">
+              <SidebarTabs
+                tabs={[
+                  { id: "workspace", label: "Workspace" },
+                  { id: "status", label: "Status" },
+                  { id: "files", label: "Files" },
+                ]}
+                activeTab={activeTab}
+                onTabChange={handleTabChange}
+              />
+            </div>
+            
+            {/* Tab Panels */}
             {activeTab === "workspace" && (
               <div className="h-full flex flex-col overflow-hidden">
                 {/* Projects Section */}
@@ -2945,7 +2961,35 @@ function OpenCodeChatTUI() {
               </div>
             )}
 
-            {activeTab === "files" && (
+            {activeTab === "status" && (
+              <div className="h-full flex flex-col overflow-hidden">
+                <div className="flex-1 overflow-y-auto space-y-4">
+                  <SessionContextPanel />
+                  <Separator />
+                  <McpStatusPanel />
+                  <Separator />
+                  <LspStatusPanel />
+                  <Separator />
+                  <ModifiedFilesPanel />
+                </div>
+              </div>
+            )}
+
+          {activeTab === "status" && (
+            <div className="h-full flex flex-col overflow-hidden">
+              <div className="flex-1 overflow-y-auto space-y-4">
+                <SessionContextPanel />
+                <Separator />
+                <McpStatusPanel />
+                <Separator />
+                <LspStatusPanel />
+                <Separator />
+                <ModifiedFilesPanel />
+              </div>
+            </div>
+          )}
+
+          {activeTab === "files" && (
               <div className="space-y-4 h-full flex flex-col">
                 <View box="square" className="p-2 mb-2 bg-theme-background-alt">
                   <div className="flex items-center justify-between">
@@ -3132,6 +3176,19 @@ function OpenCodeChatTUI() {
             >
               Themes
             </Button>
+          </div>
+
+          {/* Mobile Tab Navigation */}
+          <div className="mb-4 flex-shrink-0">
+            <SidebarTabs
+              tabs={[
+                { id: "workspace", label: "Workspace" },
+                { id: "status", label: "Status" },
+                { id: "files", label: "Files" },
+              ]}
+              activeTab={activeTab}
+              onTabChange={handleTabChange}
+            />
           </div>
 
           {activeTab === "workspace" && (

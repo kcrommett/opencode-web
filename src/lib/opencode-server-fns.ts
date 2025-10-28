@@ -362,3 +362,9 @@ export const exportSession = createServerFn({ method: "GET" })
       timestamp: new Date().toISOString(),
     };
   });
+
+export const getMcpStatus = createServerFn({ method: "GET" }).handler(
+  async () => {
+    return httpApi.getMcpStatus();
+  },
+);

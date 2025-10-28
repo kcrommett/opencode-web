@@ -621,6 +621,20 @@ export const openCodeService = {
       throw error;
     }
   },
+
+  /**
+   * Get MCP (Model Context Protocol) server status
+   * Returns connection state and metadata for all configured MCP servers
+   */
+  async getMcpStatus() {
+    try {
+      const response = await serverFns.getMcpStatus();
+      return { data: response, error: null };
+    } catch (error) {
+      devError("Error in getMcpStatus:", error);
+      return { data: null, error: handleOpencodeError(error) };
+    }
+  },
 };
 
 export function handleOpencodeError(error: unknown): string {
