@@ -13,7 +13,11 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,3 +39,19 @@ jobs:
 
       - name: Build
         run: bun run build
+      
+      - name: Test package installation (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd packages/opencode-web
+          bun pack
+          npm install -g ./opencode-web-*.tgz
+        shell: bash
+      
+      - name: Test package installation (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd packages/opencode-web
+          bun pack
+          npm install -g (Get-ChildItem -Filter "opencode-web-*.tgz").Name
+        shell: pwsh
