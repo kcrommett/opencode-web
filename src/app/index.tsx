@@ -3216,7 +3216,7 @@ function OpenCodeChatTUI() {
           />
           <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto scrollbar-hide">
             <Badge
-              variant="foreground1"
+              variant="foreground0"
               cap="square"
               className="whitespace-nowrap flex-shrink-0 badge-title"
             >
