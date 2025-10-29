@@ -256,25 +256,38 @@ if (shouldStartBundledServer) {
       stopOpencodeServer = undefined;
     };
     
-    // Get OpenCode SDK version
-    let sdkVersion = "unknown";
+    // Get OpenCode binary version from opencode-ai package
+    let opencodeVersion = "unknown";
     try {
-      const sdkPackageJsonPath = join(
+      // Try local node_modules first (when published as npm package)
+      let opencodePackageJsonPath = join(
         packageDir,
         "node_modules",
-        "@opencode-ai",
-        "sdk",
+        "opencode-ai",
         "package.json",
       );
-      const sdkPackageJson = JSON.parse(
-        readFileSync(sdkPackageJsonPath, "utf8"),
+      
+      // If not found, try workspace root (when running in development)
+      if (!existsSync(opencodePackageJsonPath)) {
+        opencodePackageJsonPath = join(
+          packageDir,
+          "..",
+          "..",
+          "node_modules",
+          "opencode-ai",
+          "package.json",
+        );
+      }
+      
+      const opencodePackageJson = JSON.parse(
+        readFileSync(opencodePackageJsonPath, "utf8"),
       );
-      sdkVersion = sdkPackageJson.version;
+      opencodeVersion = opencodePackageJson.version;
     } catch {
-      // Ignore errors reading SDK version
+      // Ignore errors reading OpenCode version
     }
     
-    console.log(`OpenCode Server v${sdkVersion} listening at ${server.url}`);
+    console.log(`OpenCode Server v${opencodeVersion} listening at ${server.url}`);
   } catch (error) {
     console.error("[ERROR] Failed to start bundled OpenCode Server.");
     console.error(
