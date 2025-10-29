@@ -21,7 +21,13 @@ import {
   InstallPrompt,
   PWAReloadPrompt,
   Checkbox,
+
 } from "@/app/_components/ui";
+import { SidebarTabs } from "@/app/_components/ui/sidebar-tabs";
+import { SessionContextPanel } from "@/app/_components/ui/session-context-panel";
+import { McpStatusPanel } from "@/app/_components/ui/mcp-status-panel";
+import { LspStatusPanel } from "@/app/_components/ui/lsp-status-panel";
+import { ModifiedFilesPanel } from "@/app/_components/ui/modified-files-panel";
 import { CommandPicker } from "@/app/_components/ui/command-picker";
 import { AgentPicker } from "@/app/_components/ui/agent-picker";
 import {
@@ -32,14 +38,18 @@ import { SessionSearchInput } from "@/app/_components/ui/session-search";
 import { ProjectPicker } from "@/app/_components/ui/project-picker";
 import { PermissionModal } from "@/app/_components/ui/permission-modal";
 import { MessagePart } from "@/app/_components/message";
+import { ImagePreview } from "@/app/_components/ui/image-preview";
+import { PrettyDiff } from "@/app/_components/message/PrettyDiff";
 import type {
   FileContentData,
   MentionSuggestion,
   Agent,
+  ImageAttachment,
+  Part,
 } from "@/types/opencode";
 import { FileIcon } from "@/app/_components/files/file-icon";
 import { useOpenCodeContext } from "@/contexts/OpenCodeContext";
-import { openCodeService } from "@/lib/opencode-client";
+import { openCodeService, handleOpencodeError } from "@/lib/opencode-client";
 import { parseCommand } from "@/lib/commandParser";
 import {
   getCommandSuggestions,
@@ -54,10 +64,31 @@ import {
   isImageFile,
   addLineNumbers,
 } from "@/lib/highlight";
+import {
+  convertImageToBase64,
+  validateImageSize,
+  formatFileSize,
+  isImageFile as isAttachmentImageFile,
+} from "@/lib/image-utils";
 import { useIsMobile } from "@/lib/breakpoints";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { KeyboardIndicator } from "@/app/_components/ui";
 import "highlight.js/styles/github-dark.css";
+
+const MAX_IMAGE_SIZE_MB = 10;
+
+// UUID generator with fallback for environments without crypto.randomUUID
+const generateClientId = (): string => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  // Fallback: generate a random UUID v4-like string
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
 
 type ProjectItem = {
   id: string;
@@ -444,6 +475,9 @@ export const Route = createFileRoute("/")({
 
 function OpenCodeChatTUI() {
   const [input, setInput] = useState("");
+  const [imageAttachments, setImageAttachments] = useState<ImageAttachment[]>([]);
+  const [isHandlingImageUpload, setIsHandlingImageUpload] = useState(false);
+  const [isDraggingOverInput, setIsDraggingOverInput] = useState(false);
   const [newSessionTitle, setNewSessionTitle] = useState("");
   const [showNewProjectForm, setShowNewProjectForm] = useState(false);
   const [newProjectDirectory, setNewProjectDirectory] = useState("");
@@ -467,12 +501,20 @@ function OpenCodeChatTUI() {
   const lastEscTimeRef = useRef<number>(0);
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("opencode-active-tab") || "workspace";
+      const storedTab = localStorage.getItem("opencode-active-tab");
+      if (storedTab === "status") {
+        return "workspace";
+      }
+      if (storedTab) {
+        return storedTab;
+      }
     }
     return "workspace";
   });
   const [fileSearchQuery, setFileSearchQuery] = useState("");
   const [modelSearchQuery, setModelSearchQuery] = useState("");
+  const [selectedFileIndex, setSelectedFileIndex] = useState(0);
+  const fileListRef = useRef<HTMLDivElement>(null);
 
   const [selectedFile, setSelectedFile] = useState<string | null>(() => {
     if (typeof window !== "undefined") {
@@ -482,6 +524,7 @@ function OpenCodeChatTUI() {
   });
   const [fileContent, setFileContent] = useState<FileContentData | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [showFileDiff, setShowFileDiff] = useState(false);
   const [mentionSuggestions, setMentionSuggestions] = useState<
     MentionSuggestion[]
   >([]);
@@ -498,6 +541,8 @@ function OpenCodeChatTUI() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [configData, setConfigData] = useState<string | null>(null);
+  const [configSearchQuery, setConfigSearchQuery] = useState("");
+  const [helpSearchQuery, setHelpSearchQuery] = useState("");
   const [deleteDialogState, setDeleteDialogState] = useState<{
     open: boolean;
     sessionId?: string;
@@ -508,6 +553,9 @@ function OpenCodeChatTUI() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const modelSearchInputRef = useRef<HTMLInputElement>(null);
   const fileSearchInputRef = useRef<HTMLInputElement>(null);
+  const workspaceSessionSearchInputRef = useRef<{ focus: () => void }>(null);
+  const configSearchInputRef = useRef<HTMLInputElement>(null);
+  const helpSearchInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const sessionPickerEditControls =
@@ -518,6 +566,24 @@ function OpenCodeChatTUI() {
       return stored ? parseInt(stored, 10) : 320;
     }
     return 320;
+  });
+  const [isStatusSidebarOpen, setIsStatusSidebarOpen] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("opencode-status-sidebar-open");
+      if (stored !== null) {
+        return stored === "true";
+      }
+    }
+    return true;
+  });
+  const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("opencode-left-sidebar-open");
+      if (stored !== null) {
+        return stored === "true";
+      }
+    }
+    return true;
   });
   const [isResizing, setIsResizing] = useState(false);
   const isMobile = useIsMobile();
@@ -591,6 +657,7 @@ function OpenCodeChatTUI() {
     recentModels,
     openHelp,
     openThemes,
+    showToast,
     isConnected,
     sseConnectionState,
     isHydrated,
@@ -635,8 +702,72 @@ function OpenCodeChatTUI() {
     // Frame state for keyboard navigation
     selectedFrame,
     selectFrame,
+    refreshStatusAll,
+    sidebarStatus,
   } = useOpenCodeContext();
   const { currentTheme, changeTheme } = useTheme(config?.theme);
+
+  // MCP status aggregation for header badge
+  const mcpAggregated = useMemo(() => {
+    const { mcpStatus, mcpStatusLoading, mcpStatusError } = sidebarStatus;
+    
+    // Only show loading state if we don't have existing status data
+    // This prevents flash when refreshing with existing data
+    if (mcpStatusLoading && !mcpStatus) {
+      return {
+        colorClass: 'bg-yellow-500',
+        badgeVariant: 'foreground1' as const,
+        text: 'MCP…',
+        title: 'Loading MCP status...'
+      };
+    }
+    if (mcpStatusError && !mcpStatus) {
+      return {
+        colorClass: 'bg-red-500',
+        badgeVariant: 'foreground0' as const,
+        text: 'MCP Error',
+        title: `MCP status error: ${mcpStatusError}`
+      };
+    }
+    if (!mcpStatus) {
+      return {
+        colorClass: 'bg-gray-400',
+        badgeVariant: 'foreground1' as const,
+        text: 'MCP (0 Connected)',
+        title: 'No MCP servers reported'
+      };
+    }
+    const entries = Object.entries(mcpStatus);
+    let connected = 0;
+    let failed = 0;
+    let disabled = 0;
+    for (const [, value] of entries) {
+      if (value === 'connected') connected++;
+      else if (value === 'failed') failed++;
+      else if (value === 'disabled') disabled++;
+    }
+
+    let colorClass = 'bg-green-500';
+    let badgeVariant: 'background2' | 'foreground0' | 'foreground1' | 'foreground2' = 'background2';
+    if (failed > 0) {
+      colorClass = 'bg-red-500';
+      badgeVariant = 'foreground0';
+    } else if (connected === 0 && entries.length - disabled > 0) {
+      colorClass = 'bg-yellow-500';
+      badgeVariant = 'foreground1';
+    } else if (disabled > 0 && entries.length === disabled) {
+      // All disabled
+      colorClass = 'bg-gray-400';
+      badgeVariant = 'foreground1';
+    }
+
+    const text = `MCP (${connected} Connected)`;
+    const title = entries.map(([name, status]) => `${name}: ${status}`).join(', ');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[MCP] Aggregated:', { connected, failed, disabled, text });
+    }
+    return { colorClass, badgeVariant, text, title };
+  }, [sidebarStatus]);
 
   // Initialize keyboard shortcuts
   const {
@@ -686,6 +817,54 @@ function OpenCodeChatTUI() {
     }
   }, [showSessionPicker, setSpacePassthrough]);
 
+  useEffect(() => {
+    if (!keyboardState.doubleEscapeTime) {
+      return;
+    }
+
+    if (abortInFlight) {
+      showToast("Agent interrupt already in progress");
+      return;
+    }
+
+    if (currentSessionBusy && currentSession?.id) {
+      showToast("Interrupting agent…");
+      void abortSession(currentSession.id).catch(() => {
+        showToast("Failed to interrupt agent");
+      });
+      return;
+    }
+
+    if (currentSession && !currentSessionBusy) {
+      showToast("No running agent to interrupt");
+    }
+  }, [
+    keyboardState.doubleEscapeTime,
+    abortInFlight,
+    currentSessionBusy,
+    currentSession,
+    abortSession,
+    showToast,
+  ]);
+
+  // Auto-focus Help modal search input when opened
+  useEffect(() => {
+    if (showHelp) {
+      requestAnimationFrame(() => {
+        helpSearchInputRef.current?.focus();
+      });
+    }
+  }, [showHelp]);
+
+  // Auto-focus Config modal search input when opened
+  useEffect(() => {
+    if (showConfig) {
+      requestAnimationFrame(() => {
+        configSearchInputRef.current?.focus();
+      });
+    }
+  }, [showConfig]);
+
   // Register keyboard shortcuts for frame navigation
   useEffect(() => {
     const unregisterFns: (() => void)[] = [];
@@ -721,11 +900,83 @@ function OpenCodeChatTUI() {
       registerShortcut({
         key: "f",
         handler: () => {
+          // Toggle Files sidebar if already on Files tab, otherwise navigate to Files
+          if (activeTab === "files" && isLeftSidebarOpen) {
+            setIsLeftSidebarOpen(false);
+          } else {
+            setActiveTab("files");
+            setIsLeftSidebarOpen(true);
+            // Focus file list after opening
+            setTimeout(() => {
+              fileListRef.current?.focus();
+            }, 100);
+          }
           closeAllModals();
-          selectFrame("files");
         },
         requiresLeader: true,
-        description: "Navigate to Files",
+        description: "Toggle Files Sidebar",
+        category: "navigation",
+      })
+    );
+
+    // Files tab shortcuts (when files tab is active)
+    unregisterFns.push(
+      registerShortcut({
+        key: "/",
+        handler: () => {
+          if (activeTab === "files") {
+            fileSearchInputRef.current?.focus();
+          } else if (activeTab === "workspace") {
+            workspaceSessionSearchInputRef.current?.focus();
+          }
+        },
+        requiresLeader: true,
+        description: "Search Sessions/Files",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "r",
+        handler: async () => {
+          if (activeTab === "files") {
+            try {
+              await loadFiles(fileDirectory || ".");
+              setSelectedFile(null);
+              setFileContent(null);
+              setFileError(null);
+            } catch (err) {
+              console.error("Failed to load directory:", err);
+            }
+          }
+        },
+        requiresLeader: true,
+        description: "Refresh Files",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "u",
+        handler: async () => {
+          if (activeTab === "files" && fileDirectory !== ".") {
+            const parts = fileDirectory.split("/").filter(Boolean);
+            parts.pop();
+            const parent = parts.length > 0 ? parts.join("/") : ".";
+            try {
+              await loadFiles(parent);
+              setSelectedFile(null);
+              setFileContent(null);
+              setFileError(null);
+            } catch (err) {
+              console.error("Failed to load directory:", err);
+            }
+          }
+        },
+        requiresLeader: true,
+        description: "Navigate Up Directory",
         category: "navigation",
       })
     );
@@ -734,11 +985,30 @@ function OpenCodeChatTUI() {
       registerShortcut({
         key: "w",
         handler: () => {
+          // Toggle Workspace sidebar if already on Workspace tab, otherwise navigate to Workspace
+          if (activeTab === "workspace" && isLeftSidebarOpen) {
+            setIsLeftSidebarOpen(false);
+          } else {
+            setActiveTab("workspace");
+            setIsLeftSidebarOpen(true);
+          }
           closeAllModals();
-          selectFrame("workspace");
         },
         requiresLeader: true,
-        description: "Navigate to Workspace",
+        description: "Toggle Workspace Sidebar",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "i",
+        handler: () => {
+          closeAllModals();
+          setIsStatusSidebarOpen((prev) => !prev);
+        },
+        requiresLeader: true,
+        description: "Toggle Info Panel",
         category: "navigation",
       })
     );
@@ -807,6 +1077,8 @@ function OpenCodeChatTUI() {
         category: "navigation",
       })
     );
+
+
 
     // Secondary action shortcuts (require selected frame)
     unregisterFns.push(
@@ -901,7 +1173,17 @@ function OpenCodeChatTUI() {
     setShowSessionPicker,
     setShowProjectPicker,
     closeAllModals,
+    setIsStatusSidebarOpen,
     sessionPickerEditControls,
+    activeTab,
+    isLeftSidebarOpen,
+    setActiveTab,
+    setIsLeftSidebarOpen,
+    fileDirectory,
+    loadFiles,
+    setSelectedFile,
+    setFileContent,
+    setFileError,
   ]);
 
   useLayoutEffect(() => {
@@ -940,6 +1222,11 @@ function OpenCodeChatTUI() {
       return;
     }
 
+    if (showHelp) {
+      setActiveModal("help");
+      return;
+    }
+
     setActiveModal(null);
   }, [
     showSessionPicker,
@@ -949,6 +1236,7 @@ function OpenCodeChatTUI() {
     showThemes,
     showConfig,
     showCommandPicker,
+    showHelp,
     setActiveModal,
   ]);
 
@@ -996,11 +1284,13 @@ function OpenCodeChatTUI() {
         sessionsHeading.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     } else if (selectedFrame === "files") {
-      // Switch to files tab
+      // Switch to files tab and ensure sidebar is visible
       setActiveTab("files");
+      setIsLeftSidebarOpen(true);
     } else if (selectedFrame === "workspace") {
-      // Switch to workspace tab and focus on input area
+      // Switch to workspace tab and focus on input area; ensure sidebar is visible
       setActiveTab("workspace");
+      setIsLeftSidebarOpen(true);
       setTimeout(() => {
         if (textareaRef.current) {
           textareaRef.current.focus();
@@ -1067,69 +1357,109 @@ function OpenCodeChatTUI() {
   // Removed automatic session creation to prevent spam
 
   const handleSend = async () => {
-    if (!input.trim()) return;
+    if (isHandlingImageUpload) {
+      await showToast("Still processing images. Please wait a moment.", "info");
+      return;
+    }
 
     const messageText = input;
-    setInput("");
+    const trimmedText = messageText.trim();
+    const attachmentsToSend = imageAttachments.map((attachment) => ({
+      ...attachment,
+    }));
+    const hasAttachments = attachmentsToSend.length > 0;
+    const hasText = trimmedText.length > 0;
 
-    try {
-      // Ensure we have a session - create one if needed and get the session object
-      let session = currentSession;
-      if (!session) {
-        session = await createSession({ title: "opencode-web session" });
-        await loadSessions();
-      }
+    if (!hasText && !hasAttachments) {
+      return;
+    }
 
+    if (!hasAttachments) {
       const parsed = parseCommand(messageText, commands);
 
-      // Handle commands immediately (don't queue)
       if (parsed.type === "slash") {
+        setInput("");
         await handleCommand(messageText);
         return;
-      } else if (parsed.type === "shell") {
+      }
+
+      if (parsed.type === "shell") {
+        setInput("");
         await handleShellCommand(parsed.command || "");
         return;
       }
+    }
 
-      // Check if agent is currently busy
+    setInput("");
+    if (hasAttachments) {
+      setImageAttachments([]);
+    }
+
+    const messageParts: Part[] = [];
+
+    if (hasText) {
+      messageParts.push({
+        type: "text",
+        text: messageText,
+      });
+    }
+
+    attachmentsToSend.forEach((attachment) => {
+      messageParts.push({
+        type: "file",
+        path: attachment.name,
+        name: attachment.name,
+        mimeType: attachment.mimeType,
+        size: attachment.size,
+        content: attachment.dataUrl,
+        origin: attachment.origin,
+      } as Part);
+    });
+
+    try {
+      // Session creation is now handled by sendMessage hook (issue #59)
+      // Only pass sessionOverride if we have a currentSession
+      const sessionOverride = currentSession || undefined;
+
       const isBusy = loading || isStreaming || currentSessionBusy;
 
       if (isBusy) {
-        // ADD TO QUEUE instead of blocking
         const queuedMessage = {
           id: `queued-${Date.now()}`,
+          clientId: generateClientId(),
           type: "user" as const,
           content: messageText,
+          parts: messageParts,
           timestamp: new Date(),
           queued: true,
           optimistic: true,
         };
         addToQueue(queuedMessage);
-
-        // Show visual feedback
         setMessages((prev) => [...prev, queuedMessage]);
       } else {
-        // Process immediately
         const pendingId = `user-${Date.now()}`;
+        const clientId = generateClientId();
         setMessages((prev) => [
           ...prev,
           {
             id: pendingId,
+            clientId,
             type: "user" as const,
             content: messageText,
+            parts: messageParts,
             timestamp: new Date(),
             optimistic: true,
           },
         ]);
 
         try {
-          await sendMessage(
-            messageText,
-            selectedModel?.providerID,
-            selectedModel?.modelID,
-            session,
-            currentAgent ?? undefined,
-          );
+          await sendMessage(messageText, {
+            providerID: selectedModel?.providerID,
+            modelID: selectedModel?.modelID,
+            sessionOverride,
+            agent: currentAgent ?? undefined,
+            parts: messageParts,
+          });
         } catch (error) {
           setMessages((prev) =>
             prev.map((msg) =>
@@ -1143,6 +1473,9 @@ function OpenCodeChatTUI() {
       await loadSessions();
     } catch (err) {
       console.error("Failed to send message:", err);
+      if (attachmentsToSend.length > 0) {
+        setImageAttachments((prev) => [...attachmentsToSend, ...prev]);
+      }
     }
   };
 
@@ -1204,26 +1537,27 @@ function OpenCodeChatTUI() {
       !showModelPicker &&
       !showAgentPicker &&
       !showSessionPicker &&
-      textareaRef.current
+      textareaRef.current &&
+      currentSession
     ) {
       const timer = setTimeout(() => {
         textareaRef.current?.focus();
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [showModelPicker, showAgentPicker, showSessionPicker]);
+  }, [showModelPicker, showAgentPicker, showSessionPicker, currentSession]);
 
   useEffect(() => {
-    if (textareaRef.current && isHydrated) {
+    if (textareaRef.current && isHydrated && currentSession) {
       textareaRef.current.focus();
     }
   }, [isHydrated, currentSession?.id]);
 
   useEffect(() => {
-    if (!loading && textareaRef.current) {
+    if (!loading && textareaRef.current && currentSession) {
       textareaRef.current.focus();
     }
-  }, [loading]);
+  }, [loading, currentSession]);
 
   const handleShellCommand = async (command: string) => {
     if (!currentSession) {
@@ -1870,6 +2204,7 @@ function OpenCodeChatTUI() {
           const filePath = args[0];
           await handleFileSelect(filePath);
           setActiveTab("files");
+          setIsLeftSidebarOpen(true);
           const successMsg = {
             id: `assistant-${Date.now()}`,
             type: "assistant" as const,
@@ -2260,6 +2595,153 @@ function OpenCodeChatTUI() {
     }
   };
 
+  const removeImageAttachment = useCallback((id: string) => {
+    setImageAttachments((prev) =>
+      prev.filter((attachment) => attachment.id !== id),
+    );
+  }, []);
+
+  const handleImageAttachments = useCallback(
+    async (files: File[], origin: "paste" | "drop") => {
+      if (files.length === 0) return;
+
+      setIsHandlingImageUpload(true);
+
+      try {
+        const processed = await Promise.all(
+          files.map(async (file, index) => {
+            if (!validateImageSize(file, MAX_IMAGE_SIZE_MB)) {
+              await showToast(
+                `${file.name || "Image"} is ${formatFileSize(file.size)}. Maximum size is ${MAX_IMAGE_SIZE_MB} MB.`,
+                "error",
+              );
+              return null;
+            }
+
+            try {
+              const dataUrl = await convertImageToBase64(file);
+              const mimeType =
+                file.type ||
+                dataUrl.match(/^data:([^;]+);/)?.[1] ||
+                "application/octet-stream";
+              const extension =
+                mimeType.split("/")[1]?.split("+")[0] || "png";
+              const prefix = origin === "paste" ? "pasted-image" : "dropped-image";
+              const safeName =
+                file.name && file.name.trim().length > 0
+                  ? file.name
+                  : `${prefix}-${Date.now()}-${index + 1}.${extension}`;
+
+              const attachment: ImageAttachment = {
+                id: generateClientId(),
+                name: safeName,
+                mimeType,
+                size: file.size,
+                dataUrl,
+                origin,
+              };
+
+              return attachment;
+            } catch (error) {
+              console.error("Failed to convert image to base64:", error);
+              await showToast(
+                `Failed to read ${file.name || "image file"}.`,
+                "error",
+              );
+              return null;
+            }
+          }),
+        );
+
+        const validAttachments = processed.filter(
+          (attachment): attachment is ImageAttachment => Boolean(attachment),
+        );
+
+        if (validAttachments.length > 0) {
+          setImageAttachments((prev) => [...prev, ...validAttachments]);
+        }
+      } finally {
+        setIsHandlingImageUpload(false);
+      }
+    },
+    [showToast],
+  );
+
+  const handlePaste = async (
+    event: React.ClipboardEvent<HTMLTextAreaElement>,
+  ) => {
+    const items = Array.from(event.clipboardData?.items ?? []);
+    if (items.length === 0) return;
+
+    const imageFiles: File[] = [];
+
+    items.forEach((item) => {
+      if (item.kind !== "file") return;
+      const file = item.getAsFile();
+      if (!file) return;
+      if (isAttachmentImageFile(file)) {
+        imageFiles.push(file);
+      }
+    });
+
+    if (imageFiles.length === 0) {
+      if (items.some((item) => item.kind === "file")) {
+        await showToast(
+          "Only PNG, JPEG, GIF, and WebP images are supported.",
+          "warning",
+        );
+      }
+      return;
+    }
+
+    event.preventDefault();
+    await handleImageAttachments(imageFiles, "paste");
+  };
+
+  const handleDragEnter = (event: React.DragEvent<HTMLTextAreaElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDraggingOverInput(true);
+  };
+
+  const handleDragOver = (event: React.DragEvent<HTMLTextAreaElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "copy";
+    setIsDraggingOverInput(true);
+  };
+
+  const handleDragLeave = (event: React.DragEvent<HTMLTextAreaElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const nextTarget = event.relatedTarget as Node | null;
+    if (nextTarget && event.currentTarget.contains(nextTarget)) {
+      return;
+    }
+    setIsDraggingOverInput(false);
+  };
+
+  const handleDrop = async (event: React.DragEvent<HTMLTextAreaElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDraggingOverInput(false);
+
+    const files = Array.from(event.dataTransfer?.files ?? []);
+    if (files.length === 0) return;
+
+    const imageFiles = files.filter((file) => isAttachmentImageFile(file));
+
+    if (imageFiles.length === 0) {
+      await showToast(
+        "Only PNG, JPEG, GIF, and WebP images are supported.",
+        "warning",
+      );
+      return;
+    }
+
+    await handleImageAttachments(imageFiles, "drop");
+  };
+
   const handleCommandSelect = (command: Command) => {
     setShowCommandPicker(false);
 
@@ -2314,12 +2796,21 @@ function OpenCodeChatTUI() {
   };
 
   const handleFileSelect = async (filePath: string) => {
+    setActiveTab("files");
+    setIsLeftSidebarOpen(true);
+    setIsMobileSidebarOpen(false);
+    setShowFileDiff(false); // Reset diff view when selecting a new file
+
     try {
       const result = await readFile(filePath);
       setSelectedFile(filePath);
       if (result) {
         setFileContent(result);
         setFileError(null);
+        // Auto-show diff if file has changes
+        if (result.diff) {
+          setShowFileDiff(true);
+        }
       } else {
         setFileContent(null);
         setFileError("Unable to read file");
@@ -2376,6 +2867,98 @@ function OpenCodeChatTUI() {
     );
   }, [sortedFiles, fileSearchQuery]);
 
+  const filteredConfigData = useMemo(() => {
+    if (!configData || !configSearchQuery.trim()) return configData;
+    
+    try {
+      const parsed = JSON.parse(configData);
+      const query = configSearchQuery.toLowerCase();
+      
+      // Simple jq-like filtering: filter object by keys/values matching query
+      const filterObject = (obj: any, path = ""): any => {
+        if (typeof obj !== "object" || obj === null) {
+          // Check if primitive value matches
+          const strValue = String(obj).toLowerCase();
+          return strValue.includes(query) ? obj : null;
+        }
+        
+        if (Array.isArray(obj)) {
+          const filtered = obj.map((item, idx) => filterObject(item, `${path}[${idx}]`)).filter(item => item !== null);
+          return filtered.length > 0 ? filtered : null;
+        }
+        
+        const result: any = {};
+        let hasMatch = false;
+        
+        for (const [key, value] of Object.entries(obj)) {
+          const currentPath = path ? `${path}.${key}` : key;
+          const keyMatches = key.toLowerCase().includes(query);
+          const pathMatches = currentPath.toLowerCase().includes(query);
+          
+          if (keyMatches || pathMatches) {
+            result[key] = value;
+            hasMatch = true;
+          } else {
+            const filteredValue = filterObject(value, currentPath);
+            if (filteredValue !== null) {
+              result[key] = filteredValue;
+              hasMatch = true;
+            }
+          }
+        }
+        
+        return hasMatch ? result : null;
+      };
+      
+      const filtered = filterObject(parsed);
+      return filtered ? JSON.stringify(filtered, null, 2) : "No matches found";
+    } catch (err) {
+      // If not valid JSON, fall back to simple text search
+      if (configData.toLowerCase().includes(configSearchQuery.toLowerCase())) {
+        return configData;
+      }
+      return "No matches found";
+    }
+  }, [configData, configSearchQuery]);
+
+  const helpCommands = useMemo(() => [
+    { category: "Session", command: "/new", description: "Start a new session" },
+    { category: "Session", command: "/clear", description: "Clear current session" },
+    { category: "Session", command: "/sessions", description: "View all sessions" },
+    { category: "Model", command: "/models", description: "Open model picker" },
+    { category: "Model", command: "/model <provider>/<model>", description: "Select specific model" },
+    { category: "Agent", command: "/agents", description: "Select agent" },
+    { category: "Theme", command: "/themes", description: "Open theme picker" },
+    { category: "File Operations", command: "/undo", description: "Undo last file changes" },
+    { category: "File Operations", command: "/redo", description: "Redo last undone changes" },
+    { category: "Other", command: "/help", description: "Show this help dialog" },
+    { category: "Other", command: "/share", description: "Share current session" },
+    { category: "Other", command: "/export", description: "Export session" },
+    { category: "Other", command: "/debug", description: "Export session data (JSON)" },
+  ], []);
+
+  const filteredHelpCommands = useMemo(() => {
+    if (!helpSearchQuery.trim()) return helpCommands;
+    
+    const query = helpSearchQuery.toLowerCase();
+    return helpCommands.filter(cmd =>
+      cmd.command.toLowerCase().includes(query) ||
+      cmd.description.toLowerCase().includes(query) ||
+      cmd.category.toLowerCase().includes(query)
+    );
+  }, [helpCommands, helpSearchQuery]);
+
+  const groupedHelpCommands = useMemo(() => {
+    const groups: Record<string, typeof helpCommands> = {};
+    for (const cmd of filteredHelpCommands) {
+      if (!groups[cmd.category]) {
+        groups[cmd.category] = [];
+      }
+      groups[cmd.category].push(cmd);
+    }
+    return groups;
+  }, [filteredHelpCommands]);
+
   const sortedProjects = useMemo(() => {
     return [...projects].sort((a, b) => {
       const aDate = a.updatedAt || a.createdAt || new Date(0);
@@ -2430,14 +3013,24 @@ function OpenCodeChatTUI() {
   }, [sessionUsage]);
 
   const handleTabChange = (tab: string) => {
+    // If clicking the same tab that's already active, toggle sidebar visibility
+    if (tab === activeTab && isLeftSidebarOpen) {
+      setIsLeftSidebarOpen(false);
+      setActiveTab(""); // Clear active tab when hiding sidebar
+      return;
+    }
+    
+    // Otherwise, switch tabs and ensure sidebar is open
     setActiveTab(tab);
+    setIsLeftSidebarOpen(true);
+    
     if (tab === "files") {
       if (files.length === 0) {
         void handleDirectoryOpen(fileDirectory || ".");
       }
-      // Focus the file search input when switching to files tab
+      // Focus the file list container when switching to files tab
       setTimeout(() => {
-        fileSearchInputRef.current?.focus();
+        fileListRef.current?.focus();
       }, 0);
     }
     if (tab === "workspace") {
@@ -2471,6 +3064,36 @@ function OpenCodeChatTUI() {
   }, [showModelPicker]);
 
   useEffect(() => {
+    if (showConfig) {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        // / to focus config search
+        if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey && document.activeElement !== configSearchInputRef.current) {
+          e.preventDefault();
+          configSearchInputRef.current?.focus();
+        }
+      };
+      
+      document.addEventListener("keydown", handleKeyDown);
+      return () => document.removeEventListener("keydown", handleKeyDown);
+    }
+  }, [showConfig]);
+
+  useEffect(() => {
+    if (showHelp) {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        // / to focus help search
+        if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey && document.activeElement !== helpSearchInputRef.current) {
+          e.preventDefault();
+          helpSearchInputRef.current?.focus();
+        }
+      };
+      
+      document.addEventListener("keydown", handleKeyDown);
+      return () => document.removeEventListener("keydown", handleKeyDown);
+    }
+  }, [showHelp]);
+
+  useEffect(() => {
     setSelectedModelIndex(0);
   }, [modelSearchQuery]);
 
@@ -2480,14 +3103,57 @@ function OpenCodeChatTUI() {
     }
   }, [activeTab]);
 
-  // Focus file search input when files tab becomes active
   useEffect(() => {
-    if (activeTab === "files") {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("opencode-status-sidebar-open", String(isStatusSidebarOpen));
+    }
+  }, [isStatusSidebarOpen]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("opencode-left-sidebar-open", String(isLeftSidebarOpen));
+    }
+  }, [isLeftSidebarOpen]);
+
+  useEffect(() => {
+    if (isStatusSidebarOpen) {
+      void refreshStatusAll();
+    }
+  }, [isStatusSidebarOpen, refreshStatusAll]);
+
+  useEffect(() => {
+    if (!isMobile && activeTab === "status") {
+      setActiveTab("workspace");
+    }
+  }, [isMobile, activeTab]);
+
+  // Focus file list when files tab becomes active
+  useEffect(() => {
+    if (activeTab === "files" && isLeftSidebarOpen) {
       setTimeout(() => {
-        fileSearchInputRef.current?.focus();
+        fileListRef.current?.focus();
       }, 0);
     }
-  }, [activeTab]);
+  }, [activeTab, isLeftSidebarOpen]);
+
+  // Reset selected file index when filtered files change
+  useEffect(() => {
+    setSelectedFileIndex(0);
+  }, [filteredFiles.length, fileDirectory]);
+
+  // Scroll focused file into view
+  useEffect(() => {
+    if (activeTab === "files" && filteredFiles.length > 0) {
+      const fileList = fileListRef.current;
+      if (fileList) {
+        const fileItems = fileList.querySelectorAll('[data-file-item]');
+        const selectedItem = fileItems[selectedFileIndex] as HTMLElement;
+        if (selectedItem) {
+          selectedItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+      }
+    }
+  }, [selectedFileIndex, activeTab, filteredFiles]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -2554,33 +3220,33 @@ function OpenCodeChatTUI() {
       }}
     >
       {/* Top Bar */}
-      <div className="px-2 sm:px-4 py-2 flex items-center justify-between bg-theme-background-alt flex-shrink-0 gap-2">
+      <div className="px-2 sm:px-4 py-2 flex items-center justify-between bg-theme-background-alt flex-shrink-0 gap-2 min-h-[48px]">
         {isConnected === false && (
           <div className="absolute top-0 left-0 right-0 px-2 py-1 text-center text-xs bg-theme-error text-theme-background z-50">
             Disconnected from OpenCode server
           </div>
         )}
-        <div className="flex items-center gap-1 sm:gap-2 lg:gap-4 flex-1 min-w-0">
+        <div className="flex items-center gap-1 sm:gap-2 lg:gap-4 overflow-hidden">
           <HamburgerMenu
             isOpen={isMobileSidebarOpen}
             onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
           />
-          <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+          <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto scrollbar-hide">
             <Badge
-              variant="foreground1"
-              cap="round"
-              className="whitespace-nowrap"
+              variant="foreground0"
+              cap="square"
+              className="whitespace-nowrap flex-shrink-0 badge-title"
             >
               opencode web
             </Badge>
             {isConnected !== null && (
-              <div className="flex items-center gap-1 sm:gap-2">
+              <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                 <div
                   className={`connection-indicator ${isConnected ? "connected" : "disconnected"}`}
                 />
                 <Badge
                   variant={isConnected ? "background2" : "foreground0"}
-                  cap="round"
+                  cap="square"
                   className="hidden md:inline whitespace-nowrap"
                 >
                   {isConnected ? "Connected" : "Disconnected"}
@@ -2599,7 +3265,7 @@ function OpenCodeChatTUI() {
                           ? "background2"
                           : "foreground0"
                       }
-                      cap="round"
+                      cap="square"
                       className="hidden lg:inline text-xs whitespace-nowrap"
                     >
                       SSE {sseConnectionState.connected ? "Live" : "Off"}
@@ -2607,52 +3273,81 @@ function OpenCodeChatTUI() {
                     </Badge>
                   </div>
                 )}
+                {/* MCP Status */}
+                <div
+                  className="flex items-center gap-1"
+                  title={mcpAggregated.title}
+                >
+                  <div
+                    className={`w-2 h-2 rounded-full ${mcpAggregated.colorClass}`}
+                  />
+                  <Badge
+                    variant={mcpAggregated.badgeVariant}
+                    cap="square"
+                    className="hidden xl:inline text-xs whitespace-nowrap"
+                  >
+                    {mcpAggregated.text}
+                  </Badge>
+                </div>
               </div>
             )}
           </div>
-          <div className="flex gap-1 sm:gap-2">
-            {["workspace", "files"].map((tab) => (
-              <Button
-                key={tab}
-                onClick={() => handleTabChange(tab)}
-                variant={activeTab === tab ? "foreground0" : undefined}
-                box="square"
-                size="small"
-                className="capitalize whitespace-nowrap"
-              >
-                {tab}
-              </Button>
-            ))}
+          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+            <SidebarTabs
+              tabs={[
+                { id: "workspace", label: "Workspace" },
+                { id: "files", label: "Files" },
+              ]}
+              activeTab={activeTab}
+              onTabChange={handleTabChange}
+            />
+            <Button
+              variant={isStatusSidebarOpen ? "foreground0" : "foreground1"}
+              box="round"
+              size="small"
+              className="hidden md:inline-flex"
+              onClick={() => setIsStatusSidebarOpen((prev) => !prev)}
+              aria-pressed={isStatusSidebarOpen}
+              title={isStatusSidebarOpen ? "Hide info panel (Space+I)" : "Show info panel (Space+I)"}
+            >
+              Info
+            </Button>
           </div>
         </div>
         <div className="hidden md:flex items-center gap-1 sm:gap-2 flex-shrink-0">
           <Button
-            variant="foreground0"
+            variant={showHelp ? "foreground0" : "foreground1"}
             box="round"
             onClick={openHelp}
             size="small"
-            className="border-none whitespace-nowrap"
+            className="whitespace-nowrap"
+            aria-pressed={showHelp}
+            title={showHelp ? "Close help" : "Open help (Space+H)"}
           >
             Help
           </Button>
           <Button
-            variant="foreground0"
+            variant={showThemes ? "foreground0" : "foreground1"}
             box="round"
             onClick={openThemes}
             size="small"
-            className="border-none whitespace-nowrap"
+            className="whitespace-nowrap"
+            aria-pressed={showThemes}
+            title={showThemes ? "Close themes" : "Open themes (Space+T)"}
           >
             Themes
           </Button>
           <Button
-            variant="foreground0"
+            variant={showConfig ? "foreground0" : "foreground1"}
             box="round"
             onClick={() => {
               closeAllModals();
               setShowConfig(true);
             }}
             size="small"
-            className="border-none whitespace-nowrap"
+            className="whitespace-nowrap"
+            aria-pressed={showConfig}
+            title={showConfig ? "Close config" : "Open config (Space+C)"}
           >
             Config
           </Button>
@@ -2664,11 +3359,12 @@ function OpenCodeChatTUI() {
       {/* Main Content */}
       <div className="flex-1 min-w-0 flex overflow-hidden gap-0">
         {/* Desktop Sidebar - hidden on mobile */}
-        <View
-          box="square"
-          className="hidden md:flex flex-col p-4 bg-theme-background-alt relative"
-          style={{ width: `${sidebarWidth}px` }}
-        >
+        {isLeftSidebarOpen && (
+          <View
+            box="square"
+            className="hidden md:flex flex-col p-4 bg-theme-background-alt relative"
+            style={{ width: `${sidebarWidth}px` }}
+          >
           <div
             className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-theme-primary transition-colors z-10"
             onMouseDown={handleResizeStart}
@@ -2679,6 +3375,7 @@ function OpenCodeChatTUI() {
             }}
           />
           <div className="flex-1 overflow-hidden">
+            {/* Tab Panels */}
             {activeTab === "workspace" && (
               <div className="h-full flex flex-col overflow-hidden">
                 {/* Projects Section */}
@@ -2689,17 +3386,30 @@ function OpenCodeChatTUI() {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <h3 className="text-sm font-medium">Projects</h3>
-                      <Button
-                        variant="foreground0"
-                        box="round"
-                        size="small"
-                        onClick={() => {
-                          setNewProjectDirectory("");
-                          setShowNewProjectForm(true);
-                        }}
-                      >
-                        New Project
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="foreground1"
+                          box="round"
+                          size="small"
+                          onClick={() => setShowProjectPicker(true)}
+                          title="Search projects"
+                        >
+                          Search
+                        </Button>
+                        <Button
+                          variant={showNewProjectForm ? "foreground0" : "foreground1"}
+                          box="round"
+                          size="small"
+                          onClick={() => {
+                            setNewProjectDirectory("");
+                            setShowNewProjectForm(true);
+                          }}
+                          aria-pressed={showNewProjectForm}
+                          title="Create new project"
+                        >
+                          New Project
+                        </Button>
+                      </div>
                     </div>
                   </View>
                   <Separator className="mb-2" />
@@ -2756,7 +3466,7 @@ function OpenCodeChatTUI() {
                           {sidebarEditMode ? "Done" : "Edit"}
                         </Button>
                         <Button
-                          variant="foreground0"
+                          variant={showNewSessionForm ? "foreground0" : "foreground1"}
                           box="round"
                           onClick={() => {
                             setNewSessionTitle("");
@@ -2764,6 +3474,8 @@ function OpenCodeChatTUI() {
                           }}
                           size="small"
                           disabled={!currentProject}
+                          aria-pressed={showNewSessionForm}
+                          title="Create new session"
                         >
                           New Session
                         </Button>
@@ -2780,6 +3492,7 @@ function OpenCodeChatTUI() {
                       {/* Sidebar Search Input */}
                       <div className="mb-2">
                         <SessionSearchInput
+                          ref={workspaceSessionSearchInputRef}
                           value={sessionSearchQuery}
                           onChange={setSessionSearchQuery}
                           onClear={() => setSessionSearchQuery("")}
@@ -2945,7 +3658,7 @@ function OpenCodeChatTUI() {
               </div>
             )}
 
-            {activeTab === "files" && (
+          {activeTab === "files" && (
               <div className="space-y-4 h-full flex flex-col">
                 <View box="square" className="p-2 mb-2 bg-theme-background-alt">
                   <div className="flex items-center justify-between">
@@ -3036,25 +3749,67 @@ function OpenCodeChatTUI() {
                   </div>
                 </div>
                 <Separator />
-                <div className="flex-1 overflow-y-auto scrollbar space-y-0.5">
+                <div
+                  ref={fileListRef}
+                  className="flex-1 overflow-y-auto scrollbar space-y-0.5"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (filteredFiles.length === 0) return;
+                    
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setSelectedFileIndex((prev) =>
+                        prev < filteredFiles.length - 1 ? prev + 1 : prev
+                      );
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setSelectedFileIndex((prev) => (prev > 0 ? prev - 1 : prev));
+                    } else if (e.key === "Enter") {
+                      e.preventDefault();
+                      const file = filteredFiles[selectedFileIndex];
+                      if (file) {
+                        if (file.type === "directory") {
+                          void handleDirectoryOpen(file.path);
+                        } else {
+                          void handleFileSelect(file.path);
+                        }
+                      }
+                    } else if (e.key === "/" || e.key === "s") {
+                      // Allow search shortcuts
+                      e.stopPropagation();
+                      fileSearchInputRef.current?.focus();
+                    }
+                  }}
+                  style={{
+                    outline: "none",
+                  }}
+                >
                   {filteredFiles.length > 0 ? (
-                    filteredFiles.map((file) => {
+                    filteredFiles.map((file, index) => {
                       const isDirectory = file.type === "directory";
                       const isSelected =
                         !isDirectory && selectedFile === file.path;
+                      const isFocused = index === selectedFileIndex;
                       return (
                         <div
                           key={file.path}
+                          data-file-item
                           className="px-2 py-1 cursor-pointer transition-colors rounded"
                           style={{
-                            backgroundColor: isSelected
+                            backgroundColor: isFocused
                               ? "var(--theme-primary)"
-                              : "var(--theme-background)",
-                            color: isSelected
+                              : isSelected
+                                ? "rgba(from var(--theme-primary) r g b / 0.3)"
+                                : "var(--theme-background)",
+                            color: isFocused
                               ? "var(--theme-background)"
                               : "var(--theme-foreground)",
+                            border: isFocused
+                              ? "1px solid var(--theme-primary)"
+                              : "1px solid transparent",
                           }}
                           onClick={() => {
+                            setSelectedFileIndex(index);
                             if (isDirectory) {
                               void handleDirectoryOpen(file.path);
                             } else {
@@ -3062,15 +3817,17 @@ function OpenCodeChatTUI() {
                             }
                           }}
                           onMouseEnter={(e) => {
-                            if (!isSelected) {
+                            setSelectedFileIndex(index);
+                            if (!isFocused) {
                               e.currentTarget.style.backgroundColor =
                                 "var(--theme-backgroundAlt)";
                             }
                           }}
                           onMouseLeave={(e) => {
-                            if (!isSelected) {
-                              e.currentTarget.style.backgroundColor =
-                                "var(--theme-background)";
+                            if (!isFocused) {
+                              e.currentTarget.style.backgroundColor = isSelected
+                                ? "rgba(from var(--theme-primary) r g b / 0.3)"
+                                : "var(--theme-background)";
                             }
                           }}
                         >
@@ -3100,6 +3857,7 @@ function OpenCodeChatTUI() {
             )}
           </div>
         </View>
+        )}
 
         {/* Mobile Sidebar Drawer */}
         <MobileSidebar
@@ -3134,25 +3892,51 @@ function OpenCodeChatTUI() {
             </Button>
           </div>
 
+          {/* Mobile Tab Navigation */}
+          <div className="mb-4 flex-shrink-0">
+            <SidebarTabs
+              tabs={[
+                { id: "workspace", label: "Workspace" },
+                { id: "files", label: "Files" },
+                { id: "status", label: "Status" },
+              ]}
+              activeTab={activeTab}
+              onTabChange={handleTabChange}
+            />
+          </div>
+
           {activeTab === "workspace" && (
             <div className="h-full flex flex-col gap-4 overflow-hidden">
               {/* Projects Section */}
               <div className="flex flex-col flex-shrink-0">
                 <div className="flex items-center justify-between mb-2 gap-2">
                   <h3 className="text-sm font-medium">Projects</h3>
-                  <Button
-                    variant="foreground0"
-                    box="round"
-                    size="small"
-                    className="flex-shrink-0"
-                    onClick={() => {
-                      setIsMobileSidebarOpen(false);
-                      setNewProjectDirectory("");
-                      setShowNewProjectForm(true);
-                    }}
-                  >
-                    New Project
-                  </Button>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <Button
+                      variant="foreground1"
+                      box="round"
+                      size="small"
+                      onClick={() => {
+                        setIsMobileSidebarOpen(false);
+                        setShowProjectPicker(true);
+                      }}
+                      title="Search projects"
+                    >
+                      Search
+                    </Button>
+                    <Button
+                      variant="foreground0"
+                      box="round"
+                      size="small"
+                      onClick={() => {
+                        setIsMobileSidebarOpen(false);
+                        setNewProjectDirectory("");
+                        setShowNewProjectForm(true);
+                      }}
+                    >
+                      New Project
+                    </Button>
+                  </div>
                 </div>
                 <Separator className="mb-2" />
                 <div className="flex flex-col gap-3">
@@ -3471,6 +4255,18 @@ function OpenCodeChatTUI() {
               </div>
             </div>
           )}
+
+          {activeTab === "status" && (
+            <div className="flex-1 overflow-y-auto space-y-3">
+              <SessionContextPanel />
+              <Separator />
+              <McpStatusPanel />
+              <Separator />
+              <ModifiedFilesPanel onFileClick={handleFileSelect} />
+              <Separator />
+              <LspStatusPanel />
+            </div>
+          )}
         </MobileSidebar>
 
         <Separator direction="vertical" />
@@ -3493,7 +4289,7 @@ function OpenCodeChatTUI() {
                 Project: {currentProject?.worktree}
               </span>
               {currentSessionTodos.length > 0 && (
-                <Badge variant="foreground0" cap="round" className="text-xs">
+                <Badge variant="foreground0" cap="square" className="text-xs">
                   {currentSessionTodos.length} todo
                   {currentSessionTodos.length === 1 ? "" : "s"} pending
                 </Badge>
@@ -3568,7 +4364,7 @@ function OpenCodeChatTUI() {
                             {!currentSession && (
                               <Badge
                                 variant="foreground0"
-                                cap="round"
+                                cap="square"
                                 className="text-xs"
                               >
                                 Create or select a session →
@@ -3581,7 +4377,7 @@ function OpenCodeChatTUI() {
                   )}
                   {messages.map((message) => (
                     <div
-                      key={message.id}
+                      key={message.clientId ?? message.id}
                       className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}
                     >
                       <View
@@ -3678,7 +4474,7 @@ function OpenCodeChatTUI() {
                         </Pre>
                         <Badge
                           variant="foreground0"
-                          cap="round"
+                          cap="square"
                           className="mt-2 text-xs"
                         >
                           OpenCode
@@ -3745,7 +4541,7 @@ function OpenCodeChatTUI() {
                         <span className="text-theme-muted">•</span>
                         <Badge
                           variant="foreground0"
-                          cap="round"
+                          cap="square"
                           className="flex items-center gap-1 animate-pulse"
                         >
                           <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
@@ -3788,8 +4584,8 @@ function OpenCodeChatTUI() {
                   >
                     <Badge
                       key={currentAgent?.id || currentAgent?.name}
-                      variant="foreground1"
-                      cap="round"
+                      variant="foreground0"
+                      cap="square"
                       className="flex-shrink-0"
                     >
                       Agent: {currentAgent?.name || "None"}
@@ -3800,7 +4596,7 @@ function OpenCodeChatTUI() {
                   <div className="flex-1 relative w-full">
                     {messageQueue.length > 0 && (
                       <div className="flex items-center gap-2 px-3 py-2 mb-2 bg-theme-background-alt rounded-md border border-theme-warning">
-                        <Badge variant="foreground1" cap="round">
+                        <Badge variant="foreground1" cap="square">
                           {messageQueue.length} message
                           {messageQueue.length > 1 ? "s" : ""} queued
                         </Badge>
@@ -3821,11 +4617,54 @@ function OpenCodeChatTUI() {
                         selectedIndex={selectedCommandIndex}
                       />
                     )}
+                    {isHandlingImageUpload && (
+                      <div
+                        className="mb-2 rounded border border-theme-border bg-theme-background-alt px-3 py-2 text-xs text-theme-muted"
+                        role="status"
+                      >
+                        Processing images...
+                      </div>
+                    )}
+                    {imageAttachments.length > 0 && (
+                      <div
+                        className="mb-2 rounded border border-theme-border bg-theme-background-alt/70 p-3"
+                        aria-live="polite"
+                      >
+                        <div className="mb-2 flex items-center justify-between text-xs text-theme-muted">
+                          <span>
+                            {imageAttachments.length} image
+                            {imageAttachments.length > 1 ? "s" : ""} attached
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setImageAttachments([])}
+                            className="rounded px-2 py-1 text-[11px] uppercase tracking-wide text-theme-muted transition-colors hover:text-theme-foreground disabled:opacity-60"
+                            disabled={isHandlingImageUpload}
+                          >
+                            Clear all
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                          {imageAttachments.map((attachment) => (
+                            <ImagePreview
+                              key={attachment.id}
+                              attachment={attachment}
+                              onRemove={removeImageAttachment}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <Textarea
                       ref={textareaRef}
                       value={input}
                       onChange={(e) => handleInputChange(e.target.value)}
                       onKeyDown={handleKeyDown}
+                      onPaste={handlePaste}
+                      onDrop={handleDrop}
+                      onDragEnter={handleDragEnter}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
                       placeholder={
                         currentSessionBusy && !isMobile
                           ? "Agent running... Press ESC to stop, or type to queue a message"
@@ -3833,7 +4672,11 @@ function OpenCodeChatTUI() {
                       }
                       rows={2}
                       size="large"
-                      className="w-full bg-theme-background text-theme-foreground border-theme-primary resize-none"
+                      className={`w-full bg-theme-background text-theme-foreground border-theme-primary resize-none ${
+                        isDraggingOverInput
+                          ? "border-2 border-dashed border-theme-primary/80"
+                          : ""
+                      }`}
                     />
                     {showMentionSuggestions &&
                       mentionSuggestions.length > 0 && (
@@ -3893,7 +4736,7 @@ function OpenCodeChatTUI() {
                                   {isSelected && (
                                     <Badge
                                       variant="background2"
-                                      cap="round"
+                                      cap="square"
                                       className="text-xs"
                                     >
                                       ↵
@@ -3941,7 +4784,7 @@ function OpenCodeChatTUI() {
                       {showLanguageBadge && selectedFile && (
                         <Badge
                           variant="foreground0"
-                          cap="round"
+                          cap="square"
                           className="text-xs"
                         >
                           {detectLanguage(selectedFile)}
@@ -3950,7 +4793,7 @@ function OpenCodeChatTUI() {
                       {showMimeTypeBadge && fileContent?.mimeType && (
                         <Badge
                           variant="foreground0"
-                          cap="round"
+                          cap="square"
                           className="text-xs uppercase"
                         >
                           {fileContent.mimeType}
@@ -3958,6 +4801,16 @@ function OpenCodeChatTUI() {
                       )}
                     </h3>
                     <div className="flex gap-2">
+                      {fileContent?.diff && (
+                        <Button
+                          variant={showFileDiff ? "foreground1" : "foreground0"}
+                          box="round"
+                          onClick={() => setShowFileDiff(!showFileDiff)}
+                          size="small"
+                        >
+                          {showFileDiff ? "Show Code" : "Show Diff"}
+                        </Button>
+                      )}
                       {hasBinaryDownload && fileContent?.dataUrl && (
                         <Button
                           variant="foreground0"
@@ -4006,6 +4859,10 @@ function OpenCodeChatTUI() {
                     {fileError ? (
                       <div className="text-center text-sm text-red-400 p-4">
                         {fileError}
+                      </div>
+                    ) : showFileDiff && fileContent?.diff ? (
+                      <div className="h-full overflow-auto scrollbar">
+                        <PrettyDiff diffText={fileContent.diff} />
                       </div>
                     ) : selectedFileIsImage ? (
                       <div className="flex items-center justify-center h-full max-w-full bg-theme-backgroundAccent rounded p-4 overflow-auto scrollbar">
@@ -4090,6 +4947,35 @@ function OpenCodeChatTUI() {
             </div>
           )}
         </View>
+        {isStatusSidebarOpen && (
+          <View
+            box="square"
+            className="hidden md:flex flex-col bg-theme-background-alt border-l border-theme-border"
+            style={{ width: "320px" }}
+          >
+            <div className="flex items-center justify-between px-4 py-2">
+              <h3 className="text-sm font-medium">Status</h3>
+              <Button
+                variant="foreground1"
+                box="round"
+                size="small"
+                onClick={() => void refreshStatusAll()}
+              >
+                Refresh
+              </Button>
+            </div>
+            <Separator />
+            <div className="flex-1 overflow-y-auto space-y-3 px-4 py-3">
+              <SessionContextPanel />
+              <Separator />
+              <McpStatusPanel />
+              <Separator />
+              <ModifiedFilesPanel onFileClick={handleFileSelect} />
+              <Separator />
+              <LspStatusPanel />
+            </div>
+          </View>
+        )}
       </div>
 
       {showNewProjectForm && (
@@ -4201,7 +5087,10 @@ function OpenCodeChatTUI() {
 
       {/* Help Dialog */}
       {showHelp && (
-        <Dialog open={showHelp} onClose={() => setShowHelp(false)}>
+        <Dialog open={showHelp} onClose={() => {
+          setShowHelp(false);
+          setHelpSearchQuery("");
+        }}>
           <View
             box="square"
             className="p-6 max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col bg-theme-background text-theme-foreground"
@@ -4211,118 +5100,52 @@ function OpenCodeChatTUI() {
                <Button
                  variant="background2"
                  box="round"
-                 onClick={() => setShowHelp(false)}
+                 onClick={() => {
+                   setShowHelp(false);
+                   setHelpSearchQuery("");
+                 }}
                  size="small"
               >
                 Close
               </Button>
             </div>
             <Separator className="mb-4 flex-shrink-0" />
+            
+            {/* Search Input */}
+            <div className="mb-4 flex-shrink-0">
+              <Input
+                ref={helpSearchInputRef}
+                placeholder="Search commands..."
+                size="small"
+                value={helpSearchQuery}
+                onChange={(e) => setHelpSearchQuery(e.target.value)}
+                className="w-full bg-theme-background-alt text-theme-foreground border-theme-primary"
+              />
+            </div>
+            <Separator className="mb-4 flex-shrink-0" />
 
             <div className="space-y-6 overflow-y-auto scrollbar flex-1 pb-4">
-              <div>
-                <div className="text-xs font-bold uppercase mb-2 opacity-60">
-                  Session
+              {filteredHelpCommands.length === 0 ? (
+                <div className="text-center text-sm py-4 opacity-70">
+                  No commands found matching "{helpSearchQuery}"
                 </div>
-                <div className="space-y-1 font-mono text-sm">
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">/new</span>
-                    <span className="opacity-70">Start a new session</span>
+              ) : (
+                Object.entries(groupedHelpCommands).map(([category, commands]) => (
+                  <div key={category}>
+                    <div className="text-xs font-bold uppercase mb-2 opacity-60">
+                      {category}
+                    </div>
+                    <div className="space-y-1 font-mono text-sm">
+                      {commands.map((cmd, idx) => (
+                        <div key={idx} className="flex justify-between p-2 rounded bg-theme-background-alt">
+                          <span className="text-theme-primary">{cmd.command}</span>
+                          <span className="opacity-70">{cmd.description}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">/clear</span>
-                    <span className="opacity-70">Clear current session</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">/sessions</span>
-                    <span className="opacity-70">View all sessions</span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <div className="text-xs font-bold uppercase mb-2 opacity-60">
-                  Model
-                </div>
-                <div className="space-y-1 font-mono text-sm">
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">/models</span>
-                    <span className="opacity-70">Open model picker</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">
-                      /model &lt;provider&gt;/&lt;model&gt;
-                    </span>
-                    <span className="opacity-70">Select specific model</span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <div className="text-xs font-bold uppercase mb-2 opacity-60">
-                  Agent
-                </div>
-                <div className="space-y-1 font-mono text-sm">
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">/agents</span>
-                    <span className="opacity-70">Select agent</span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <div className="text-xs font-bold uppercase mb-2 opacity-60">
-                  Theme
-                </div>
-                <div className="space-y-1 font-mono text-sm">
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">/themes</span>
-                    <span className="opacity-70">Open theme picker</span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <div className="text-xs font-bold uppercase mb-2 opacity-60">
-                  File Operations
-                </div>
-                <div className="space-y-1 font-mono text-sm">
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">/undo</span>
-                    <span className="opacity-70">Undo last file changes</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">/redo</span>
-                    <span className="opacity-70">Redo last undone changes</span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <div className="text-xs font-bold uppercase mb-2 opacity-60">
-                  Other
-                </div>
-                <div className="space-y-1 font-mono text-sm">
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">/help</span>
-                    <span className="opacity-70">Show this help dialog</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">/share</span>
-                    <span className="opacity-70">Share current session</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">/export</span>
-                    <span className="opacity-70">Export session</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">/debug</span>
-                    <span className="opacity-70">
-                      Export session data (JSON)
-                    </span>
-                  </div>
-                </div>
-              </div>
+                ))
+              )}
 
               <Separator />
 
@@ -4359,22 +5182,55 @@ function OpenCodeChatTUI() {
         <Dialog open={showConfig} onClose={() => setShowConfig(false)}>
           <View
             box="square"
-            className="p-6 max-w-4xl w-full max-h-[80vh] overflow-hidden bg-theme-background text-theme-foreground"
+            className="p-6 max-w-4xl w-full max-h-[80vh] overflow-hidden flex flex-col bg-theme-background text-theme-foreground"
           >
             <h2 className="text-lg font-bold mb-4">OpenCode Configuration</h2>
             <Separator className="mb-4" />
-            <div className="max-h-96 overflow-y-auto scrollbar mb-4">
+            
+            {/* Search Input */}
+            <div className="mb-4">
+              <Input
+                ref={configSearchInputRef}
+                placeholder="Search config (jq-like filter)..."
+                size="small"
+                value={configSearchQuery}
+                onChange={(e) => setConfigSearchQuery(e.target.value)}
+                className="w-full bg-theme-background-alt text-theme-foreground border-theme-primary"
+              />
+              {configSearchQuery && (
+                <div className="text-xs opacity-70 mt-2">
+                  Filtering configuration...
+                </div>
+              )}
+            </div>
+            <Separator className="mb-4" />
+            
+            <div className="flex-1 overflow-y-auto scrollbar mb-4">
               <Pre className="text-xs bg-theme-background-alt p-4 rounded">
-                {configData || "Loading..."}
+                {filteredConfigData || "Loading..."}
               </Pre>
             </div>
             <Separator className="mb-4" />
-            <div className="flex justify-end">
-               <Button
-                 variant="background2"
-                 box="round"
-                 onClick={() => setShowConfig(false)}
-                 size="small"
+            <div className="flex justify-between">
+              {configSearchQuery && (
+                <Button
+                  variant="foreground1"
+                  box="round"
+                  onClick={() => setConfigSearchQuery("")}
+                  size="small"
+                >
+                  Clear Filter
+                </Button>
+              )}
+              <div className="flex-1" />
+              <Button
+                variant="background2"
+                box="round"
+                onClick={() => {
+                  setShowConfig(false);
+                  setConfigSearchQuery("");
+                }}
+                size="small"
               >
                 Close
               </Button>
@@ -4516,7 +5372,7 @@ function OpenCodeChatTUI() {
                               {isSelected && (
                                 <Badge
                                   variant="background2"
-                                  cap="round"
+                                  cap="square"
                                   className="text-xs"
                                 >
                                   ↵
@@ -4563,7 +5419,7 @@ function OpenCodeChatTUI() {
                           {isSelected && (
                             <Badge
                               variant="background2"
-                              cap="round"
+                              cap="square"
                               className="text-xs"
                             >
                               ↵

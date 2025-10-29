@@ -91,7 +91,7 @@ body,
   --background2: var(--theme-backgroundAccent);
   --background3: var(--theme-border);
   --foreground0: var(--theme-primary);
-  --foreground1: var(--theme-foreground);
+  --foreground1: var(--theme-primary);
   --foreground2: var(--theme-foregroundAlt);
 }
 
@@ -99,14 +99,14 @@ body,
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-border: var(--theme-border);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: "MesloLGS NF", "Meslo LG S", monospace;
+  --font-mono: "MesloLGS NF", "Meslo LG S", monospace;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "MesloLGS NF", "Meslo LG S", monospace;
   margin: 0;
   padding: 0;
   overflow: hidden;
@@ -475,48 +475,88 @@ button[box-="double"][variant-="foreground0"] {
   border: 1px solid var(--theme-primary) !important;
 }
 
-/* Badge Enhancements - Override WebTUI defaults */
-[is-~="badge"][variant-="foreground0"],
-[is-~="badge"]:not([variant-]) {
-  --badge-color: var(--theme-primary) !important;
-  --badge-text: var(--theme-background) !important;
-  background-image: linear-gradient(
-    90deg,
-    transparent 0,
-    transparent calc(1ch - 1px),
-    var(--theme-primary) calc(1ch - 1px),
-    var(--theme-primary) calc(100% - 1ch + 1px),
-    transparent calc(100% - 1ch + 1px),
-    transparent
-  ) !important;
-  color: var(--theme-background) !important;
+/* Badge Enhancements - Match box="square" button aesthetic */
+/* Base badge style - transparent background with border like buttons */
+[is-~="badge"] {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 4px !important;
+  padding: 0.25rem 0.5rem !important;
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  transition: all 0.2s ease !important;
+  box-sizing: border-box !important;
+  white-space: nowrap !important;
+  vertical-align: middle !important;
 }
 
-[is-~="badge"][variant-="foreground0"]:before,
-[is-~="badge"][variant-="foreground0"]:after,
-[is-~="badge"]:not([variant-]):before,
-[is-~="badge"]:not([variant-]):after {
-  background-color: var(--theme-primary) !important;
+/* Title badge - larger and bolder for main title */
+[is-~="badge"].badge-title {
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  padding: 0.375rem 0.75rem !important;
+  letter-spacing: 0.025em !important;
+}
+
+/* Disable WebTUI's default gradient backgrounds and pseudo-elements */
+[is-~="badge"]:before,
+[is-~="badge"]:after {
+  content: none !important;
+  display: none !important;
+}
+
+[is-~="badge"] {
+  background-image: none !important;
+  background-color: transparent !important;
+}
+
+/* Foreground variants - bordered style like buttons */
+[is-~="badge"][variant-="foreground0"],
+[is-~="badge"]:not([variant-]) {
+  background-color: transparent !important;
+  color: var(--theme-primary) !important;
+  border: 1px solid var(--theme-primary) !important;
 }
 
 [is-~="badge"][variant-="foreground1"] {
-  --badge-color: var(--theme-foreground) !important;
-  --badge-text: var(--theme-background) !important;
-  background-image: linear-gradient(
-    90deg,
-    transparent 0,
-    transparent calc(1ch - 1px),
-    var(--theme-foreground) calc(1ch - 1px),
-    var(--theme-foreground) calc(100% - 1ch + 1px),
-    transparent calc(100% - 1ch + 1px),
-    transparent
-  ) !important;
-  color: var(--theme-background) !important;
+  background-color: transparent !important;
+  color: var(--theme-secondary) !important;
+  border: 1px solid var(--theme-secondary) !important;
 }
 
-[is-~="badge"][variant-="foreground1"]:before,
-[is-~="badge"][variant-="foreground1"]:after {
-  background-color: var(--theme-foreground) !important;
+[is-~="badge"][variant-="foreground2"] {
+  background-color: transparent !important;
+  color: var(--theme-accent) !important;
+  border: 1px solid var(--theme-accent) !important;
+}
+
+/* Background variant badges - subtle with border */
+[is-~="badge"][variant-="background0"] {
+  background-color: transparent !important;
+  color: var(--theme-foregroundAlt) !important;
+  border: 1px solid var(--theme-border) !important;
+}
+
+[is-~="badge"][variant-="background1"] {
+  background-color: var(--theme-backgroundAlt) !important;
+  color: var(--theme-foreground) !important;
+  border: 1px solid var(--theme-border) !important;
+}
+
+[is-~="badge"][variant-="background2"] {
+  background-color: var(--theme-backgroundAccent) !important;
+  color: var(--theme-foreground) !important;
+  border: 1px solid var(--theme-border) !important;
+}
+
+[is-~="badge"][variant-="background3"] {
+  background-color: transparent !important;
+  color: var(--theme-info) !important;
+  border: 1px solid var(--theme-info) !important;
 }
 
 /* WebTUI Scrollbar Styles */
@@ -757,8 +797,7 @@ textarea::placeholder {
 }
 
 .connection-indicator.connected {
-  background-color: var(--theme-success);
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  background-color: rgb(34, 197, 94);
 }
 
 .connection-indicator.disconnected {
@@ -797,115 +836,51 @@ textarea::placeholder {
   border-color: rgb(from var(--theme-error) r g b / 0.3);
 }
 
-/* Status Badge Variants */
-.status-badge-success {
-  --badge-color: var(--theme-success) !important;
-  --badge-text: var(--theme-background) !important;
-  background-image: linear-gradient(
-    90deg,
-    transparent 0,
-    transparent calc(1ch - 1px),
-    var(--theme-success) calc(1ch - 1px),
-    var(--theme-success) calc(100% - 1ch + 1px),
-    transparent calc(100% - 1ch + 1px),
-    transparent
-  ) !important;
-  color: var(--theme-background) !important;
+.status-card.pending {
+  background-color: rgb(from var(--theme-muted) r g b / 0.1);
+  border-color: rgb(from var(--theme-muted) r g b / 0.3);
 }
 
-.status-badge-success:before,
-.status-badge-success:after {
-  background-color: var(--theme-success) !important;
+/* Status Badge Variants - Semantic colors with button-like bordered style */
+.status-badge-success,
+[is-~="badge"][variant-="success"] {
+  background-color: transparent !important;
+  color: var(--theme-success) !important;
+  border: 1px solid var(--theme-success) !important;
 }
 
-.status-badge-warning {
-  --badge-color: var(--theme-warning) !important;
-  --badge-text: var(--theme-background) !important;
-  background-image: linear-gradient(
-    90deg,
-    transparent 0,
-    transparent calc(1ch - 1px),
-    var(--theme-warning) calc(1ch - 1px),
-    var(--theme-warning) calc(100% - 1ch + 1px),
-    transparent calc(100% - 1ch + 1px),
-    transparent
-  ) !important;
-  color: var(--theme-background) !important;
+.status-badge-warning,
+[is-~="badge"][variant-="warning"] {
+  background-color: transparent !important;
+  color: var(--theme-warning) !important;
+  border: 1px solid var(--theme-warning) !important;
 }
 
-.status-badge-warning:before,
-.status-badge-warning:after {
-  background-color: var(--theme-warning) !important;
+.status-badge-error,
+[is-~="badge"][variant-="error"] {
+  background-color: transparent !important;
+  color: var(--theme-error) !important;
+  border: 1px solid var(--theme-error) !important;
 }
 
-.status-badge-error {
-  --badge-color: var(--theme-error) !important;
-  --badge-text: var(--theme-background) !important;
-  background-image: linear-gradient(
-    90deg,
-    transparent 0,
-    transparent calc(1ch - 1px),
-    var(--theme-error) calc(1ch - 1px),
-    var(--theme-error) calc(100% - 1ch + 1px),
-    transparent calc(100% - 1ch + 1px),
-    transparent
-  ) !important;
-  color: var(--theme-background) !important;
+.status-badge-info,
+[is-~="badge"][variant-="info"] {
+  background-color: transparent !important;
+  color: var(--theme-info) !important;
+  border: 1px solid var(--theme-info) !important;
 }
 
-.status-badge-error:before,
-.status-badge-error:after {
-  background-color: var(--theme-error) !important;
-}
-
-.status-badge-info {
-  --badge-color: var(--theme-primary) !important;
-  --badge-text: var(--theme-background) !important;
-  background-image: linear-gradient(
-    90deg,
-    transparent 0,
-    transparent calc(1ch - 1px),
-    var(--theme-primary) calc(1ch - 1px),
-    var(--theme-primary) calc(100% - 1ch + 1px),
-    transparent calc(100% - 1ch + 1px),
-    transparent
-  ) !important;
-  color: var(--theme-background) !important;
-}
-
-.status-badge-info:before,
-.status-badge-info:after {
-  background-color: var(--theme-primary) !important;
-}
-
-.status-badge-pending {
-  --badge-color: var(--theme-muted) !important;
-  --badge-text: var(--theme-background) !important;
-  background-image: linear-gradient(
-    90deg,
-    transparent 0,
-    transparent calc(1ch - 1px),
-    var(--theme-muted) calc(1ch - 1px),
-    var(--theme-muted) calc(100% - 1ch + 1px),
-    transparent calc(100% - 1ch + 1px),
-    transparent
-  ) !important;
-  color: var(--theme-background) !important;
-}
-
-.status-badge-pending:before,
-.status-badge-pending:after {
-  background-color: var(--theme-muted) !important;
+.status-badge-pending,
+[is-~="badge"][variant-="pending"] {
+  background-color: transparent !important;
+  color: var(--theme-muted) !important;
+  border: 1px solid var(--theme-muted) !important;
 }
 
 /* Accessibility Enhancements */
 
 /* Reduced Motion Support */
 @media (prefers-reduced-motion: reduce) {
-  .connection-indicator.connected {
-    animation: none;
-  }
-
   * {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;

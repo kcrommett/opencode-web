@@ -93,7 +93,7 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
                   {isSelected && (
                     <Badge
                       variant="background2"
-                      cap="round"
+                      cap="square"
                       className="text-xs ml-2"
                     >
                       Current

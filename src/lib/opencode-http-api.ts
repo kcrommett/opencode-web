@@ -1,5 +1,5 @@
 import { getOpencodeServerUrl } from "./opencode-config";
-import { Agent } from "../types/opencode";
+import type { Agent, Part } from "../types/opencode";
 
 function buildUrl(
   path: string,
@@ -142,15 +142,94 @@ export async function sendMessage(
   modelID?: string,
   directory?: string,
   agent?: Agent,
+  parts?: Part[],
 ) {
-  const body: Record<string, unknown> = {
-    parts: [
-      {
+  const body: Record<string, unknown> = {};
+  const providedParts = Array.isArray(parts)
+    ? parts.filter((part): part is Part => Boolean(part))
+    : [];
+
+  const serializePart = (part: Part): Record<string, unknown> | null => {
+    if (!part || typeof part.type !== "string") return null;
+
+    if (part.type === "text") {
+      const textValue =
+        typeof part.text === "string"
+          ? part.text
+          : typeof part.content === "string"
+            ? part.content
+            : "";
+
+      if (textValue.trim().length === 0) {
+        return null;
+      }
+
+      return {
         type: "text",
-        text: content,
-      },
-    ],
+        text: textValue,
+      };
+    }
+
+    if (part.type === "file") {
+      const rawContent =
+        typeof part.content === "string" && part.content.length > 0
+          ? part.content
+          : undefined;
+      const rawUrl =
+        typeof part.url === "string" && part.url.length > 0 ? part.url : undefined;
+      const url = rawContent ?? rawUrl;
+
+      if (!url) {
+        return null;
+      }
+
+      const mime =
+        typeof (part as { mimeType?: unknown }).mimeType === "string" &&
+        (part as { mimeType?: string }).mimeType
+          ? (part as { mimeType?: string }).mimeType
+          : typeof (part as { mime?: unknown }).mime === "string" &&
+              (part as { mime?: string }).mime
+            ? (part as { mime?: string }).mime
+            : undefined;
+
+      const filename =
+        typeof (part as { name?: unknown }).name === "string" &&
+        (part as { name?: string }).name
+          ? (part as { name?: string }).name
+          : typeof (part as { filename?: unknown }).filename === "string" &&
+              (part as { filename?: string }).filename
+            ? (part as { filename?: string }).filename
+            : typeof part.path === "string" && part.path.length > 0
+              ? part.path
+              : undefined;
+
+      const filePart: Record<string, unknown> = {
+        type: "file",
+        mime: mime ?? "application/octet-stream",
+        url,
+      };
+
+      if (filename) {
+        filePart.filename = filename;
+      }
+
+      return filePart;
+    }
+
+    return null;
   };
+
+  const mappedParts = providedParts
+    .map((part) => serializePart(part))
+    .filter((part): part is Record<string, unknown> => Boolean(part));
+
+  if (mappedParts.length === 0) {
+    if (content.trim().length > 0) {
+      mappedParts.push({ type: "text", text: content });
+    }
+  }
+
+  body.parts = mappedParts.length > 0 ? mappedParts : [{ type: "text", text: content }];
   if (providerID && modelID) {
     body.model = { providerID, modelID };
   }
@@ -340,12 +419,26 @@ export async function readFile(filePath: string, directory?: string) {
   return data;
 }
 
-export async function getFileStatus() {
-  const response = await fetch(buildUrl("/file/status"));
+export async function getFileStatus(directory?: string) {
+  const params = directory ? { directory } : undefined;
+  const response = await fetch(buildUrl("/file/status", params));
   if (!response.ok) {
     throw new Error(`Failed to get file status: ${response.statusText}`);
   }
   return response.json();
+}
+
+export async function getFileDiff(filePath: string, directory?: string): Promise<{ diff: string; additions: number; deletions: number } | null> {
+  const params = directory ? { directory } : undefined;
+  // Use git diff command to get the diff for this specific file
+  const response = await fetch(buildUrl("/file/status", params));
+  if (!response.ok) {
+    return null;
+  }
+  
+  // For now, return null - we'll implement this using session diffs or shell execution
+  // This is a placeholder that will be implemented properly
+  return null;
 }
 
 export async function respondToPermission(
@@ -633,6 +726,18 @@ export async function setAuth(
   });
   if (!response.ok) {
     throw new Error(`Failed to set auth: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Get MCP (Model Context Protocol) server status
+ * @returns MCP server status including connection states
+ */
+export async function getMcpStatus() {
+  const response = await fetch(buildUrl("/mcp"));
+  if (!response.ok) {
+    throw new Error(`Failed to get MCP status: ${response.statusText}`);
   }
   return response.json();
 }

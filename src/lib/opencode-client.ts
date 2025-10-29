@@ -4,7 +4,7 @@ import {
   OpencodeEvent,
   SSEConnectionState,
 } from "./opencode-events";
-import { Agent } from "../types/opencode";
+import type { Agent, Part, McpStatusResponse, McpServerStatus } from "../types/opencode";
 
 const isDevMode = process.env.NODE_ENV !== "production";
 const devLog = (...args: unknown[]) => {
@@ -12,6 +12,33 @@ const devLog = (...args: unknown[]) => {
 };
 const devError = (...args: unknown[]) => {
   if (isDevMode) console.error(...args);
+};
+
+const isMcpStatus = (value: unknown): value is McpServerStatus =>
+  value === "connected" || value === "failed" || value === "disabled";
+
+const extractMcpStatus = (value: unknown): McpServerStatus | null => {
+  if (isMcpStatus(value)) return value;
+  if (value && typeof value === "object") {
+    const status = (value as { status?: unknown }).status;
+    if (isMcpStatus(status)) return status;
+  }
+  return null;
+};
+
+const normalizeMcpStatusResponse = (
+  input: unknown,
+): McpStatusResponse | null => {
+  if (!input || typeof input !== "object") return null;
+  const normalized: Record<string, McpServerStatus> = {};
+  for (const [name, value] of Object.entries(
+    input as Record<string, unknown>,
+  )) {
+    const status = extractMcpStatus(value);
+    if (status) normalized[name] = status;
+  }
+  if (Object.keys(normalized).length === 0) return null;
+  return normalized;
 };
 
 // SSE client and event handlers
@@ -105,10 +132,11 @@ export const openCodeService = {
     modelID = "claude-3-5-sonnet-20241022",
     directory?: string,
     agent?: Agent,
+    parts?: Part[],
   ) {
     try {
       const response = await serverFns.sendMessage({
-        data: { sessionId, content, providerID, modelID, directory, agent },
+        data: { sessionId, content, providerID, modelID, directory, agent, parts },
       });
       return { data: response, error: null };
     } catch (error) {
@@ -366,9 +394,11 @@ export const openCodeService = {
     }
   },
 
-  async getFileStatus() {
+  async getFileStatus(directory?: string) {
     try {
-      const response = await serverFns.getFileStatus();
+      const response = await serverFns.getFileStatus({
+        data: directory ? { directory } : {},
+      });
       return { data: response };
     } catch (error) {
       throw error;
@@ -618,6 +648,19 @@ export const openCodeService = {
       });
       return { data: response };
     } catch (error) {
+      throw error;
+    }
+  },
+
+  async getMcpStatus(): Promise<{ data: McpStatusResponse | null }> {
+    try {
+      const response = await serverFns.getMcpStatus();
+      devLog("[OpenCodeService] MCP status (raw):", response);
+      const normalized = normalizeMcpStatusResponse(response);
+      devLog("[OpenCodeService] MCP status (normalized):", normalized);
+      return { data: normalized };
+    } catch (error) {
+      devError("Error in getMcpStatus:", error);
       throw error;
     }
   },

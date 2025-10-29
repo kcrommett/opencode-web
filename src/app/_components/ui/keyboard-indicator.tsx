@@ -66,6 +66,7 @@ export function KeyboardIndicator({ keyboardState, className }: KeyboardIndicato
   const getSecondaryShortcuts = (modalName: string | null): { key: string; description: string }[] => {
     const shortcuts: Record<string, { key: string; description: string }[]> = {
       session: [
+        { key: "/", description: "Search sessions" },
         { key: "↑/↓", description: "Navigate sessions" },
         { key: "Enter", description: "Select session" },
         { key: "E", description: "Edit mode" },
@@ -73,6 +74,7 @@ export function KeyboardIndicator({ keyboardState, className }: KeyboardIndicato
         { key: "Esc", description: "Close" },
       ],
       project: [
+        { key: "/", description: "Search projects" },
         { key: "↑/↓", description: "Navigate projects" },
         { key: "Enter", description: "Select project" },
         { key: "Esc", description: "Close" },
@@ -83,6 +85,7 @@ export function KeyboardIndicator({ keyboardState, className }: KeyboardIndicato
         { key: "Esc", description: "Close" },
       ],
       model: [
+        { key: "/", description: "Search models" },
         { key: "↑/↓", description: "Navigate models" },
         { key: "Enter", description: "Select model" },
         { key: "Esc", description: "Close" },
@@ -93,7 +96,12 @@ export function KeyboardIndicator({ keyboardState, className }: KeyboardIndicato
         { key: "Esc", description: "Close" },
       ],
       config: [
+        { key: "/", description: "Search config" },
         { key: "Tab", description: "Navigate fields" },
+        { key: "Esc", description: "Close" },
+      ],
+      help: [
+        { key: "/", description: "Search commands" },
         { key: "Esc", description: "Close" },
       ],
     };
@@ -105,6 +113,11 @@ export function KeyboardIndicator({ keyboardState, className }: KeyboardIndicato
   const secondaryShortcuts = keyboardState.secondaryShortcutsActive 
     ? getSecondaryShortcuts(keyboardState.activeModal) 
     : [];
+
+  // Don't render if secondary shortcuts are active but there are no shortcuts to show
+  if (keyboardState.secondaryShortcutsActive && secondaryShortcuts.length === 0) {
+    return null;
+  }
 
   return (
     <div
@@ -182,6 +195,9 @@ export function KeyboardIndicator({ keyboardState, className }: KeyboardIndicato
               <kbd className="px-1.5 py-0.5 rounded font-mono text-xs" style={{ backgroundColor: "var(--theme-backgroundAlt)", borderColor: "var(--theme-primary)", borderWidth: "1px" }}>W</kbd> Workspace
             </div>
             <div className="text-sm opacity-80">
+              <kbd className="px-1.5 py-0.5 rounded font-mono text-xs" style={{ backgroundColor: "var(--theme-backgroundAlt)", borderColor: "var(--theme-primary)", borderWidth: "1px" }}>I</kbd> Info
+            </div>
+            <div className="text-sm opacity-80">
               <kbd className="px-1.5 py-0.5 rounded font-mono text-xs" style={{ backgroundColor: "var(--theme-backgroundAlt)", borderColor: "var(--theme-primary)", borderWidth: "1px" }}>M</kbd> Models
             </div>
             <div className="text-sm opacity-80">
@@ -193,7 +209,7 @@ export function KeyboardIndicator({ keyboardState, className }: KeyboardIndicato
             <div className="text-sm opacity-80">
               <kbd className="px-1.5 py-0.5 rounded font-mono text-xs" style={{ backgroundColor: "var(--theme-backgroundAlt)", borderColor: "var(--theme-primary)", borderWidth: "1px" }}>C</kbd> Config
             </div>
-            <div className="text-sm opacity-80 col-span-2">
+            <div className="text-sm opacity-80">
               <kbd className="px-1.5 py-0.5 rounded font-mono text-xs" style={{ backgroundColor: "var(--theme-backgroundAlt)", borderColor: "var(--theme-primary)", borderWidth: "1px" }}>H</kbd> Help
             </div>
           </div>

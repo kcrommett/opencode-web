@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { flushSync } from "react-dom";
 import { openCodeService, handleOpencodeError } from "@/lib/opencode-client";
 import { OpencodeEvent, SSEConnectionState } from "@/lib/opencode-events";
 import { getAgentModel, getDefaultModel } from "@/lib/config";
 import { parseCommand, ParsedCommand } from "@/lib/commandParser";
 import { shouldDecodeAsText as checkIfText } from "@/lib/mime-utils";
 import { searchSessions, SessionFilters } from "@/lib/session-index";
+import { normalizeDiagnostics } from "@/lib/status-utils";
 import type {
   Agent,
   FileContentData,
@@ -14,6 +16,7 @@ import type {
   OpencodeConfig,
   Command,
   SessionUsageTotals,
+  SidebarStatusState,
 } from "@/types/opencode";
 
 const isDevEnvironment = process.env.NODE_ENV !== "production";
@@ -24,6 +27,34 @@ const debugLog = (...args: unknown[]) => {
 };
 
 const BASE64_ENCODING = "base64";
+
+const normalizeProjectRelativePath = (inputPath: string): string | null => {
+  if (!inputPath) return null;
+
+  // Normalize path separators
+  let normalized = inputPath.replace(/\\/g, "/");
+
+  // Strip any leading ../ or ./ patterns
+  // The API sometimes returns paths like "../../file.txt" which should just be "file.txt"
+  normalized = normalized.replace(/^(?:\.\.\/)+/, "").replace(/^\.\//, "");
+
+  return normalized || null;
+};
+
+
+
+// UUID generator with fallback for environments without crypto.randomUUID
+const generateClientId = (): string => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  // Fallback: generate a random UUID v4-like string
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
 
 /**
  * MIGRATION NOTE (Issue #39):
@@ -40,6 +71,7 @@ const BASE64_ENCODING = "base64";
 
 interface Message {
   id: string;
+  clientId?: string; // Stable client-side ID for React keys
   type: "user" | "assistant";
   content: string;
   timestamp: Date;
@@ -253,6 +285,7 @@ interface FileResponse {
   modifiedAt?: string;
 }
 
+
 export function useOpenCode() {
   debugLog("🔥 useOpenCode hook INITIALIZED");
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
@@ -295,6 +328,11 @@ export function useOpenCode() {
   const [currentSessionTodos, setCurrentSessionTodos] = useState<SessionTodo[]>(
     [],
   );
+  
+  // Session diffs from summary
+  const [currentSessionDiffs, setCurrentSessionDiffs] = useState<
+    Array<{ file: string; before: string; after: string; additions: number; deletions: number }>
+  >([]);
 
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
   const [config, setConfig] = useState<OpencodeConfig | null>(null);
@@ -357,6 +395,41 @@ export function useOpenCode() {
   const [subagents, setSubagents] = useState<Agent[]>([]);
   const [currentAgent, setCurrentAgent] = useState<Agent | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
+
+  // Sidebar status state
+  const [sidebarStatus, setSidebarStatus] = useState<SidebarStatusState>({
+    sessionContext: {
+      id: "",
+      messageCount: 0,
+      isStreaming: false,
+      tokensUsed: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      reasoningTokens: 0,
+      cacheTokens: {
+        read: 0,
+        write: 0,
+      },
+    },
+    mcpStatus: null,
+    mcpStatusLoading: false,
+    mcpStatusError: null,
+    lspDiagnostics: {},
+    gitStatus: {
+      staged: [],
+      modified: [],
+      untracked: [],
+      deleted: [],
+      timestamp: new Date(),
+    },
+  });
+
+  // Polling intervals
+  const gitStatusDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const sessionContextUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const previousSessionUsageRef = useRef(sessionUsage);
+  const previousSessionIdRef = useRef<string | null>(null);
+  const hasLoadedInitialMcpStatusRef = useRef(false);
 
   const [loadedModels, setLoadedModels] = useState(false);
   const [loadedConfig, setLoadedConfig] = useState(false);
@@ -456,6 +529,124 @@ export function useOpenCode() {
     });
   }, []);
 
+  // Sidebar status refresh functions
+  const refreshMcpStatus = useCallback(async () => {
+    // Delay showing loading state to prevent flash on fast responses
+    const LOADING_DELAY = 200; // ms
+    let showLoading = false;
+    
+    const loadingTimer = setTimeout(() => {
+      showLoading = true;
+      setSidebarStatus((prev) => ({
+        ...prev,
+        mcpStatusLoading: true,
+        mcpStatusError: null,
+      }));
+    }, LOADING_DELAY);
+
+    try {
+      const response = await openCodeService.getMcpStatus();
+      clearTimeout(loadingTimer);
+      setSidebarStatus((prev) => ({
+        ...prev,
+        mcpStatus: response.data ?? null,
+        mcpStatusLoading: false,
+        mcpStatusError: null,
+      }));
+    } catch (error) {
+      clearTimeout(loadingTimer);
+      if (isDevEnvironment) {
+        console.error("Failed to refresh MCP status:", error);
+      }
+      setSidebarStatus((prev) => ({
+        ...prev,
+        mcpStatusLoading: false,
+        mcpStatusError:
+          error instanceof Error ? error.message : "Failed to load MCP status",
+      }));
+    }
+  }, []);
+
+  const refreshGitStatus = useCallback(async () => {
+    if (!currentProject?.worktree) return;
+    
+    try {
+      const response = await openCodeService.getFileStatus(currentProject.worktree);
+      // API returns array of file status objects: [{ path, status, added, removed }]
+      const fileStatusArray = response.data as Array<{
+        path: string;
+        status: string;
+        added?: number;
+        removed?: number;
+      }> | undefined;
+      
+      if (fileStatusArray) {
+        // Transform array into separate arrays by status
+        const staged: string[] = [];
+        const modified: string[] = [];
+        const untracked: string[] = [];
+        const deleted: string[] = [];
+        
+        fileStatusArray.forEach((file) => {
+          const normalizedPath = normalizeProjectRelativePath(file.path);
+          if (!normalizedPath) {
+            if (isDevEnvironment) {
+              console.debug('[GitStatus] Skipping invalid path', {
+                path: file.path,
+                worktree: currentProject?.worktree,
+              });
+            }
+            return;
+          }
+
+          switch (file.status) {
+
+
+            case "staged":
+              staged.push(normalizedPath);
+              break;
+            case "modified":
+              modified.push(normalizedPath);
+              break;
+            case "untracked":
+              untracked.push(normalizedPath);
+              break;
+            case "deleted":
+              deleted.push(normalizedPath);
+              break;
+            default:
+              // Handle any other status as modified for now
+              if (file.status !== "unchanged") {
+                modified.push(normalizedPath);
+              }
+          }
+        });
+        
+        setSidebarStatus((prev) => ({
+          ...prev,
+          gitStatus: {
+            branch: undefined, // API doesn't provide branch info
+            ahead: undefined,  // API doesn't provide ahead/behind info
+            behind: undefined,
+            staged,
+            modified,
+            untracked,
+            deleted,
+            timestamp: new Date(),
+          },
+        }));
+      }
+    } catch (error) {
+      if (isDevEnvironment) {
+        console.error("Failed to refresh git status:", error);
+      }
+    }
+  }, [currentProject?.worktree]);
+
+  const refreshStatusAll = useCallback(async () => {
+    await Promise.all([refreshMcpStatus(), refreshGitStatus()]);
+  }, [refreshMcpStatus, refreshGitStatus]);
+
   // Queue management functions
   const addToQueue = useCallback((message: Message) => {
     setMessageQueue((prev: Message[]) => {
@@ -492,7 +683,16 @@ export function useOpenCode() {
   // Placeholder - will be properly defined after sendMessage
   const processNextInQueueRef = useRef<(() => Promise<void>) | null>(null);
 
+  interface SendMessageOptions {
+    providerID?: string;
+    modelID?: string;
+    sessionOverride?: Session;
+    agent?: Agent;
+    parts?: Part[];
+  }
+
   const normalizeProject = useCallback((project: unknown): Project | null => {
+
     if (!project || typeof project !== "object") return null;
     const value = project as {
       id?: string;
@@ -587,6 +787,15 @@ export function useOpenCode() {
               directory?: string;
               projectID?: string;
               time?: { created?: number; updated?: number };
+              summary?: {
+                diffs?: Array<{
+                  file: string;
+                  before: string;
+                  after: string;
+                  additions: number;
+                  deletions: number;
+                }>;
+              };
             };
             setCurrentSession({
               id: session.id,
@@ -600,6 +809,14 @@ export function useOpenCode() {
                 ? new Date(session.time.updated)
                 : undefined,
             });
+            
+            // Extract session diffs
+            if (session.summary?.diffs) {
+              setCurrentSessionDiffs(session.summary.diffs);
+              debugLog("[Hydration] Loaded session diffs:", session.summary.diffs.length);
+            } else {
+              setCurrentSessionDiffs([]);
+            }
 
             try {
               const messagesResponse = await openCodeService.getMessages(
@@ -619,6 +836,7 @@ export function useOpenCode() {
 
                   return {
                     id: msg.info?.id || `msg-${index}`,
+                    clientId: generateClientId(),
                     type: msg.info?.role === "user" ? "user" : "assistant",
                     content,
                     parts,
@@ -777,6 +995,7 @@ export function useOpenCode() {
 
             return {
               id: msg.info?.id || `msg-${index}`,
+              clientId: generateClientId(),
               type: msg.info?.role === "user" ? "user" : "assistant",
               content,
               parts,
@@ -833,6 +1052,83 @@ export function useOpenCode() {
         seenMessageIdsRef.current.clear();
         loadedMessages.forEach((msg) => seenMessageIdsRef.current.add(msg.id));
         setMessages(loadedMessages);
+
+        const toNumber = (value: unknown): number =>
+          typeof value === "number" && Number.isFinite(value) ? value : 0;
+
+        const usageTotalsBase = activeMessages.reduce<SessionUsageTotals>(
+          (acc, msg) => {
+            const tokenRecord = msg.metadata?.tokens as Record<string, unknown> | undefined;
+            if (!tokenRecord) {
+              return acc;
+            }
+
+            const cacheRecord =
+              typeof tokenRecord.cache === "object" && tokenRecord.cache !== null
+                ? (tokenRecord.cache as Record<string, unknown>)
+                : undefined;
+
+            const cacheReadValue =
+              cacheRecord !== undefined
+                ? toNumber(cacheRecord.read)
+                : toNumber(tokenRecord.cacheRead);
+            const cacheWriteValue =
+              cacheRecord !== undefined
+                ? toNumber(cacheRecord.write)
+                : toNumber(tokenRecord.cacheWrite);
+
+            const totalFromRecord = toNumber(tokenRecord.totalTokens);
+
+            return {
+              input: acc.input + toNumber(tokenRecord.input),
+              output: acc.output + toNumber(tokenRecord.output),
+              reasoning: acc.reasoning + toNumber(tokenRecord.reasoning),
+              cacheRead: acc.cacheRead + cacheReadValue,
+              cacheWrite: acc.cacheWrite + cacheWriteValue,
+              totalTokens: acc.totalTokens + totalFromRecord,
+            };
+          },
+          {
+            input: 0,
+            output: 0,
+            reasoning: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+            totalTokens: 0,
+          },
+        );
+
+        const totalsWithSum: SessionUsageTotals = {
+          ...usageTotalsBase,
+          totalTokens:
+            usageTotalsBase.totalTokens > 0
+              ? usageTotalsBase.totalTokens
+              : usageTotalsBase.input +
+                usageTotalsBase.output +
+                usageTotalsBase.reasoning +
+                usageTotalsBase.cacheRead +
+                usageTotalsBase.cacheWrite,
+        };
+
+        setSessionUsage((prev) => {
+          const previousTotals = prev.get(sessionId);
+          const totalsChanged =
+            !previousTotals ||
+            previousTotals.input !== totalsWithSum.input ||
+            previousTotals.output !== totalsWithSum.output ||
+            previousTotals.reasoning !== totalsWithSum.reasoning ||
+            previousTotals.cacheRead !== totalsWithSum.cacheRead ||
+            previousTotals.cacheWrite !== totalsWithSum.cacheWrite ||
+            previousTotals.totalTokens !== totalsWithSum.totalTokens;
+
+          if (!totalsChanged) {
+            return prev;
+          }
+
+          const next = new Map(prev);
+          next.set(sessionId, totalsWithSum);
+          return next;
+        });
 
         const lastAssistantMessage = [...loadedMessages]
           .reverse()
@@ -924,6 +1220,49 @@ export function useOpenCode() {
             setCurrentSession((prev) =>
               prev?.id === sessionInfo.id ? { ...prev, ...sessionInfo } : prev,
             );
+
+            const sessionTime = (sessionInfo as {
+              time?: { created?: string | number; updated?: string | number };
+            }).time;
+            const updatedAt =
+              sessionInfo.updatedAt ?? sessionTime?.updated ?? null;
+            const createdAt =
+              sessionInfo.createdAt ?? sessionTime?.created ?? null;
+
+            // Update session context with new info
+            setSidebarStatus((prev) => {
+              const previousContext = prev.sessionContext;
+
+              const parseDateValue = (input: unknown): Date | undefined => {
+                if (input instanceof Date) return input;
+                if (typeof input === "string" || typeof input === "number") {
+                  const parsed = new Date(input);
+                  if (!Number.isNaN(parsed.getTime())) {
+                    return parsed;
+                  }
+                }
+                return undefined;
+              };
+
+              const activeSinceDate =
+                createdAt !== null ? parseDateValue(createdAt) : undefined;
+              const lastActivityDate =
+                updatedAt !== null ? parseDateValue(updatedAt) : undefined;
+
+              return {
+                ...prev,
+                sessionContext: {
+                  ...previousContext,
+                  title: sessionInfo.title ?? previousContext.title,
+                  activeSince: activeSinceDate ?? previousContext.activeSince,
+                  lastActivity: lastActivityDate ?? previousContext.lastActivity,
+                  messageCount:
+                    typeof sessionInfo.messageCount === "number"
+                      ? sessionInfo.messageCount
+                      : previousContext.messageCount,
+                },
+              };
+            });
           }
           break;
         }
@@ -1005,7 +1344,17 @@ export function useOpenCode() {
           if (sessionId) {
             markSessionIdle(sessionId);
           }
+          
+          // Update session context with error
           if (sessionId && sessionId === activeSession?.id) {
+            setSidebarStatus((prev) => ({
+              ...prev,
+              sessionContext: {
+                ...prev.sessionContext,
+                lastError: typeof error?.message === 'string' ? error.message : 'Unknown error',
+              },
+            }));
+            
             loadMessages(sessionId).catch((loadError) => {
               console.error(
                 "[SSE] Failed to refresh messages after session error:",
@@ -1119,6 +1468,7 @@ export function useOpenCode() {
 
             const newMessage: Message = {
               id: messageInfo.id,
+              clientId: generateClientId(),
               type: messageInfo.role === "user" ? "user" : "assistant",
               content: "",
               parts: [],
@@ -1260,6 +1610,7 @@ export function useOpenCode() {
               // Create placeholder message for incoming parts
               const newMessage: Message = {
                 id: targetMessageId,
+                clientId: generateClientId(),
                 type: "assistant", // Assume assistant for incoming parts
                 content: "",
                 parts: [],
@@ -1422,6 +1773,15 @@ export function useOpenCode() {
           const { file, event: fileEvent } = event.properties;
           if (file && fileEvent) {
             debugLog("[SSE] File watcher update:", file, fileEvent);
+            
+            // Trigger git status refresh with debouncing
+            if (gitStatusDebounceRef.current) {
+              clearTimeout(gitStatusDebounceRef.current);
+            }
+            
+            gitStatusDebounceRef.current = setTimeout(() => {
+              refreshGitStatus();
+            }, 1000); // Debounce for 1 second
           }
           break;
         }
@@ -1436,6 +1796,17 @@ export function useOpenCode() {
         }
 
         case "lsp.client.diagnostics": {
+          const summary = normalizeDiagnostics(event.properties as Record<string, unknown>);
+          if (summary && typeof (event.properties as Record<string, unknown>).serverID === 'string') {
+            const serverID = (event.properties as Record<string, unknown>).serverID as string;
+            setSidebarStatus((prev) => ({
+              ...prev,
+              lspDiagnostics: {
+                ...prev.lspDiagnostics,
+                [serverID]: summary,
+              },
+            }));
+          }
           break;
         }
       }
@@ -1469,6 +1840,12 @@ export function useOpenCode() {
         clearTimeout(streamingTimeoutRef.current);
         streamingTimeoutRef.current = null;
       }
+      
+      // Clear git status debounce
+      if (gitStatusDebounceRef.current) {
+        clearTimeout(gitStatusDebounceRef.current);
+        gitStatusDebounceRef.current = null;
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -1478,6 +1855,7 @@ export function useOpenCode() {
     currentWorktree,
     showToast,
     loadMessages,
+    refreshGitStatus,
     // processNextInQueueRef.current is used but doesn't need to be in deps (ref pattern)
     // messageQueue.length is accessed via the ref, not directly
   ]);
@@ -1550,6 +1928,122 @@ export function useOpenCode() {
     }
   }, [currentSession?.id]);
 
+  // Update session context when current session changes
+  useEffect(() => {
+    if (!currentSession?.id) {
+      previousSessionIdRef.current = null;
+      if (sessionContextUpdateTimeoutRef.current) {
+        clearTimeout(sessionContextUpdateTimeoutRef.current);
+        sessionContextUpdateTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    const sameSession = previousSessionIdRef.current === currentSession.id;
+    const usageChanged = previousSessionUsageRef.current !== sessionUsage;
+    previousSessionUsageRef.current = sessionUsage;
+    previousSessionIdRef.current = currentSession.id;
+
+    const scheduleUpdate = () => {
+      setSidebarStatus((prev) => {
+        const previousContext = prev.sessionContext;
+        const sessionUsageData = sessionUsage.get(currentSession.id);
+        const tokensUsed =
+          sessionUsageData?.totalTokens ??
+          previousContext.tokensUsed ??
+          0;
+        const cacheRead =
+          sessionUsageData?.cacheRead ??
+          previousContext.cacheTokens?.read ??
+          0;
+        const cacheWrite =
+          sessionUsageData?.cacheWrite ??
+          previousContext.cacheTokens?.write ??
+          0;
+
+        return {
+          ...prev,
+          sessionContext: {
+            ...previousContext,
+            id: currentSession.id,
+            title: currentSession.title ?? previousContext.title,
+            agentName: currentAgent?.name ?? previousContext.agentName,
+            modelId:
+              selectedModel?.modelID ??
+              sessionModelMap[currentSession.id]?.modelID ??
+              previousContext.modelId,
+            modelName:
+              selectedModel?.name ??
+              sessionModelMap[currentSession.id]?.name ??
+              previousContext.modelName,
+            messageCount:
+              currentSession.messageCount ??
+              messages.length ??
+              previousContext.messageCount,
+            activeSince: currentSession.createdAt ?? previousContext.activeSince,
+            lastActivity:
+              currentSession.updatedAt ?? previousContext.lastActivity,
+            tokenUsage: sessionUsageData ?? previousContext.tokenUsage,
+            tokensUsed,
+            inputTokens:
+              sessionUsageData?.input ?? previousContext.inputTokens,
+            outputTokens:
+              sessionUsageData?.output ?? previousContext.outputTokens,
+            reasoningTokens:
+              sessionUsageData?.reasoning ??
+              previousContext.reasoningTokens,
+            cacheTokens: {
+              read: cacheRead,
+              write: cacheWrite,
+            },
+            isStreaming,
+            lastError:
+              previousContext.id && previousContext.id !== currentSession.id
+                ? null
+                : previousContext.lastError ?? null,
+          },
+        };
+      });
+    };
+
+    if (sessionContextUpdateTimeoutRef.current) {
+      clearTimeout(sessionContextUpdateTimeoutRef.current);
+      sessionContextUpdateTimeoutRef.current = null;
+    }
+
+    const delay = usageChanged && sameSession ? 200 : 0;
+
+    if (delay > 0) {
+      sessionContextUpdateTimeoutRef.current = setTimeout(() => {
+        scheduleUpdate();
+        sessionContextUpdateTimeoutRef.current = null;
+      }, delay);
+    } else {
+      scheduleUpdate();
+    }
+
+    return () => {
+      if (sessionContextUpdateTimeoutRef.current) {
+        clearTimeout(sessionContextUpdateTimeoutRef.current);
+        sessionContextUpdateTimeoutRef.current = null;
+      }
+    };
+  }, [
+    currentSession?.id,
+    currentSession?.title,
+    currentSession?.createdAt,
+    currentSession?.updatedAt,
+    currentSession?.messageCount,
+    currentAgent?.name,
+    selectedModel?.modelID,
+    selectedModel?.name,
+    selectedModel?.providerID,
+    sessionModelMap,
+    messages.length,
+    sessionUsage,
+    isStreaming,
+  ]);
+
   const createSession = useCallback(
     async ({
       title,
@@ -1565,16 +2059,6 @@ export function useOpenCode() {
         if (response.error) {
           throw new Error(response.error);
         }
-        const responseData = response.data as { info?: { id?: string } };
-        const messageId = responseData?.info?.id;
-
-        if (!messageId) {
-          debugLog(
-            "[SendMessage] No message ID in response, SSE will handle updates",
-          );
-          // Don't throw error - SSE events will populate the message
-          return;
-        }
         const session = response.data as unknown as
           | {
               id: string;
@@ -1585,7 +2069,7 @@ export function useOpenCode() {
               updatedAt?: string | number;
             }
           | undefined;
-        if (!session) {
+        if (!session?.id) {
           throw new Error("Failed to create session");
         }
 
@@ -1694,16 +2178,27 @@ export function useOpenCode() {
   );
 
   const sendMessage = useCallback(
-    async (
-      content: string,
-      providerID?: string,
-      modelID?: string,
-      sessionOverride?: Session,
-      agent?: Agent,
-    ) => {
-      const targetSession = sessionOverride || currentSession;
+    async (content: string, options: SendMessageOptions = {}) => {
+      const {
+        providerID,
+        modelID,
+        sessionOverride,
+        agent,
+        parts,
+      } = options;
+
+      // Auto-create session if none exists (issue #59)
+      let targetSession = sessionOverride || currentSession;
       if (!targetSession) {
-        throw new Error("No active session");
+        if (process.env.NODE_ENV !== "production") {
+          console.log("[SendMessage] No active session, auto-creating with blank title");
+        }
+        try {
+          targetSession = await createSession({ title: "" });
+        } catch (error) {
+          console.error("[SendMessage] Failed to auto-create session:", error);
+          throw new Error("Failed to create session: " + handleOpencodeError(error));
+        }
       }
 
       markSessionRunning(targetSession.id);
@@ -1773,6 +2268,7 @@ export function useOpenCode() {
           effectiveModelID,
           currentProject?.worktree,
           effectiveAgent || undefined,
+          parts,
         );
 
         if (response.error) {
@@ -1808,17 +2304,20 @@ export function useOpenCode() {
             updated[optimisticIndex]?.type === "user" &&
             "optimistic" in updated[optimisticIndex]
           ) {
+            const optimisticMessage = updated[optimisticIndex];
             updated[optimisticIndex] = {
-              ...updated[optimisticIndex],
+              ...optimisticMessage,
               id: messageId,
               content: expandedContent,
+              parts: parts ?? optimisticMessage.parts,
               optimistic: false,
             };
           } else {
             updated.push({
               id: messageId,
-              type: "user",
+              type: "user" as const,
               content: expandedContent,
+              parts,
               timestamp: new Date(),
             });
           }
@@ -1853,6 +2352,7 @@ export function useOpenCode() {
       selectedModel,
       currentAgent,
       config,
+      createSession,
       markSessionRunning,
       markSessionIdle,
     ],
@@ -1915,13 +2415,13 @@ export function useOpenCode() {
       });
 
       // Send the queued message
-      await sendMessage(
-        nextMessage.content,
-        selectedModel?.providerID,
-        selectedModel?.modelID,
-        currentSession ?? undefined,
-        currentAgent ?? undefined,
-      );
+      await sendMessage(nextMessage.content, {
+        providerID: selectedModel?.providerID,
+        modelID: selectedModel?.modelID,
+        sessionOverride: currentSession ?? undefined,
+        agent: currentAgent ?? undefined,
+        parts: nextMessage.parts,
+      });
     } catch (error) {
       console.error("[Queue] Failed to process queued message:", error);
       // Re-add to front of queue on error
@@ -2122,6 +2622,30 @@ export function useOpenCode() {
           setCurrentSession(session);
           await loadMessages(sessionId);
 
+          // Fetch full session data to get diffs
+          const response = await openCodeService.getSession(
+            sessionId,
+            currentProject?.worktree
+          );
+          if (response.data) {
+            const fullSession = response.data as unknown as {
+              summary?: {
+                diffs?: Array<{
+                  file: string;
+                  before: string;
+                  after: string;
+                  additions: number;
+                  deletions: number;
+                }>;
+              };
+            };
+            if (fullSession.summary?.diffs) {
+              setCurrentSessionDiffs(fullSession.summary.diffs);
+            } else {
+              setCurrentSessionDiffs([]);
+            }
+          }
+
           // Restore the last used model for this session
           if (sessionModelMap[sessionId]) {
             manualModelSelectionRef.current = false;
@@ -2132,7 +2656,7 @@ export function useOpenCode() {
         console.error("Failed to switch session:", error);
       }
     },
-    [sessions, loadMessages, sessionModelMap],
+    [sessions, loadMessages, sessionModelMap, currentProject?.worktree],
   );
 
   const deleteSession = useCallback(
@@ -2310,6 +2834,8 @@ export function useOpenCode() {
       content: string,
       encoding: string | null,
       mimeType: string | null,
+      diff?: string,
+      patch?: FileContentData['patch'],
     ): FileContentData => {
       const normalizedEncoding =
         typeof encoding === "string" ? encoding.trim().toLowerCase() : null;
@@ -2329,6 +2855,8 @@ export function useOpenCode() {
         mimeType: mimeType ?? null,
         text,
         dataUrl: buildDataUrl(content, normalizedEncoding, mimeType ?? null),
+        diff,
+        patch,
       };
     },
     [decodeBase64ToUtf8, shouldDecodeAsText],
@@ -2362,7 +2890,15 @@ export function useOpenCode() {
               "mimeType" in data && typeof data.mimeType === "string"
                 ? data.mimeType
                 : null;
-            return buildFileContent(filePath, data.content, encoding, mimeType);
+            const diff =
+              "diff" in data && typeof data.diff === "string"
+                ? data.diff
+                : undefined;
+            const patch =
+              "patch" in data && typeof data.patch === "object"
+                ? data.patch as FileContentData['patch']
+                : undefined;
+            return buildFileContent(filePath, data.content, encoding, mimeType, diff, patch);
           }
           if ("diff" in data && typeof data.diff === "string") {
             return buildFileContent(filePath, data.diff, null, "text/plain");
@@ -2718,16 +3254,19 @@ export function useOpenCode() {
   }, [currentAgent]);
 
   const selectAgent = useCallback((agent: Agent) => {
-    setCurrentAgent(agent);
-    manualModelSelectionRef.current = false;
-    
-    const agentModel = resolveModelPreference(
-      getAgentModel(config, agent),
-      modelsRef.current,
-    );
-    if (agentModel) {
-      setSelectedModel(agentModel);
-    }
+    // Use flushSync to ensure UI updates immediately, even during message sends
+    flushSync(() => {
+      setCurrentAgent(agent);
+      manualModelSelectionRef.current = false;
+      
+      const agentModel = resolveModelPreference(
+        getAgentModel(config, agent),
+        modelsRef.current,
+      );
+      if (agentModel) {
+        setSelectedModel(agentModel);
+      }
+    });
   }, [config]);
 
   useEffect(() => {
@@ -2765,6 +3304,28 @@ export function useOpenCode() {
       }
     }
   }, [currentProject, loadSessions]);
+
+  // MCP status initial load
+  useEffect(() => {
+    if (!isHydrated || !isConnected) {
+      hasLoadedInitialMcpStatusRef.current = false;
+      return;
+    }
+
+    if (hasLoadedInitialMcpStatusRef.current) {
+      return;
+    }
+
+    hasLoadedInitialMcpStatusRef.current = true;
+    refreshMcpStatus();
+  }, [isConnected, isHydrated, refreshMcpStatus]);
+
+  // Initial git status load when project changes
+  useEffect(() => {
+    if (currentProject?.worktree && isHydrated) {
+      refreshGitStatus();
+    }
+  }, [currentProject?.worktree, isHydrated, refreshGitStatus]);
 
   const extractTextFromParts = useCallback((parts?: Part[]): string => {
     if (!parts || parts.length === 0) return "";
@@ -2969,13 +3530,12 @@ export function useOpenCode() {
 
       const commandModel = cmd.model || getAgentModel(config, commandAgent || null);
 
-      return sendMessage(
-        prompt,
-        commandModel?.providerID,
-        commandModel?.modelID,
-        currentSession || undefined,
-        commandAgent || currentAgent || undefined,
-      );
+      return sendMessage(prompt, {
+        providerID: commandModel?.providerID,
+        modelID: commandModel?.modelID,
+        sessionOverride: currentSession || undefined,
+        agent: commandAgent || currentAgent || undefined,
+      });
     },
     [currentSession, agents, currentAgent, config, sendMessage],
   );
@@ -3096,5 +3656,12 @@ export function useOpenCode() {
     selectedFrame,
     selectFrame,
     frameActions,
+    // Sidebar status state and utilities
+    sidebarStatus,
+    refreshMcpStatus,
+    refreshGitStatus,
+    refreshStatusAll,
+    // Session diffs
+    currentSessionDiffs,
   };
 }

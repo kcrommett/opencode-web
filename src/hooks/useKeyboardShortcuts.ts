@@ -7,6 +7,8 @@ const debugLog = (...args: unknown[]) => {
   if (isDevEnvironment) console.log(...args);
 };
 
+const DOUBLE_ESCAPE_WINDOW = 400;
+
 /**
  * Keyboard shortcut state management
  */
@@ -16,6 +18,7 @@ export interface KeyboardState {
   activeModal: string | null;
   selectedFrame: string | null;
   lastEscapeTime: number | null;
+  doubleEscapeTime: number | null;
   focusStack: HTMLElement[];
 }
 
@@ -78,6 +81,7 @@ export function useKeyboardShortcuts() {
     activeModal: null,
     selectedFrame: null,
     lastEscapeTime: null,
+    doubleEscapeTime: null,
     focusStack: [],
   });
 
@@ -86,6 +90,9 @@ export function useKeyboardShortcuts() {
   const secondaryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const activeModalRef = useRef<string | null>(null);
   const spacePassthroughRef = useRef(false);
+  const escapeResetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const doubleEscapeResetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastEscapeRef = useRef<number | null>(null);
 
   /**
    * Activate secondary shortcuts mode (when modal is open)
@@ -98,17 +105,13 @@ export function useKeyboardShortcuts() {
       secondaryShortcutsActive: true
     }));
 
-    // Auto-deactivate after 2 seconds
+    // Clear any existing timeout
     if (secondaryTimeoutRef.current) {
       clearTimeout(secondaryTimeoutRef.current);
+      secondaryTimeoutRef.current = null;
     }
 
-    secondaryTimeoutRef.current = setTimeout(() => {
-      setKeyboardState((prev) => ({ 
-        ...prev, 
-        secondaryShortcutsActive: false 
-      }));
-    }, 2000);
+    // Don't auto-deactivate - let user dismiss with ESC
   }, []);
 
   /**
@@ -257,36 +260,97 @@ export function useKeyboardShortcuts() {
 
       // Handle ESC key
       if (key === "Escape") {
-        // If dialog is open, let dialog handler take precedence
+        // If secondary shortcuts are active but no dialog, dismiss them
+        if (keyboardState.secondaryShortcutsActive && !isDialogOpen()) {
+          event.preventDefault();
+          deactivateSecondaryShortcuts();
+          return;
+        }
+
         if (isDialogOpen()) {
           return;
         }
 
-        // If leader mode is active, deactivate it
+        const now = Date.now();
+        const lastEsc = lastEscapeRef.current;
+        const focusedElement = getFocusedElement();
+        const isDoubleEscape =
+          typeof lastEsc === "number" && now - lastEsc < DOUBLE_ESCAPE_WINDOW;
+
+        if (isDoubleEscape) {
+          event.preventDefault();
+
+          if (escapeResetTimeoutRef.current) {
+            clearTimeout(escapeResetTimeoutRef.current);
+            escapeResetTimeoutRef.current = null;
+          }
+
+          lastEscapeRef.current = null;
+
+          if (keyboardState.leaderActive) {
+            deactivateLeader();
+          }
+
+          if (keyboardState.secondaryShortcutsActive) {
+            deactivateSecondaryShortcuts();
+          }
+
+          setKeyboardState((prev) => ({
+            ...prev,
+            leaderActive: false,
+            selectedFrame: null,
+            lastEscapeTime: null,
+            doubleEscapeTime: now,
+          }));
+
+          if (doubleEscapeResetTimeoutRef.current) {
+            clearTimeout(doubleEscapeResetTimeoutRef.current);
+          }
+
+          doubleEscapeResetTimeoutRef.current = setTimeout(() => {
+            setKeyboardState((prev) => ({ ...prev, doubleEscapeTime: null }));
+            doubleEscapeResetTimeoutRef.current = null;
+          }, DOUBLE_ESCAPE_WINDOW);
+
+          if (focusedElement && focusedElement !== document.body) {
+            focusedElement.blur();
+          }
+
+          return;
+        }
+
+        if (escapeResetTimeoutRef.current) {
+          clearTimeout(escapeResetTimeoutRef.current);
+        }
+
+        lastEscapeRef.current = now;
+
         if (keyboardState.leaderActive) {
           event.preventDefault();
           deactivateLeader();
-          return;
         }
 
-        // Track double ESC
-        const now = Date.now();
-        const lastEsc = keyboardState.lastEscapeTime;
-        
-        if (lastEsc && now - lastEsc < 500) {
-          // Double ESC detected - will be handled by app-level logic
-          setKeyboardState((prev) => ({ ...prev, lastEscapeTime: null }));
-          return;
-        }
-
-        setKeyboardState((prev) => ({ ...prev, lastEscapeTime: now }));
-
-        // Blur focused element
-        const focused = getFocusedElement();
-        if (focused && focused !== document.body) {
+        if (focusedElement && focusedElement !== document.body) {
           event.preventDefault();
-          focused.blur();
+          focusedElement.blur();
+        } else {
+          event.preventDefault();
         }
+
+        setKeyboardState((prev) => ({
+          ...prev,
+          leaderActive: false,
+          selectedFrame: null,
+          lastEscapeTime: now,
+          doubleEscapeTime: null,
+        }));
+
+        escapeResetTimeoutRef.current = setTimeout(() => {
+          lastEscapeRef.current = null;
+          setKeyboardState((prev) => ({ ...prev, lastEscapeTime: null }));
+          escapeResetTimeoutRef.current = null;
+        }, DOUBLE_ESCAPE_WINDOW);
+
         return;
       }
 
@@ -353,6 +417,15 @@ export function useKeyboardShortcuts() {
       if (leaderTimeoutRef.current) {
         clearTimeout(leaderTimeoutRef.current);
       }
+      if (escapeResetTimeoutRef.current) {
+        clearTimeout(escapeResetTimeoutRef.current);
+        escapeResetTimeoutRef.current = null;
+      }
+      if (doubleEscapeResetTimeoutRef.current) {
+        clearTimeout(doubleEscapeResetTimeoutRef.current);
+        doubleEscapeResetTimeoutRef.current = null;
+      }
+      lastEscapeRef.current = null;
     };
   }, [
     keyboardState.leaderActive,
@@ -363,6 +436,7 @@ export function useKeyboardShortcuts() {
     shortcuts,
     activateLeader,
     deactivateLeader,
+    deactivateSecondaryShortcuts,
   ]);
 
   return {

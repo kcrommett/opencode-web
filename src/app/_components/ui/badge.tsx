@@ -9,7 +9,12 @@ interface BadgeProps {
     | "background3"
     | "foreground0"
     | "foreground1"
-    | "foreground2";
+    | "foreground2"
+    | "success"
+    | "warning"
+    | "error"
+    | "info"
+    | "pending";
   cap?:
     | "square"
     | "round"
@@ -23,7 +28,7 @@ interface BadgeProps {
 export const Badge: React.FC<BadgeProps> = ({
   children,
   variant,
-  cap,
+  cap = "square", // Default to square caps per webtui
   className = "",
 }) => {
   const badgeProps: Record<string, string> = {};

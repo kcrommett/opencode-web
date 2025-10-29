@@ -235,7 +235,7 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
           <div className="flex gap-2">
             {onNewSession && (
               <Button
-                variant="foreground0"
+                variant="foreground1"
                 box="round"
                 size="small"
                 onClick={() => {
@@ -426,7 +426,7 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
                         {isCurrent && (
                           <Badge
                             variant="background2"
-                            cap="round"
+                            cap="square"
                             className="text-xs"
                           >
                             Current

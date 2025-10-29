@@ -69,7 +69,7 @@ export const SessionFilters: React.FC<SessionFiltersProps> = ({
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">Advanced Filters</span>
           {hasActiveFilters && (
-            <Badge variant="background0" cap="round" className="text-xs">
+            <Badge variant="background0" cap="square" className="text-xs">
               Active
             </Badge>
           )}
@@ -196,18 +196,18 @@ export const SessionFilters: React.FC<SessionFiltersProps> = ({
               </div>
               <div className="flex flex-wrap gap-2">
                 {filters.sortBy && filters.sortBy !== "updated" && (
-                  <Badge variant="background2" cap="round" className="text-xs">
+                  <Badge variant="background2" cap="square" className="text-xs">
                     Sort: {filters.sortBy === "created" ? "Created" : "Title"}{" "}
                     {filters.sortOrder === "asc" ? "↑" : "↓"}
                   </Badge>
                 )}
                 {filters.dateFrom && (
-                  <Badge variant="background2" cap="round" className="text-xs">
+                  <Badge variant="background2" cap="square" className="text-xs">
                     From: {filters.dateFrom.toLocaleDateString()}
                   </Badge>
                 )}
                 {filters.dateTo && (
-                  <Badge variant="background2" cap="round" className="text-xs">
+                  <Badge variant="background2" cap="square" className="text-xs">
                     To: {filters.dateTo.toLocaleDateString()}
                   </Badge>
                 )}

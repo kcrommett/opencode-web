@@ -1,0 +1,171 @@
+import React, { useState } from "react";
+import { useOpenCodeContext } from "@/contexts/OpenCodeContext";
+import { Badge } from "./badge";
+import { StatusBadge } from "./status-badge";
+import { Button } from "./button";
+import { Separator } from "./separator";
+
+interface ModifiedFilesPanelProps {
+  onFileClick?: (filePath: string) => void;
+}
+
+export const ModifiedFilesPanel: React.FC<ModifiedFilesPanelProps> = ({ onFileClick }) => {
+  const { sidebarStatus, refreshGitStatus, readFile } = useOpenCodeContext();
+  const { gitStatus } = sidebarStatus;
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["modified", "staged", "untracked"]));
+  const isDevEnvironment = process.env.NODE_ENV !== "production";
+
+  const toggleSection = (section: string) => {
+    const newExpanded = new Set(expandedSections);
+    if (newExpanded.has(section)) {
+      newExpanded.delete(section);
+    } else {
+      newExpanded.add(section);
+    }
+    setExpandedSections(newExpanded);
+  };
+
+  const hasChanges = gitStatus.staged.length > 0 || 
+                    gitStatus.modified.length > 0 || 
+                    gitStatus.untracked.length > 0 || 
+                    gitStatus.deleted.length > 0;
+
+  const getFileCount = (count: number, label: string) => {
+    if (count === 0) return null;
+    return (
+      <Badge key={label} variant="background1" cap="square">
+        {count} {label}
+      </Badge>
+    );
+  };
+
+  const handleFileClick = (filePath: string) => {
+    if (onFileClick) {
+      onFileClick(filePath);
+    }
+  };
+
+  // Clean up file path for display by removing redundant ../../../ prefix
+  const cleanFilePath = (filePath: string): string => {
+    // Remove leading ../../../ or ../../ patterns
+    return filePath.replace(/^(\.\.\/)+/, '');
+  };
+
+  const renderFileSection = (title: string, files: string[], sectionKey: string) => {
+    if (files.length === 0) return null;
+
+    const isExpanded = expandedSections.has(sectionKey);
+    return (
+      <div className="space-y-2">
+        <div 
+          className="flex items-center justify-between cursor-pointer hover:bg-theme-background-alt rounded p-2"
+          onClick={() => toggleSection(sectionKey)}
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">{title}</span>
+            <Badge variant="background2" cap="square">
+              {files.length}
+            </Badge>
+          </div>
+          <span className="text-xs text-theme-muted">
+            {isExpanded ? "▼" : "▶"}
+          </span>
+        </div>
+        
+        {isExpanded && (
+          <div className="pl-4 space-y-1">
+            {files.map((file) => (
+              <div 
+                key={file} 
+                className="text-xs truncate cursor-pointer underline transition-colors"
+                style={{
+                  color: "var(--theme-primary)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.opacity = "0.8";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.opacity = "1";
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleFileClick(file);
+                }}
+                title={file}
+              >
+                {cleanFilePath(file)}
+              </div>
+            ))}
+          </div>
+        )}
+        
+        {!isExpanded && files.length > 5 && (
+          <div className="pl-4 text-xs text-theme-muted">
+            ...and {files.length - 5} more
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium">Modified Files</h3>
+        <Button
+          variant="foreground1"
+          box="round"
+          size="small"
+          onClick={() => {
+            if (isDevEnvironment) {
+              console.log("Refreshing git status...");
+            }
+            refreshGitStatus();
+          }}
+        >
+          Refresh
+        </Button>
+      </div>
+
+      {/* Branch Info */}
+      {gitStatus.branch && (
+        <div className="space-y-2">
+          <div className="text-xs text-theme-muted">Branch</div>
+          <div className="flex items-center gap-2">
+            <Badge variant="background1" cap="square">
+              {gitStatus.branch}
+            </Badge>
+            {gitStatus.ahead && gitStatus.ahead > 0 && (
+              <StatusBadge status="success">
+                ↑{gitStatus.ahead}
+              </StatusBadge>
+            )}
+            {gitStatus.behind && gitStatus.behind > 0 && (
+              <StatusBadge status="warning">
+                ↓{gitStatus.behind}
+              </StatusBadge>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* File Lists */}
+      {!hasChanges ? (
+        <div className="text-center text-sm text-theme-muted py-8">
+          No changes detected
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {renderFileSection("Staged", gitStatus.staged, "staged")}
+          {renderFileSection("Modified", gitStatus.modified, "modified")}
+          {renderFileSection("Untracked", gitStatus.untracked, "untracked")}
+          {renderFileSection("Deleted", gitStatus.deleted, "deleted")}
+        </div>
+      )}
+
+      <div className="text-xs text-theme-muted text-center">
+        Last updated: {new Date(gitStatus.timestamp).toLocaleTimeString()}
+      </div>
+    </div>
+  );
+};
