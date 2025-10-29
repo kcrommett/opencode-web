@@ -499,6 +499,8 @@ function OpenCodeChatTUI() {
   });
   const [fileSearchQuery, setFileSearchQuery] = useState("");
   const [modelSearchQuery, setModelSearchQuery] = useState("");
+  const [selectedFileIndex, setSelectedFileIndex] = useState(0);
+  const fileListRef = useRef<HTMLDivElement>(null);
 
   const [selectedFile, setSelectedFile] = useState<string | null>(() => {
     if (typeof window !== "undefined") {
@@ -689,7 +691,9 @@ function OpenCodeChatTUI() {
   const mcpAggregated = useMemo(() => {
     const { mcpStatus, mcpStatusLoading, mcpStatusError } = sidebarStatus;
     
-    if (mcpStatusLoading) {
+    // Only show loading state if we don't have existing status data
+    // This prevents flash when refreshing with existing data
+    if (mcpStatusLoading && !mcpStatus) {
       return {
         colorClass: 'bg-yellow-500',
         badgeVariant: 'foreground1' as const,
@@ -697,7 +701,7 @@ function OpenCodeChatTUI() {
         title: 'Loading MCP status...'
       };
     }
-    if (mcpStatusError) {
+    if (mcpStatusError && !mcpStatus) {
       return {
         colorClass: 'bg-red-500',
         badgeVariant: 'foreground0' as const,
@@ -858,11 +862,81 @@ function OpenCodeChatTUI() {
       registerShortcut({
         key: "f",
         handler: () => {
+          // Toggle Files sidebar if already on Files tab, otherwise navigate to Files
+          if (activeTab === "files" && isLeftSidebarOpen) {
+            setIsLeftSidebarOpen(false);
+          } else {
+            setActiveTab("files");
+            setIsLeftSidebarOpen(true);
+            // Focus file list after opening
+            setTimeout(() => {
+              fileListRef.current?.focus();
+            }, 100);
+          }
           closeAllModals();
-          selectFrame("files");
         },
         requiresLeader: true,
-        description: "Navigate to Files",
+        description: "Toggle Files Sidebar",
+        category: "navigation",
+      })
+    );
+
+    // Files tab shortcuts (when files tab is active)
+    unregisterFns.push(
+      registerShortcut({
+        key: "s",
+        handler: () => {
+          if (activeTab === "files") {
+            fileSearchInputRef.current?.focus();
+          }
+        },
+        requiresLeader: true,
+        description: "Search Files",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "r",
+        handler: async () => {
+          if (activeTab === "files") {
+            try {
+              await loadFiles(fileDirectory || ".");
+              setSelectedFile(null);
+              setFileContent(null);
+              setFileError(null);
+            } catch (err) {
+              console.error("Failed to load directory:", err);
+            }
+          }
+        },
+        requiresLeader: true,
+        description: "Refresh Files",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "u",
+        handler: async () => {
+          if (activeTab === "files" && fileDirectory !== ".") {
+            const parts = fileDirectory.split("/").filter(Boolean);
+            parts.pop();
+            const parent = parts.length > 0 ? parts.join("/") : ".";
+            try {
+              await loadFiles(parent);
+              setSelectedFile(null);
+              setFileContent(null);
+              setFileError(null);
+            } catch (err) {
+              console.error("Failed to load directory:", err);
+            }
+          }
+        },
+        requiresLeader: true,
+        description: "Navigate Up Directory",
         category: "navigation",
       })
     );
@@ -871,11 +945,30 @@ function OpenCodeChatTUI() {
       registerShortcut({
         key: "w",
         handler: () => {
+          // Toggle Workspace sidebar if already on Workspace tab, otherwise navigate to Workspace
+          if (activeTab === "workspace" && isLeftSidebarOpen) {
+            setIsLeftSidebarOpen(false);
+          } else {
+            setActiveTab("workspace");
+            setIsLeftSidebarOpen(true);
+          }
           closeAllModals();
-          selectFrame("workspace");
         },
         requiresLeader: true,
-        description: "Navigate to Workspace",
+        description: "Toggle Workspace Sidebar",
+        category: "navigation",
+      })
+    );
+
+    unregisterFns.push(
+      registerShortcut({
+        key: "i",
+        handler: () => {
+          closeAllModals();
+          setIsStatusSidebarOpen((prev) => !prev);
+        },
+        requiresLeader: true,
+        description: "Toggle Info Panel",
         category: "navigation",
       })
     );
@@ -945,18 +1038,7 @@ function OpenCodeChatTUI() {
       })
     );
 
-    unregisterFns.push(
-      registerShortcut({
-        key: "x",
-        handler: () => {
-          closeAllModals();
-          setIsStatusSidebarOpen((prev) => !prev);
-        },
-        requiresLeader: true,
-        description: "Toggle Status Sidebar",
-        category: "navigation",
-      })
-    );
+
 
     // Secondary action shortcuts (require selected frame)
     unregisterFns.push(
@@ -1053,6 +1135,15 @@ function OpenCodeChatTUI() {
     closeAllModals,
     setIsStatusSidebarOpen,
     sessionPickerEditControls,
+    activeTab,
+    isLeftSidebarOpen,
+    setActiveTab,
+    setIsLeftSidebarOpen,
+    fileDirectory,
+    loadFiles,
+    setSelectedFile,
+    setFileContent,
+    setFileError,
   ]);
 
   useLayoutEffect(() => {
@@ -2787,9 +2878,9 @@ function OpenCodeChatTUI() {
       if (files.length === 0) {
         void handleDirectoryOpen(fileDirectory || ".");
       }
-      // Focus the file search input when switching to files tab
+      // Focus the file list container when switching to files tab
       setTimeout(() => {
-        fileSearchInputRef.current?.focus();
+        fileListRef.current?.focus();
       }, 0);
     }
     if (tab === "workspace") {
@@ -2856,15 +2947,33 @@ function OpenCodeChatTUI() {
     }
   }, [isMobile, activeTab]);
 
-  // Focus file search input when files tab becomes active
+  // Focus file list when files tab becomes active
   useEffect(() => {
-
-    if (activeTab === "files") {
+    if (activeTab === "files" && isLeftSidebarOpen) {
       setTimeout(() => {
-        fileSearchInputRef.current?.focus();
+        fileListRef.current?.focus();
       }, 0);
     }
-  }, [activeTab]);
+  }, [activeTab, isLeftSidebarOpen]);
+
+  // Reset selected file index when filtered files change
+  useEffect(() => {
+    setSelectedFileIndex(0);
+  }, [filteredFiles.length, fileDirectory]);
+
+  // Scroll focused file into view
+  useEffect(() => {
+    if (activeTab === "files" && filteredFiles.length > 0) {
+      const fileList = fileListRef.current;
+      if (fileList) {
+        const fileItems = fileList.querySelectorAll('[data-file-item]');
+        const selectedItem = fileItems[selectedFileIndex] as HTMLElement;
+        if (selectedItem) {
+          selectedItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+      }
+    }
+  }, [selectedFileIndex, activeTab, filteredFiles]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -3019,40 +3128,46 @@ function OpenCodeChatTUI() {
               className="hidden md:inline-flex"
               onClick={() => setIsStatusSidebarOpen((prev) => !prev)}
               aria-pressed={isStatusSidebarOpen}
-              title={isStatusSidebarOpen ? "Hide status sidebar" : "Show status sidebar"}
+              title={isStatusSidebarOpen ? "Hide info panel (Space+I)" : "Show info panel (Space+I)"}
             >
-              Status
+              Info
             </Button>
           </div>
         </div>
         <div className="hidden md:flex items-center gap-1 sm:gap-2 flex-shrink-0">
           <Button
-            variant="foreground0"
+            variant={showHelp ? "foreground0" : "foreground1"}
             box="round"
             onClick={openHelp}
             size="small"
-            className="border-none whitespace-nowrap"
+            className="whitespace-nowrap"
+            aria-pressed={showHelp}
+            title={showHelp ? "Close help" : "Open help (Space+H)"}
           >
             Help
           </Button>
           <Button
-            variant="foreground0"
+            variant={showThemes ? "foreground0" : "foreground1"}
             box="round"
             onClick={openThemes}
             size="small"
-            className="border-none whitespace-nowrap"
+            className="whitespace-nowrap"
+            aria-pressed={showThemes}
+            title={showThemes ? "Close themes" : "Open themes (Space+T)"}
           >
             Themes
           </Button>
           <Button
-            variant="foreground0"
+            variant={showConfig ? "foreground0" : "foreground1"}
             box="round"
             onClick={() => {
               closeAllModals();
               setShowConfig(true);
             }}
             size="small"
-            className="border-none whitespace-nowrap"
+            className="whitespace-nowrap"
+            aria-pressed={showConfig}
+            title={showConfig ? "Close config" : "Open config (Space+C)"}
           >
             Config
           </Button>
@@ -3091,17 +3206,30 @@ function OpenCodeChatTUI() {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <h3 className="text-sm font-medium">Projects</h3>
-                      <Button
-                        variant="foreground0"
-                        box="round"
-                        size="small"
-                        onClick={() => {
-                          setNewProjectDirectory("");
-                          setShowNewProjectForm(true);
-                        }}
-                      >
-                        New Project
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="foreground1"
+                          box="round"
+                          size="small"
+                          onClick={() => setShowProjectPicker(true)}
+                          title="Search projects"
+                        >
+                          Search
+                        </Button>
+                        <Button
+                          variant={showNewProjectForm ? "foreground0" : "foreground1"}
+                          box="round"
+                          size="small"
+                          onClick={() => {
+                            setNewProjectDirectory("");
+                            setShowNewProjectForm(true);
+                          }}
+                          aria-pressed={showNewProjectForm}
+                          title="Create new project"
+                        >
+                          New Project
+                        </Button>
+                      </div>
                     </div>
                   </View>
                   <Separator className="mb-2" />
@@ -3158,7 +3286,7 @@ function OpenCodeChatTUI() {
                           {sidebarEditMode ? "Done" : "Edit"}
                         </Button>
                         <Button
-                          variant="foreground0"
+                          variant={showNewSessionForm ? "foreground0" : "foreground1"}
                           box="round"
                           onClick={() => {
                             setNewSessionTitle("");
@@ -3166,6 +3294,8 @@ function OpenCodeChatTUI() {
                           }}
                           size="small"
                           disabled={!currentProject}
+                          aria-pressed={showNewSessionForm}
+                          title="Create new session"
                         >
                           New Session
                         </Button>
@@ -3438,25 +3568,67 @@ function OpenCodeChatTUI() {
                   </div>
                 </div>
                 <Separator />
-                <div className="flex-1 overflow-y-auto scrollbar space-y-0.5">
+                <div
+                  ref={fileListRef}
+                  className="flex-1 overflow-y-auto scrollbar space-y-0.5"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (filteredFiles.length === 0) return;
+                    
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setSelectedFileIndex((prev) =>
+                        prev < filteredFiles.length - 1 ? prev + 1 : prev
+                      );
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setSelectedFileIndex((prev) => (prev > 0 ? prev - 1 : prev));
+                    } else if (e.key === "Enter") {
+                      e.preventDefault();
+                      const file = filteredFiles[selectedFileIndex];
+                      if (file) {
+                        if (file.type === "directory") {
+                          void handleDirectoryOpen(file.path);
+                        } else {
+                          void handleFileSelect(file.path);
+                        }
+                      }
+                    } else if (e.key === "/" || e.key === "s") {
+                      // Allow search shortcuts
+                      e.stopPropagation();
+                      fileSearchInputRef.current?.focus();
+                    }
+                  }}
+                  style={{
+                    outline: "none",
+                  }}
+                >
                   {filteredFiles.length > 0 ? (
-                    filteredFiles.map((file) => {
+                    filteredFiles.map((file, index) => {
                       const isDirectory = file.type === "directory";
                       const isSelected =
                         !isDirectory && selectedFile === file.path;
+                      const isFocused = index === selectedFileIndex;
                       return (
                         <div
                           key={file.path}
+                          data-file-item
                           className="px-2 py-1 cursor-pointer transition-colors rounded"
                           style={{
-                            backgroundColor: isSelected
+                            backgroundColor: isFocused
                               ? "var(--theme-primary)"
-                              : "var(--theme-background)",
-                            color: isSelected
+                              : isSelected
+                                ? "rgba(from var(--theme-primary) r g b / 0.3)"
+                                : "var(--theme-background)",
+                            color: isFocused
                               ? "var(--theme-background)"
                               : "var(--theme-foreground)",
+                            border: isFocused
+                              ? "1px solid var(--theme-primary)"
+                              : "1px solid transparent",
                           }}
                           onClick={() => {
+                            setSelectedFileIndex(index);
                             if (isDirectory) {
                               void handleDirectoryOpen(file.path);
                             } else {
@@ -3464,15 +3636,17 @@ function OpenCodeChatTUI() {
                             }
                           }}
                           onMouseEnter={(e) => {
-                            if (!isSelected) {
+                            setSelectedFileIndex(index);
+                            if (!isFocused) {
                               e.currentTarget.style.backgroundColor =
                                 "var(--theme-backgroundAlt)";
                             }
                           }}
                           onMouseLeave={(e) => {
-                            if (!isSelected) {
-                              e.currentTarget.style.backgroundColor =
-                                "var(--theme-background)";
+                            if (!isFocused) {
+                              e.currentTarget.style.backgroundColor = isSelected
+                                ? "rgba(from var(--theme-primary) r g b / 0.3)"
+                                : "var(--theme-background)";
                             }
                           }}
                         >
@@ -3556,19 +3730,32 @@ function OpenCodeChatTUI() {
               <div className="flex flex-col flex-shrink-0">
                 <div className="flex items-center justify-between mb-2 gap-2">
                   <h3 className="text-sm font-medium">Projects</h3>
-                  <Button
-                    variant="foreground0"
-                    box="round"
-                    size="small"
-                    className="flex-shrink-0"
-                    onClick={() => {
-                      setIsMobileSidebarOpen(false);
-                      setNewProjectDirectory("");
-                      setShowNewProjectForm(true);
-                    }}
-                  >
-                    New Project
-                  </Button>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <Button
+                      variant="foreground1"
+                      box="round"
+                      size="small"
+                      onClick={() => {
+                        setIsMobileSidebarOpen(false);
+                        setShowProjectPicker(true);
+                      }}
+                      title="Search projects"
+                    >
+                      Search
+                    </Button>
+                    <Button
+                      variant="foreground0"
+                      box="round"
+                      size="small"
+                      onClick={() => {
+                        setIsMobileSidebarOpen(false);
+                        setNewProjectDirectory("");
+                        setShowNewProjectForm(true);
+                      }}
+                    >
+                      New Project
+                    </Button>
+                  </div>
                 </div>
                 <Separator className="mb-2" />
                 <div className="flex flex-col gap-3">
