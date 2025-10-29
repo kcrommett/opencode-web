@@ -70,7 +70,7 @@ export function FilePart({ part }: FilePartProps) {
             </span>
           )}
           {typeof size === "number" && (
-            <Badge variant="foreground0" cap="round" className="text-xs">
+            <Badge variant="foreground0" cap="square" className="text-xs">
               {formatFileSize(size)}
             </Badge>
           )}

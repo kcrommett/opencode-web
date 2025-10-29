@@ -179,7 +179,7 @@ export const ProjectPicker: React.FC<ProjectPickerProps> = ({
                       {isCurrent && (
                         <Badge
                           variant="background2"
-                          cap="round"
+                          cap="square"
                           className="text-xs"
                         >
                           Current

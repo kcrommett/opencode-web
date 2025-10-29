@@ -3217,8 +3217,8 @@ function OpenCodeChatTUI() {
           <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto scrollbar-hide">
             <Badge
               variant="foreground1"
-              cap="round"
-              className="whitespace-nowrap flex-shrink-0"
+              cap="square"
+              className="whitespace-nowrap flex-shrink-0 badge-title"
             >
               opencode web
             </Badge>
@@ -3229,7 +3229,7 @@ function OpenCodeChatTUI() {
                 />
                 <Badge
                   variant={isConnected ? "background2" : "foreground0"}
-                  cap="round"
+                  cap="square"
                   className="hidden md:inline whitespace-nowrap"
                 >
                   {isConnected ? "Connected" : "Disconnected"}
@@ -3248,7 +3248,7 @@ function OpenCodeChatTUI() {
                           ? "background2"
                           : "foreground0"
                       }
-                      cap="round"
+                      cap="square"
                       className="hidden lg:inline text-xs whitespace-nowrap"
                     >
                       SSE {sseConnectionState.connected ? "Live" : "Off"}
@@ -3266,7 +3266,7 @@ function OpenCodeChatTUI() {
                   />
                   <Badge
                     variant={mcpAggregated.badgeVariant}
-                    cap="round"
+                    cap="square"
                     className="hidden xl:inline text-xs whitespace-nowrap"
                   >
                     {mcpAggregated.text}
@@ -4272,7 +4272,7 @@ function OpenCodeChatTUI() {
                 Project: {currentProject?.worktree}
               </span>
               {currentSessionTodos.length > 0 && (
-                <Badge variant="foreground0" cap="round" className="text-xs">
+                <Badge variant="foreground0" cap="square" className="text-xs">
                   {currentSessionTodos.length} todo
                   {currentSessionTodos.length === 1 ? "" : "s"} pending
                 </Badge>
@@ -4347,7 +4347,7 @@ function OpenCodeChatTUI() {
                             {!currentSession && (
                               <Badge
                                 variant="foreground0"
-                                cap="round"
+                                cap="square"
                                 className="text-xs"
                               >
                                 Create or select a session →
@@ -4457,7 +4457,7 @@ function OpenCodeChatTUI() {
                         </Pre>
                         <Badge
                           variant="foreground0"
-                          cap="round"
+                          cap="square"
                           className="mt-2 text-xs"
                         >
                           OpenCode
@@ -4524,7 +4524,7 @@ function OpenCodeChatTUI() {
                         <span className="text-theme-muted">•</span>
                         <Badge
                           variant="foreground0"
-                          cap="round"
+                          cap="square"
                           className="flex items-center gap-1 animate-pulse"
                         >
                           <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
@@ -4568,7 +4568,7 @@ function OpenCodeChatTUI() {
                     <Badge
                       key={currentAgent?.id || currentAgent?.name}
                       variant="foreground1"
-                      cap="round"
+                      cap="square"
                       className="flex-shrink-0"
                     >
                       Agent: {currentAgent?.name || "None"}
@@ -4579,7 +4579,7 @@ function OpenCodeChatTUI() {
                   <div className="flex-1 relative w-full">
                     {messageQueue.length > 0 && (
                       <div className="flex items-center gap-2 px-3 py-2 mb-2 bg-theme-background-alt rounded-md border border-theme-warning">
-                        <Badge variant="foreground1" cap="round">
+                        <Badge variant="foreground1" cap="square">
                           {messageQueue.length} message
                           {messageQueue.length > 1 ? "s" : ""} queued
                         </Badge>
@@ -4719,7 +4719,7 @@ function OpenCodeChatTUI() {
                                   {isSelected && (
                                     <Badge
                                       variant="background2"
-                                      cap="round"
+                                      cap="square"
                                       className="text-xs"
                                     >
                                       ↵
@@ -4767,7 +4767,7 @@ function OpenCodeChatTUI() {
                       {showLanguageBadge && selectedFile && (
                         <Badge
                           variant="foreground0"
-                          cap="round"
+                          cap="square"
                           className="text-xs"
                         >
                           {detectLanguage(selectedFile)}
@@ -4776,7 +4776,7 @@ function OpenCodeChatTUI() {
                       {showMimeTypeBadge && fileContent?.mimeType && (
                         <Badge
                           variant="foreground0"
-                          cap="round"
+                          cap="square"
                           className="text-xs uppercase"
                         >
                           {fileContent.mimeType}
@@ -5341,7 +5341,7 @@ function OpenCodeChatTUI() {
                               {isSelected && (
                                 <Badge
                                   variant="background2"
-                                  cap="round"
+                                  cap="square"
                                   className="text-xs"
                                 >
                                   ↵
@@ -5388,7 +5388,7 @@ function OpenCodeChatTUI() {
                           {isSelected && (
                             <Badge
                               variant="background2"
-                              cap="round"
+                              cap="square"
                               className="text-xs"
                             >
                               ↵

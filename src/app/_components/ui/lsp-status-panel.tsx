@@ -141,7 +141,7 @@ export const LspStatusPanel: React.FC = () => {
             >
               <div className="flex items-center justify-between">
                 <div className="text-sm font-medium">{summary.label || serverId}</div>
-                <Badge variant="background2" cap="round">
+                <Badge variant="background2" cap="square">
                   {new Date(summary.updatedAt).toLocaleTimeString()}
                 </Badge>
               </div>

@@ -103,7 +103,7 @@ export const CommandPicker: React.FC<CommandPickerProps> = ({
                     {isSelected && (
                       <Badge
                         variant="background2"
-                        cap="round"
+                        cap="square"
                         className="text-xs"
                       >
                         ↵

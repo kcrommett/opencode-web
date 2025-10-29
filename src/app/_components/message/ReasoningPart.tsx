@@ -117,7 +117,7 @@ export function ReasoningPart({ part, showDetails }: ReasoningPartProps) {
             {isExpanded ? "[-]" : "[+]"}
           </span>
         </div>
-        <Badge variant="foreground0" cap="round" className="text-xs">
+        <Badge variant="foreground0" cap="square" className="text-xs">
           {text.length} chars
         </Badge>
       </button>

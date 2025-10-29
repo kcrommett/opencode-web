@@ -104,7 +104,7 @@ export const SessionContextPanel: React.FC = () => {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="text-xs text-theme-muted">ID:</span>
-            <Badge variant="background1" cap="round">
+            <Badge variant="background1" cap="square">
               {sessionContext.id || "N/A"}
             </Badge>
           </div>
@@ -120,7 +120,7 @@ export const SessionContextPanel: React.FC = () => {
           {(sessionContext.modelName || sessionContext.modelId) && (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-theme-muted">Model:</span>
-              <Badge variant="background2" cap="round">
+              <Badge variant="background2" cap="square">
                 {sessionContext.modelName ?? sessionContext.modelId}
               </Badge>
             </div>
@@ -128,7 +128,7 @@ export const SessionContextPanel: React.FC = () => {
           {sessionContext.agentName && (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-theme-muted">Agent:</span>
-              <Badge variant="background2" cap="round">
+              <Badge variant="background2" cap="square">
                 {sessionContext.agentName}
               </Badge>
             </div>
@@ -139,13 +139,13 @@ export const SessionContextPanel: React.FC = () => {
         <div className="grid grid-cols-2 gap-2 text-sm">
           <div className="space-y-1">
             <div className="text-xs text-theme-muted">Messages</div>
-            <Badge variant="background1" cap="round">
+            <Badge variant="background1" cap="square">
               {formatNumber(sessionContext.messageCount)}
             </Badge>
           </div>
           <div className="space-y-1">
             <div className="text-xs text-theme-muted">Tokens Used</div>
-            <Badge variant="background1" cap="round">
+            <Badge variant="background1" cap="square">
               {formatNumber(tokensUsed)}
             </Badge>
           </div>
@@ -155,16 +155,16 @@ export const SessionContextPanel: React.FC = () => {
         <div className="space-y-1">
           <div className="text-xs text-theme-muted">Token Breakdown</div>
           <div className="flex flex-wrap gap-2">
-            <Badge variant="background2" cap="round" className={tokenChipClass}>
+            <Badge variant="background2" cap="square" className={tokenChipClass}>
               IN {formatNumber(inputTokens)}
             </Badge>
-            <Badge variant="background2" cap="round" className={tokenChipClass}>
+            <Badge variant="background2" cap="square" className={tokenChipClass}>
               OUT {formatNumber(outputTokens)}
             </Badge>
-            <Badge variant="background2" cap="round" className={tokenChipClass}>
+            <Badge variant="background2" cap="square" className={tokenChipClass}>
               REASON {formatNumber(reasoningTokens)}
             </Badge>
-            <Badge variant="background2" cap="round" className={tokenChipClass}>
+            <Badge variant="background2" cap="square" className={tokenChipClass}>
               CACHE {formatNumber(cacheRead)}/{formatNumber(cacheWrite)}
             </Badge>
           </div>
@@ -173,7 +173,7 @@ export const SessionContextPanel: React.FC = () => {
         {/* Meta Row */}
         <div className="flex flex-wrap items-center gap-2">
           {hasDuration && (
-            <Badge variant="background2" cap="round" className={metaBadgeClass}>
+            <Badge variant="background2" cap="square" className={metaBadgeClass}>
               DUR {formatDuration(sessionContext.activeSince, sessionContext.lastActivity)}
             </Badge>
           )}

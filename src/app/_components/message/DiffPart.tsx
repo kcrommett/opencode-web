@@ -113,17 +113,17 @@ function DiffFileView({ file, isExpanded, onToggle }: DiffFileViewProps) {
             {fileName}
           </span>
           {file.isNew && (
-            <Badge variant="foreground0" cap="round" className="text-xs shrink-0">
+            <Badge variant="foreground0" cap="square" className="text-xs shrink-0">
               new
             </Badge>
           )}
           {file.isDeleted && (
-            <Badge variant="foreground0" cap="round" className="text-xs shrink-0">
+            <Badge variant="foreground0" cap="square" className="text-xs shrink-0">
               deleted
             </Badge>
           )}
           {file.isRenamed && (
-            <Badge variant="foreground0" cap="round" className="text-xs shrink-0">
+            <Badge variant="foreground0" cap="square" className="text-xs shrink-0">
               renamed
             </Badge>
           )}
@@ -298,12 +298,12 @@ export function DiffPart({ diff, toolName = "edit", hideHeader = false }: DiffPa
         </div>
         <div className="flex items-center gap-2">
           {parsedDiff && (
-            <Badge variant="foreground0" cap="round" className="text-xs">
+            <Badge variant="foreground0" cap="square" className="text-xs">
               {formatDiffStats(parsedDiff.totalAdditions, parsedDiff.totalDeletions)}
             </Badge>
           )}
           {diff.files && diff.files.length > 0 && (
-            <Badge variant="foreground0" cap="round" className="text-xs">
+            <Badge variant="foreground0" cap="square" className="text-xs">
               {diff.files.length} {diff.files.length === 1 ? "file" : "files"}
             </Badge>
           )}

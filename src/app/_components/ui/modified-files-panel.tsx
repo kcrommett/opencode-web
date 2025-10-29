@@ -29,7 +29,7 @@ export const ModifiedFilesPanel: React.FC = () => {
   const getFileCount = (count: number, label: string) => {
     if (count === 0) return null;
     return (
-      <Badge key={label} variant="background1" cap="round">
+      <Badge key={label} variant="background1" cap="square">
         {count} {label}
       </Badge>
     );
@@ -47,7 +47,7 @@ export const ModifiedFilesPanel: React.FC = () => {
         >
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">{title}</span>
-            <Badge variant="background2" cap="round">
+            <Badge variant="background2" cap="square">
               {files.length}
             </Badge>
           </div>
@@ -101,7 +101,7 @@ export const ModifiedFilesPanel: React.FC = () => {
         <div className="space-y-2">
           <div className="text-xs text-theme-muted">Branch</div>
           <div className="flex items-center gap-2">
-            <Badge variant="background1" cap="round">
+            <Badge variant="background1" cap="square">
               {gitStatus.branch}
             </Badge>
             {gitStatus.ahead && gitStatus.ahead > 0 && (

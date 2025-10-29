@@ -81,7 +81,7 @@ export function ToolPart({ part, showDetails }: ToolPartProps) {
         <div className="flex items-center gap-2 min-w-0 flex-1">
           {getStatusIcon()}
           <span className="font-medium text-sm truncate">{tool}</span>
-          <Badge variant="foreground0" cap="round" className="text-xs shrink-0">
+          <Badge variant="foreground0" cap="square" className="text-xs shrink-0">
             {statusLabel}
           </Badge>
         </div>

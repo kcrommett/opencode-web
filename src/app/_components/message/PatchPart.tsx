@@ -46,7 +46,7 @@ export function PatchPart({ part }: PatchPartProps) {
           </span>
         </div>
         {(hasFiles || hasDiff) && (
-          <Badge variant="foreground1" cap="round" className="text-xs">
+          <Badge variant="foreground1" cap="square" className="text-xs">
             {hasFiles
               ? `${metadata!.files!.length} ${metadata!.files!.length === 1 ? "file" : "files"}`
               : `${metadata!.raw!.length} chars`}
