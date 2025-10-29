@@ -428,6 +428,19 @@ export async function getFileStatus(directory?: string) {
   return response.json();
 }
 
+export async function getFileDiff(filePath: string, directory?: string): Promise<{ diff: string; additions: number; deletions: number } | null> {
+  const params = directory ? { directory } : undefined;
+  // Use git diff command to get the diff for this specific file
+  const response = await fetch(buildUrl("/file/status", params));
+  if (!response.ok) {
+    return null;
+  }
+  
+  // For now, return null - we'll implement this using session diffs or shell execution
+  // This is a placeholder that will be implemented properly
+  return null;
+}
+
 export async function respondToPermission(
   sessionId: string,
   permissionId: string,

@@ -2794,6 +2794,10 @@ function OpenCodeChatTUI() {
   };
 
   const handleFileSelect = async (filePath: string) => {
+    setActiveTab("files");
+    setIsLeftSidebarOpen(true);
+    setIsMobileSidebarOpen(false);
+
     try {
       const result = await readFile(filePath);
       setSelectedFile(filePath);
@@ -4251,9 +4255,9 @@ function OpenCodeChatTUI() {
               <Separator />
               <McpStatusPanel />
               <Separator />
-              <LspStatusPanel />
+              <ModifiedFilesPanel onFileClick={handleFileSelect} />
               <Separator />
-              <ModifiedFilesPanel />
+              <LspStatusPanel />
             </div>
           )}
         </MobileSidebar>
@@ -4945,9 +4949,9 @@ function OpenCodeChatTUI() {
               <Separator />
               <McpStatusPanel />
               <Separator />
-              <LspStatusPanel />
+              <ModifiedFilesPanel onFileClick={handleFileSelect} />
               <Separator />
-              <ModifiedFilesPanel />
+              <LspStatusPanel />
             </div>
           </View>
         )}

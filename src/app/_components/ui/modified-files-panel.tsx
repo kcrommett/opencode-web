@@ -5,8 +5,12 @@ import { StatusBadge } from "./status-badge";
 import { Button } from "./button";
 import { Separator } from "./separator";
 
-export const ModifiedFilesPanel: React.FC = () => {
-  const { sidebarStatus, refreshGitStatus } = useOpenCodeContext();
+interface ModifiedFilesPanelProps {
+  onFileClick?: (filePath: string) => void;
+}
+
+export const ModifiedFilesPanel: React.FC<ModifiedFilesPanelProps> = ({ onFileClick }) => {
+  const { sidebarStatus, refreshGitStatus, readFile } = useOpenCodeContext();
   const { gitStatus } = sidebarStatus;
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["modified", "staged", "untracked"]));
   const isDevEnvironment = process.env.NODE_ENV !== "production";
@@ -35,6 +39,18 @@ export const ModifiedFilesPanel: React.FC = () => {
     );
   };
 
+  const handleFileClick = (filePath: string) => {
+    if (onFileClick) {
+      onFileClick(filePath);
+    }
+  };
+
+  // Clean up file path for display by removing redundant ../../../ prefix
+  const cleanFilePath = (filePath: string): string => {
+    // Remove leading ../../../ or ../../ patterns
+    return filePath.replace(/^(\.\.\/)+/, '');
+  };
+
   const renderFileSection = (title: string, files: string[], sectionKey: string) => {
     if (files.length === 0) return null;
 
@@ -59,8 +75,25 @@ export const ModifiedFilesPanel: React.FC = () => {
         {isExpanded && (
           <div className="pl-4 space-y-1">
             {files.map((file) => (
-              <div key={file} className="text-xs text-theme-muted truncate">
-                {file}
+              <div 
+                key={file} 
+                className="text-xs truncate cursor-pointer underline transition-colors"
+                style={{
+                  color: "var(--theme-primary)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.opacity = "0.8";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.opacity = "1";
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleFileClick(file);
+                }}
+                title={file}
+              >
+                {cleanFilePath(file)}
               </div>
             ))}
           </div>
@@ -94,8 +127,6 @@ export const ModifiedFilesPanel: React.FC = () => {
         </Button>
       </div>
 
-      <Separator />
-
       {/* Branch Info */}
       {gitStatus.branch && (
         <div className="space-y-2">
@@ -118,21 +149,6 @@ export const ModifiedFilesPanel: React.FC = () => {
         </div>
       )}
 
-      {/* Summary */}
-      {hasChanges && (
-        <div className="space-y-2">
-          <div className="text-xs text-theme-muted">Summary</div>
-          <div className="flex flex-wrap gap-2">
-            {getFileCount(gitStatus.staged.length, "staged")}
-            {getFileCount(gitStatus.modified.length, "modified")}
-            {getFileCount(gitStatus.untracked.length, "untracked")}
-            {getFileCount(gitStatus.deleted.length, "deleted")}
-          </div>
-        </div>
-      )}
-
-      <Separator />
-
       {/* File Lists */}
       {!hasChanges ? (
         <div className="text-center text-sm text-theme-muted py-8">
@@ -140,10 +156,10 @@ export const ModifiedFilesPanel: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-4">
-          {renderFileSection("Staged Files", gitStatus.staged, "staged")}
-          {renderFileSection("Modified Files", gitStatus.modified, "modified")}
-          {renderFileSection("Untracked Files", gitStatus.untracked, "untracked")}
-          {renderFileSection("Deleted Files", gitStatus.deleted, "deleted")}
+          {renderFileSection("Staged", gitStatus.staged, "staged")}
+          {renderFileSection("Modified", gitStatus.modified, "modified")}
+          {renderFileSection("Untracked", gitStatus.untracked, "untracked")}
+          {renderFileSection("Deleted", gitStatus.deleted, "deleted")}
         </div>
       )}
 

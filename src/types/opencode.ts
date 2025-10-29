@@ -221,3 +221,21 @@ export interface SidebarStatusState {
   lspDiagnostics: Record<string, LspDiagnosticsSummary>;
   gitStatus: GitStatus;
 }
+
+/**
+ * Session diff from summary
+ */
+export interface SessionDiff {
+  file: string;
+  before: string;
+  after: string;
+  additions: number;
+  deletions: number;
+}
+
+/**
+ * Session summary information
+ */
+export interface SessionSummary {
+  diffs?: SessionDiff[];
+}
