@@ -572,7 +572,7 @@ function OpenCodeChatTUI() {
         return stored === "true";
       }
     }
-    return false;
+    return true;
   });
   const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(() => {
     if (typeof window !== "undefined") {
