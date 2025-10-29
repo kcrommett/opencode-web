@@ -91,7 +91,7 @@ body,
   --background2: var(--theme-backgroundAccent);
   --background3: var(--theme-border);
   --foreground0: var(--theme-primary);
-  --foreground1: var(--theme-foreground);
+  --foreground1: var(--theme-primary);
   --foreground2: var(--theme-foregroundAlt);
 }
 

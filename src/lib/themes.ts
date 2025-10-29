@@ -1195,13 +1195,10 @@ export function applyTheme(themeId: string): void {
 
   // Foreground levels (highest prominence → lowest)
   // foreground0: Primary actions, key CTAs
-  // foreground1: Secondary actions, main text
+  // foreground1: Primary actions, same as foreground0 (used to be secondary)
   // foreground2: Tertiary actions, muted text
   root.style.setProperty("--foreground0", theme.colors.primary);
-  root.style.setProperty(
-    "--foreground1",
-    theme.colors.secondary || theme.colors.accent,
-  );
+  root.style.setProperty("--foreground1", theme.colors.primary);
   root.style.setProperty("--foreground2", theme.colors.foregroundAlt);
 
   // Additional semantic mappings for WebTUI components
