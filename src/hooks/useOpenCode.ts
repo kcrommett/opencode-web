@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { flushSync } from "react-dom";
 import { openCodeService, handleOpencodeError } from "@/lib/opencode-client";
 import { OpencodeEvent, SSEConnectionState } from "@/lib/opencode-events";
 import { getAgentModel, getDefaultModel } from "@/lib/config";
@@ -3253,16 +3254,19 @@ export function useOpenCode() {
   }, [currentAgent]);
 
   const selectAgent = useCallback((agent: Agent) => {
-    setCurrentAgent(agent);
-    manualModelSelectionRef.current = false;
-    
-    const agentModel = resolveModelPreference(
-      getAgentModel(config, agent),
-      modelsRef.current,
-    );
-    if (agentModel) {
-      setSelectedModel(agentModel);
-    }
+    // Use flushSync to ensure UI updates immediately, even during message sends
+    flushSync(() => {
+      setCurrentAgent(agent);
+      manualModelSelectionRef.current = false;
+      
+      const agentModel = resolveModelPreference(
+        getAgentModel(config, agent),
+        modelsRef.current,
+      );
+      if (agentModel) {
+        setSelectedModel(agentModel);
+      }
+    });
   }, [config]);
 
   useEffect(() => {
