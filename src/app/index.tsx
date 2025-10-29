@@ -4567,7 +4567,7 @@ function OpenCodeChatTUI() {
                   >
                     <Badge
                       key={currentAgent?.id || currentAgent?.name}
-                      variant="foreground1"
+                      variant="foreground0"
                       cap="square"
                       className="flex-shrink-0"
                     >
