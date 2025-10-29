@@ -64,11 +64,11 @@ export function PrettyDiff({ diffText }: PrettyDiffProps) {
                   role="button"
                   tabIndex={0}
                   className="flex items-center justify-between p-2 bg-theme-background-alt cursor-pointer"
-                  onClick={() => setOpen((prev) => { const n = new Set(prev); n.has(idx) ? n.delete(idx) : n.add(idx); return n; })}
+                  onClick={() => setOpen((prev) => { const n = new Set(prev); if (n.has(idx)) { n.delete(idx); } else { n.add(idx); } return n; })}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      setOpen((prev) => { const n = new Set(prev); n.has(idx) ? n.delete(idx) : n.add(idx); return n; });
+                      setOpen((prev) => { const n = new Set(prev); if (n.has(idx)) { n.delete(idx); } else { n.add(idx); } return n; });
                     }
                   }}
                   aria-expanded={isOpen}

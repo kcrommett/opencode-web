@@ -27,6 +27,19 @@ const debugLog = (...args: unknown[]) => {
 
 const BASE64_ENCODING = "base64";
 
+// UUID generator with fallback for environments without crypto.randomUUID
+const generateClientId = (): string => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  // Fallback: generate a random UUID v4-like string
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
+
 /**
  * MIGRATION NOTE (Issue #39):
  * File type detection has been migrated to the mime-utils module (src/lib/mime-utils.ts).
@@ -42,6 +55,7 @@ const BASE64_ENCODING = "base64";
 
 interface Message {
   id: string;
+  clientId?: string; // Stable client-side ID for React keys
   type: "user" | "assistant";
   content: string;
   timestamp: Date;
@@ -745,6 +759,7 @@ export function useOpenCode() {
 
                   return {
                     id: msg.info?.id || `msg-${index}`,
+                    clientId: generateClientId(),
                     type: msg.info?.role === "user" ? "user" : "assistant",
                     content,
                     parts,
@@ -903,6 +918,7 @@ export function useOpenCode() {
 
             return {
               id: msg.info?.id || `msg-${index}`,
+              clientId: generateClientId(),
               type: msg.info?.role === "user" ? "user" : "assistant",
               content,
               parts,
@@ -1375,6 +1391,7 @@ export function useOpenCode() {
 
             const newMessage: Message = {
               id: messageInfo.id,
+              clientId: generateClientId(),
               type: messageInfo.role === "user" ? "user" : "assistant",
               content: "",
               parts: [],
@@ -1516,6 +1533,7 @@ export function useOpenCode() {
               // Create placeholder message for incoming parts
               const newMessage: Message = {
                 id: targetMessageId,
+                clientId: generateClientId(),
                 type: "assistant", // Assume assistant for incoming parts
                 content: "",
                 parts: [],

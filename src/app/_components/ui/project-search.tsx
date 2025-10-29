@@ -38,6 +38,19 @@ export const ProjectSearchInput = forwardRef<ProjectSearchInputRef, ProjectSearc
 
   // Keyboard shortcuts
   useEffect(() => {
+    const isInputFocused = (): boolean => {
+      const activeElement = document.activeElement;
+      if (!activeElement) return false;
+
+      const tagName = activeElement.tagName.toLowerCase();
+      const isEditable =
+        tagName === "input" ||
+        tagName === "textarea" ||
+        activeElement.getAttribute("contenteditable") === "true";
+
+      return isEditable;
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
       // Cmd/Ctrl+K to focus search
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -52,6 +65,13 @@ export const ProjectSearchInput = forwardRef<ProjectSearchInputRef, ProjectSearc
           e.preventDefault();
           inputRef.current?.focus();
         }
+      }
+      
+      // / to focus search (universal search shortcut)
+      // Only trigger if NO input/textarea is currently focused
+      if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey && !isInputFocused()) {
+        e.preventDefault();
+        inputRef.current?.focus();
       }
       
       // Escape to clear search (only if input is focused)

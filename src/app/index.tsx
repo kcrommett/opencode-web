@@ -76,6 +76,19 @@ import "highlight.js/styles/github-dark.css";
 
 const MAX_IMAGE_SIZE_MB = 10;
 
+// UUID generator with fallback for environments without crypto.randomUUID
+const generateClientId = (): string => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  // Fallback: generate a random UUID v4-like string
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
+
 type ProjectItem = {
   id: string;
   worktree: string;
@@ -526,6 +539,8 @@ function OpenCodeChatTUI() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [configData, setConfigData] = useState<string | null>(null);
+  const [configSearchQuery, setConfigSearchQuery] = useState("");
+  const [helpSearchQuery, setHelpSearchQuery] = useState("");
   const [deleteDialogState, setDeleteDialogState] = useState<{
     open: boolean;
     sessionId?: string;
@@ -536,6 +551,9 @@ function OpenCodeChatTUI() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const modelSearchInputRef = useRef<HTMLInputElement>(null);
   const fileSearchInputRef = useRef<HTMLInputElement>(null);
+  const workspaceSessionSearchInputRef = useRef<{ focus: () => void }>(null);
+  const configSearchInputRef = useRef<HTMLInputElement>(null);
+  const helpSearchInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const sessionPickerEditControls =
@@ -827,6 +845,24 @@ function OpenCodeChatTUI() {
     showToast,
   ]);
 
+  // Auto-focus Help modal search input when opened
+  useEffect(() => {
+    if (showHelp) {
+      requestAnimationFrame(() => {
+        helpSearchInputRef.current?.focus();
+      });
+    }
+  }, [showHelp]);
+
+  // Auto-focus Config modal search input when opened
+  useEffect(() => {
+    if (showConfig) {
+      requestAnimationFrame(() => {
+        configSearchInputRef.current?.focus();
+      });
+    }
+  }, [showConfig]);
+
   // Register keyboard shortcuts for frame navigation
   useEffect(() => {
     const unregisterFns: (() => void)[] = [];
@@ -888,10 +924,12 @@ function OpenCodeChatTUI() {
         handler: () => {
           if (activeTab === "files") {
             fileSearchInputRef.current?.focus();
+          } else if (activeTab === "workspace") {
+            workspaceSessionSearchInputRef.current?.focus();
           }
         },
         requiresLeader: true,
-        description: "Search Files",
+        description: "Search Sessions/Files",
         category: "navigation",
       })
     );
@@ -1380,6 +1418,7 @@ function OpenCodeChatTUI() {
       if (isBusy) {
         const queuedMessage = {
           id: `queued-${Date.now()}`,
+          clientId: generateClientId(),
           type: "user" as const,
           content: messageText,
           parts: messageParts,
@@ -1391,10 +1430,12 @@ function OpenCodeChatTUI() {
         setMessages((prev) => [...prev, queuedMessage]);
       } else {
         const pendingId = `user-${Date.now()}`;
+        const clientId = generateClientId();
         setMessages((prev) => [
           ...prev,
           {
             id: pendingId,
+            clientId,
             type: "user" as const,
             content: messageText,
             parts: messageParts,
@@ -2584,10 +2625,7 @@ function OpenCodeChatTUI() {
                   : `${prefix}-${Date.now()}-${index + 1}.${extension}`;
 
               const attachment: ImageAttachment = {
-                id:
-                  typeof crypto !== "undefined" && "randomUUID" in crypto
-                    ? crypto.randomUUID()
-                    : `image-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                id: generateClientId(),
                 name: safeName,
                 mimeType,
                 size: file.size,
@@ -2812,6 +2850,98 @@ function OpenCodeChatTUI() {
     );
   }, [sortedFiles, fileSearchQuery]);
 
+  const filteredConfigData = useMemo(() => {
+    if (!configData || !configSearchQuery.trim()) return configData;
+    
+    try {
+      const parsed = JSON.parse(configData);
+      const query = configSearchQuery.toLowerCase();
+      
+      // Simple jq-like filtering: filter object by keys/values matching query
+      const filterObject = (obj: any, path = ""): any => {
+        if (typeof obj !== "object" || obj === null) {
+          // Check if primitive value matches
+          const strValue = String(obj).toLowerCase();
+          return strValue.includes(query) ? obj : null;
+        }
+        
+        if (Array.isArray(obj)) {
+          const filtered = obj.map((item, idx) => filterObject(item, `${path}[${idx}]`)).filter(item => item !== null);
+          return filtered.length > 0 ? filtered : null;
+        }
+        
+        const result: any = {};
+        let hasMatch = false;
+        
+        for (const [key, value] of Object.entries(obj)) {
+          const currentPath = path ? `${path}.${key}` : key;
+          const keyMatches = key.toLowerCase().includes(query);
+          const pathMatches = currentPath.toLowerCase().includes(query);
+          
+          if (keyMatches || pathMatches) {
+            result[key] = value;
+            hasMatch = true;
+          } else {
+            const filteredValue = filterObject(value, currentPath);
+            if (filteredValue !== null) {
+              result[key] = filteredValue;
+              hasMatch = true;
+            }
+          }
+        }
+        
+        return hasMatch ? result : null;
+      };
+      
+      const filtered = filterObject(parsed);
+      return filtered ? JSON.stringify(filtered, null, 2) : "No matches found";
+    } catch (err) {
+      // If not valid JSON, fall back to simple text search
+      if (configData.toLowerCase().includes(configSearchQuery.toLowerCase())) {
+        return configData;
+      }
+      return "No matches found";
+    }
+  }, [configData, configSearchQuery]);
+
+  const helpCommands = useMemo(() => [
+    { category: "Session", command: "/new", description: "Start a new session" },
+    { category: "Session", command: "/clear", description: "Clear current session" },
+    { category: "Session", command: "/sessions", description: "View all sessions" },
+    { category: "Model", command: "/models", description: "Open model picker" },
+    { category: "Model", command: "/model <provider>/<model>", description: "Select specific model" },
+    { category: "Agent", command: "/agents", description: "Select agent" },
+    { category: "Theme", command: "/themes", description: "Open theme picker" },
+    { category: "File Operations", command: "/undo", description: "Undo last file changes" },
+    { category: "File Operations", command: "/redo", description: "Redo last undone changes" },
+    { category: "Other", command: "/help", description: "Show this help dialog" },
+    { category: "Other", command: "/share", description: "Share current session" },
+    { category: "Other", command: "/export", description: "Export session" },
+    { category: "Other", command: "/debug", description: "Export session data (JSON)" },
+  ], []);
+
+  const filteredHelpCommands = useMemo(() => {
+    if (!helpSearchQuery.trim()) return helpCommands;
+    
+    const query = helpSearchQuery.toLowerCase();
+    return helpCommands.filter(cmd =>
+      cmd.command.toLowerCase().includes(query) ||
+      cmd.description.toLowerCase().includes(query) ||
+      cmd.category.toLowerCase().includes(query)
+    );
+  }, [helpCommands, helpSearchQuery]);
+
+  const groupedHelpCommands = useMemo(() => {
+    const groups: Record<string, typeof helpCommands> = {};
+    for (const cmd of filteredHelpCommands) {
+      if (!groups[cmd.category]) {
+        groups[cmd.category] = [];
+      }
+      groups[cmd.category].push(cmd);
+    }
+    return groups;
+  }, [filteredHelpCommands]);
+
   const sortedProjects = useMemo(() => {
     return [...projects].sort((a, b) => {
       const aDate = a.updatedAt || a.createdAt || new Date(0);
@@ -2915,6 +3045,36 @@ function OpenCodeChatTUI() {
       modelSearchInputRef.current.focus();
     }
   }, [showModelPicker]);
+
+  useEffect(() => {
+    if (showConfig) {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        // / to focus config search
+        if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey && document.activeElement !== configSearchInputRef.current) {
+          e.preventDefault();
+          configSearchInputRef.current?.focus();
+        }
+      };
+      
+      document.addEventListener("keydown", handleKeyDown);
+      return () => document.removeEventListener("keydown", handleKeyDown);
+    }
+  }, [showConfig]);
+
+  useEffect(() => {
+    if (showHelp) {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        // / to focus help search
+        if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey && document.activeElement !== helpSearchInputRef.current) {
+          e.preventDefault();
+          helpSearchInputRef.current?.focus();
+        }
+      };
+      
+      document.addEventListener("keydown", handleKeyDown);
+      return () => document.removeEventListener("keydown", handleKeyDown);
+    }
+  }, [showHelp]);
 
   useEffect(() => {
     setSelectedModelIndex(0);
@@ -3315,6 +3475,7 @@ function OpenCodeChatTUI() {
                       {/* Sidebar Search Input */}
                       <div className="mb-2">
                         <SessionSearchInput
+                          ref={workspaceSessionSearchInputRef}
                           value={sessionSearchQuery}
                           onChange={setSessionSearchQuery}
                           onClear={() => setSessionSearchQuery("")}
@@ -4199,7 +4360,7 @@ function OpenCodeChatTUI() {
                   )}
                   {messages.map((message) => (
                     <div
-                      key={message.id}
+                      key={message.clientId ?? message.id}
                       className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}
                     >
                       <View
@@ -4895,7 +5056,10 @@ function OpenCodeChatTUI() {
 
       {/* Help Dialog */}
       {showHelp && (
-        <Dialog open={showHelp} onClose={() => setShowHelp(false)}>
+        <Dialog open={showHelp} onClose={() => {
+          setShowHelp(false);
+          setHelpSearchQuery("");
+        }}>
           <View
             box="square"
             className="p-6 max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col bg-theme-background text-theme-foreground"
@@ -4905,118 +5069,52 @@ function OpenCodeChatTUI() {
                <Button
                  variant="background2"
                  box="round"
-                 onClick={() => setShowHelp(false)}
+                 onClick={() => {
+                   setShowHelp(false);
+                   setHelpSearchQuery("");
+                 }}
                  size="small"
               >
                 Close
               </Button>
             </div>
             <Separator className="mb-4 flex-shrink-0" />
+            
+            {/* Search Input */}
+            <div className="mb-4 flex-shrink-0">
+              <Input
+                ref={helpSearchInputRef}
+                placeholder="Search commands..."
+                size="small"
+                value={helpSearchQuery}
+                onChange={(e) => setHelpSearchQuery(e.target.value)}
+                className="w-full bg-theme-background-alt text-theme-foreground border-theme-primary"
+              />
+            </div>
+            <Separator className="mb-4 flex-shrink-0" />
 
             <div className="space-y-6 overflow-y-auto scrollbar flex-1 pb-4">
-              <div>
-                <div className="text-xs font-bold uppercase mb-2 opacity-60">
-                  Session
+              {filteredHelpCommands.length === 0 ? (
+                <div className="text-center text-sm py-4 opacity-70">
+                  No commands found matching "{helpSearchQuery}"
                 </div>
-                <div className="space-y-1 font-mono text-sm">
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">/new</span>
-                    <span className="opacity-70">Start a new session</span>
+              ) : (
+                Object.entries(groupedHelpCommands).map(([category, commands]) => (
+                  <div key={category}>
+                    <div className="text-xs font-bold uppercase mb-2 opacity-60">
+                      {category}
+                    </div>
+                    <div className="space-y-1 font-mono text-sm">
+                      {commands.map((cmd, idx) => (
+                        <div key={idx} className="flex justify-between p-2 rounded bg-theme-background-alt">
+                          <span className="text-theme-primary">{cmd.command}</span>
+                          <span className="opacity-70">{cmd.description}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">/clear</span>
-                    <span className="opacity-70">Clear current session</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">/sessions</span>
-                    <span className="opacity-70">View all sessions</span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <div className="text-xs font-bold uppercase mb-2 opacity-60">
-                  Model
-                </div>
-                <div className="space-y-1 font-mono text-sm">
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">/models</span>
-                    <span className="opacity-70">Open model picker</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">
-                      /model &lt;provider&gt;/&lt;model&gt;
-                    </span>
-                    <span className="opacity-70">Select specific model</span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <div className="text-xs font-bold uppercase mb-2 opacity-60">
-                  Agent
-                </div>
-                <div className="space-y-1 font-mono text-sm">
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">/agents</span>
-                    <span className="opacity-70">Select agent</span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <div className="text-xs font-bold uppercase mb-2 opacity-60">
-                  Theme
-                </div>
-                <div className="space-y-1 font-mono text-sm">
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">/themes</span>
-                    <span className="opacity-70">Open theme picker</span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <div className="text-xs font-bold uppercase mb-2 opacity-60">
-                  File Operations
-                </div>
-                <div className="space-y-1 font-mono text-sm">
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">/undo</span>
-                    <span className="opacity-70">Undo last file changes</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">/redo</span>
-                    <span className="opacity-70">Redo last undone changes</span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <div className="text-xs font-bold uppercase mb-2 opacity-60">
-                  Other
-                </div>
-                <div className="space-y-1 font-mono text-sm">
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">/help</span>
-                    <span className="opacity-70">Show this help dialog</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">/share</span>
-                    <span className="opacity-70">Share current session</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">/export</span>
-                    <span className="opacity-70">Export session</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded bg-theme-background-alt">
-                    <span className="text-theme-primary">/debug</span>
-                    <span className="opacity-70">
-                      Export session data (JSON)
-                    </span>
-                  </div>
-                </div>
-              </div>
+                ))
+              )}
 
               <Separator />
 
@@ -5053,22 +5151,55 @@ function OpenCodeChatTUI() {
         <Dialog open={showConfig} onClose={() => setShowConfig(false)}>
           <View
             box="square"
-            className="p-6 max-w-4xl w-full max-h-[80vh] overflow-hidden bg-theme-background text-theme-foreground"
+            className="p-6 max-w-4xl w-full max-h-[80vh] overflow-hidden flex flex-col bg-theme-background text-theme-foreground"
           >
             <h2 className="text-lg font-bold mb-4">OpenCode Configuration</h2>
             <Separator className="mb-4" />
-            <div className="max-h-96 overflow-y-auto scrollbar mb-4">
+            
+            {/* Search Input */}
+            <div className="mb-4">
+              <Input
+                ref={configSearchInputRef}
+                placeholder="Search config (jq-like filter)..."
+                size="small"
+                value={configSearchQuery}
+                onChange={(e) => setConfigSearchQuery(e.target.value)}
+                className="w-full bg-theme-background-alt text-theme-foreground border-theme-primary"
+              />
+              {configSearchQuery && (
+                <div className="text-xs opacity-70 mt-2">
+                  Filtering configuration...
+                </div>
+              )}
+            </div>
+            <Separator className="mb-4" />
+            
+            <div className="flex-1 overflow-y-auto scrollbar mb-4">
               <Pre className="text-xs bg-theme-background-alt p-4 rounded">
-                {configData || "Loading..."}
+                {filteredConfigData || "Loading..."}
               </Pre>
             </div>
             <Separator className="mb-4" />
-            <div className="flex justify-end">
-               <Button
-                 variant="background2"
-                 box="round"
-                 onClick={() => setShowConfig(false)}
-                 size="small"
+            <div className="flex justify-between">
+              {configSearchQuery && (
+                <Button
+                  variant="foreground1"
+                  box="round"
+                  onClick={() => setConfigSearchQuery("")}
+                  size="small"
+                >
+                  Clear Filter
+                </Button>
+              )}
+              <div className="flex-1" />
+              <Button
+                variant="background2"
+                box="round"
+                onClick={() => {
+                  setShowConfig(false);
+                  setConfigSearchQuery("");
+                }}
+                size="small"
               >
                 Close
               </Button>

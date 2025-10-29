@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import { Input } from "./input";
 
 interface SessionSearchInputProps {
@@ -8,14 +8,24 @@ interface SessionSearchInputProps {
   placeholder?: string;
 }
 
-export const SessionSearchInput: React.FC<SessionSearchInputProps> = ({
+export interface SessionSearchInputRef {
+  focus: () => void;
+}
+
+export const SessionSearchInput = forwardRef<SessionSearchInputRef, SessionSearchInputProps>(({
   value,
   onChange,
   onClear,
   placeholder = "Search sessions...",
-}) => {
+}, ref) => {
   const [localValue, setLocalValue] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      inputRef.current?.focus();
+    },
+  }));
 
   // Debounce: update parent after 300ms
   useEffect(() => {
@@ -32,9 +42,29 @@ export const SessionSearchInput: React.FC<SessionSearchInputProps> = ({
 
   // Keyboard shortcuts
   useEffect(() => {
+    const isInputFocused = (): boolean => {
+      const activeElement = document.activeElement;
+      if (!activeElement) return false;
+
+      const tagName = activeElement.tagName.toLowerCase();
+      const isEditable =
+        tagName === "input" ||
+        tagName === "textarea" ||
+        activeElement.getAttribute("contenteditable") === "true";
+
+      return isEditable;
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
       // Cmd/Ctrl+K to focus search
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+      
+      // / to focus search (universal search shortcut)
+      // Only trigger if NO input/textarea is currently focused
+      if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey && !isInputFocused()) {
         e.preventDefault();
         inputRef.current?.focus();
       }
@@ -117,4 +147,6 @@ export const SessionSearchInput: React.FC<SessionSearchInputProps> = ({
       </div>
     </div>
   );
-};
+});
+
+SessionSearchInput.displayName = 'SessionSearchInput';

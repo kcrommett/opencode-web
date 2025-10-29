@@ -66,6 +66,7 @@ export function KeyboardIndicator({ keyboardState, className }: KeyboardIndicato
   const getSecondaryShortcuts = (modalName: string | null): { key: string; description: string }[] => {
     const shortcuts: Record<string, { key: string; description: string }[]> = {
       session: [
+        { key: "/", description: "Search sessions" },
         { key: "↑/↓", description: "Navigate sessions" },
         { key: "Enter", description: "Select session" },
         { key: "E", description: "Edit mode" },
@@ -73,6 +74,7 @@ export function KeyboardIndicator({ keyboardState, className }: KeyboardIndicato
         { key: "Esc", description: "Close" },
       ],
       project: [
+        { key: "/", description: "Search projects" },
         { key: "↑/↓", description: "Navigate projects" },
         { key: "Enter", description: "Select project" },
         { key: "Esc", description: "Close" },
@@ -83,6 +85,7 @@ export function KeyboardIndicator({ keyboardState, className }: KeyboardIndicato
         { key: "Esc", description: "Close" },
       ],
       model: [
+        { key: "/", description: "Search models" },
         { key: "↑/↓", description: "Navigate models" },
         { key: "Enter", description: "Select model" },
         { key: "Esc", description: "Close" },
@@ -93,7 +96,12 @@ export function KeyboardIndicator({ keyboardState, className }: KeyboardIndicato
         { key: "Esc", description: "Close" },
       ],
       config: [
+        { key: "/", description: "Search config" },
         { key: "Tab", description: "Navigate fields" },
+        { key: "Esc", description: "Close" },
+      ],
+      help: [
+        { key: "/", description: "Search commands" },
         { key: "Esc", description: "Close" },
       ],
     };

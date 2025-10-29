@@ -24,28 +24,35 @@ export function PatchPart({ part }: PatchPartProps) {
 
   return (
     <div className="border border-theme-border rounded-md overflow-hidden bg-theme-background-alt mb-2">
-      <button
-        type="button"
-        className="flex w-full items-center justify-between p-3 text-left hover:bg-theme-background transition-colors"
+      <div
+        role="button"
+        tabIndex={0}
+        className="flex w-full items-center justify-between p-3 text-left hover:bg-theme-background transition-colors cursor-pointer"
         onClick={toggle}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggle();
+          }
+        }}
         aria-expanded={isExpanded}
         aria-controls={contentId}
       >
         <div className="flex items-center gap-2">
-          <span className="font-mono text-xs">PATCH</span>
+          <span className="font-mono text-xs opacity-60">PATCH</span>
           <span className="text-sm font-medium">File Changes</span>
           <span className="text-xs opacity-60">
             {isExpanded ? "[-]" : "[+]"}
           </span>
         </div>
         {(hasFiles || hasDiff) && (
-          <Badge variant="foreground0" cap="round" className="text-xs">
+          <Badge variant="foreground1" cap="round" className="text-xs">
             {hasFiles
               ? `${metadata!.files!.length} ${metadata!.files!.length === 1 ? "file" : "files"}`
               : `${metadata!.raw!.length} chars`}
           </Badge>
         )}
-      </button>
+      </div>
       {isExpanded && (
         <div id={contentId} className="border-t border-theme-border bg-theme-background">
           {metadata ? (
