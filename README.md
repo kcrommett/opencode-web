@@ -229,6 +229,23 @@ Key entry points include:
 - Keep server function schemas synced with the OpenCode SDK.
 - Confirm UI changes in both desktop and mobile breakpoints.
 
+### Building for Different Channels
+
+The build system supports different release channels that automatically select the appropriate OpenCode SDK version:
+
+- **Production builds** (`OPENCODE_CHANNEL=latest`): Uses stable SDK from npm (`^0.15.14`)
+- **Dev/Preview builds** (`OPENCODE_CHANNEL=dev` or `preview`): Uses latest dev branch from GitHub for unreleased features
+
+```bash
+# Build with stable SDK (production)
+OPENCODE_CHANNEL=latest bun run build:npm
+
+# Build with dev SDK (includes unreleased MCP features)
+OPENCODE_CHANNEL=dev bun run build:npm
+```
+
+The SDK version is automatically set during the build process in `script/build-npm.ts`.
+
 ## Security Considerations
 
 This application is designed for local development and does not include built-in authentication. When exposing it outside your local network:
