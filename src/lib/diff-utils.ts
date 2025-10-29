@@ -257,3 +257,82 @@ export function truncateDiff(
     wasTruncated: true,
   };
 }
+
+/**
+ * Generate unified diff from before/after content
+ * Simple line-by-line diff suitable for rendering with diff2html
+ */
+export function generateUnifiedDiff(
+  filepath: string,
+  before: string,
+  after: string,
+): string {
+  const beforeLines = before.split("\n");
+  const afterLines = after.split("\n");
+
+  // Simple line-by-line comparison (not optimal but works for display)
+  const hunks: string[] = [];
+  let currentHunk: string[] = [];
+  let oldLineNum = 1;
+  let newLineNum = 1;
+  let hunkOldStart = 1;
+  let hunkNewStart = 1;
+  let hunkOldCount = 0;
+  let hunkNewCount = 0;
+
+  const maxLen = Math.max(beforeLines.length, afterLines.length);
+
+  for (let i = 0; i < maxLen; i++) {
+    const oldLine = i < beforeLines.length ? beforeLines[i] : undefined;
+    const newLine = i < afterLines.length ? afterLines[i] : undefined;
+
+    if (oldLine === newLine && oldLine !== undefined) {
+      // Context line
+      if (currentHunk.length > 0) {
+        currentHunk.push(` ${oldLine}`);
+        hunkOldCount++;
+        hunkNewCount++;
+      }
+      oldLineNum++;
+      newLineNum++;
+    } else {
+      // Start new hunk if needed
+      if (currentHunk.length === 0) {
+        hunkOldStart = oldLineNum;
+        hunkNewStart = newLineNum;
+      }
+
+      // Lines differ
+      if (oldLine !== undefined) {
+        currentHunk.push(`-${oldLine}`);
+        hunkOldCount++;
+        oldLineNum++;
+      }
+      if (newLine !== undefined) {
+        currentHunk.push(`+${newLine}`);
+        hunkNewCount++;
+        newLineNum++;
+      }
+    }
+
+    // Close hunk after collecting some changes
+    if (currentHunk.length > 0 && (i === maxLen - 1 || (oldLine === newLine && currentHunk.length > 20))) {
+      hunks.push(
+        `@@ -${hunkOldStart},${hunkOldCount} +${hunkNewStart},${hunkNewCount} @@`
+      );
+      hunks.push(...currentHunk);
+      currentHunk = [];
+      hunkOldCount = 0;
+      hunkNewCount = 0;
+    }
+  }
+
+  // Build unified diff header
+  const header = [
+    `diff --git a/${filepath} b/${filepath}`,
+    `--- a/${filepath}`,
+    `+++ b/${filepath}`,
+  ];
+
+  return [...header, ...hunks].join("\n");
+}

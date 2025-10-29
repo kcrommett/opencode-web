@@ -39,6 +39,7 @@ import { ProjectPicker } from "@/app/_components/ui/project-picker";
 import { PermissionModal } from "@/app/_components/ui/permission-modal";
 import { MessagePart } from "@/app/_components/message";
 import { ImagePreview } from "@/app/_components/ui/image-preview";
+import { PrettyDiff } from "@/app/_components/message/PrettyDiff";
 import type {
   FileContentData,
   MentionSuggestion,
@@ -523,6 +524,7 @@ function OpenCodeChatTUI() {
   });
   const [fileContent, setFileContent] = useState<FileContentData | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [showFileDiff, setShowFileDiff] = useState(false);
   const [mentionSuggestions, setMentionSuggestions] = useState<
     MentionSuggestion[]
   >([]);
@@ -572,7 +574,7 @@ function OpenCodeChatTUI() {
         return stored === "true";
       }
     }
-    return false;
+    return true;
   });
   const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(() => {
     if (typeof window !== "undefined") {
@@ -2794,12 +2796,21 @@ function OpenCodeChatTUI() {
   };
 
   const handleFileSelect = async (filePath: string) => {
+    setActiveTab("files");
+    setIsLeftSidebarOpen(true);
+    setIsMobileSidebarOpen(false);
+    setShowFileDiff(false); // Reset diff view when selecting a new file
+
     try {
       const result = await readFile(filePath);
       setSelectedFile(filePath);
       if (result) {
         setFileContent(result);
         setFileError(null);
+        // Auto-show diff if file has changes
+        if (result.diff) {
+          setShowFileDiff(true);
+        }
       } else {
         setFileContent(null);
         setFileError("Unable to read file");
@@ -4251,9 +4262,9 @@ function OpenCodeChatTUI() {
               <Separator />
               <McpStatusPanel />
               <Separator />
-              <LspStatusPanel />
+              <ModifiedFilesPanel onFileClick={handleFileSelect} />
               <Separator />
-              <ModifiedFilesPanel />
+              <LspStatusPanel />
             </div>
           )}
         </MobileSidebar>
@@ -4790,6 +4801,16 @@ function OpenCodeChatTUI() {
                       )}
                     </h3>
                     <div className="flex gap-2">
+                      {fileContent?.diff && (
+                        <Button
+                          variant={showFileDiff ? "foreground1" : "foreground0"}
+                          box="round"
+                          onClick={() => setShowFileDiff(!showFileDiff)}
+                          size="small"
+                        >
+                          {showFileDiff ? "Show Code" : "Show Diff"}
+                        </Button>
+                      )}
                       {hasBinaryDownload && fileContent?.dataUrl && (
                         <Button
                           variant="foreground0"
@@ -4838,6 +4859,10 @@ function OpenCodeChatTUI() {
                     {fileError ? (
                       <div className="text-center text-sm text-red-400 p-4">
                         {fileError}
+                      </div>
+                    ) : showFileDiff && fileContent?.diff ? (
+                      <div className="h-full overflow-auto scrollbar">
+                        <PrettyDiff diffText={fileContent.diff} />
                       </div>
                     ) : selectedFileIsImage ? (
                       <div className="flex items-center justify-center h-full max-w-full bg-theme-backgroundAccent rounded p-4 overflow-auto scrollbar">
@@ -4945,9 +4970,9 @@ function OpenCodeChatTUI() {
               <Separator />
               <McpStatusPanel />
               <Separator />
-              <LspStatusPanel />
+              <ModifiedFilesPanel onFileClick={handleFileSelect} />
               <Separator />
-              <ModifiedFilesPanel />
+              <LspStatusPanel />
             </div>
           </View>
         )}

@@ -67,6 +67,21 @@ export interface FileContentData {
   mimeType: string | null;
   text: string | null;
   dataUrl: string | null;
+  diff?: string; // Unified diff format for modified files
+  patch?: {
+    oldFileName: string;
+    newFileName: string;
+    oldHeader?: string;
+    newHeader?: string;
+    hunks: Array<{
+      oldStart: number;
+      oldLines: number;
+      newStart: number;
+      newLines: number;
+      lines: string[];
+    }>;
+    index?: string;
+  };
 }
 
 export interface Agent {
@@ -220,4 +235,22 @@ export interface SidebarStatusState {
   mcpStatusError: string | null;
   lspDiagnostics: Record<string, LspDiagnosticsSummary>;
   gitStatus: GitStatus;
+}
+
+/**
+ * Session diff from summary
+ */
+export interface SessionDiff {
+  file: string;
+  before: string;
+  after: string;
+  additions: number;
+  deletions: number;
+}
+
+/**
+ * Session summary information
+ */
+export interface SessionSummary {
+  diffs?: SessionDiff[];
 }

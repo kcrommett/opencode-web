@@ -27,6 +27,21 @@ const debugLog = (...args: unknown[]) => {
 
 const BASE64_ENCODING = "base64";
 
+const normalizeProjectRelativePath = (inputPath: string): string | null => {
+  if (!inputPath) return null;
+
+  // Normalize path separators
+  let normalized = inputPath.replace(/\\/g, "/");
+
+  // Strip any leading ../ or ./ patterns
+  // The API sometimes returns paths like "../../file.txt" which should just be "file.txt"
+  normalized = normalized.replace(/^(?:\.\.\/)+/, "").replace(/^\.\//, "");
+
+  return normalized || null;
+};
+
+
+
 // UUID generator with fallback for environments without crypto.randomUUID
 const generateClientId = (): string => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -312,6 +327,11 @@ export function useOpenCode() {
   const [currentSessionTodos, setCurrentSessionTodos] = useState<SessionTodo[]>(
     [],
   );
+  
+  // Session diffs from summary
+  const [currentSessionDiffs, setCurrentSessionDiffs] = useState<
+    Array<{ file: string; before: string; after: string; additions: number; deletions: number }>
+  >([]);
 
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
   const [config, setConfig] = useState<OpencodeConfig | null>(null);
@@ -566,24 +586,37 @@ export function useOpenCode() {
         const untracked: string[] = [];
         const deleted: string[] = [];
         
-        fileStatusArray.forEach(file => {
+        fileStatusArray.forEach((file) => {
+          const normalizedPath = normalizeProjectRelativePath(file.path);
+          if (!normalizedPath) {
+            if (isDevEnvironment) {
+              console.debug('[GitStatus] Skipping invalid path', {
+                path: file.path,
+                worktree: currentProject?.worktree,
+              });
+            }
+            return;
+          }
+
           switch (file.status) {
-            case 'staged':
-              staged.push(file.path);
+
+
+            case "staged":
+              staged.push(normalizedPath);
               break;
-            case 'modified':
-              modified.push(file.path);
+            case "modified":
+              modified.push(normalizedPath);
               break;
-            case 'untracked':
-              untracked.push(file.path);
+            case "untracked":
+              untracked.push(normalizedPath);
               break;
-            case 'deleted':
-              deleted.push(file.path);
+            case "deleted":
+              deleted.push(normalizedPath);
               break;
             default:
               // Handle any other status as modified for now
-              if (file.status !== 'unchanged') {
-                modified.push(file.path);
+              if (file.status !== "unchanged") {
+                modified.push(normalizedPath);
               }
           }
         });
@@ -753,6 +786,15 @@ export function useOpenCode() {
               directory?: string;
               projectID?: string;
               time?: { created?: number; updated?: number };
+              summary?: {
+                diffs?: Array<{
+                  file: string;
+                  before: string;
+                  after: string;
+                  additions: number;
+                  deletions: number;
+                }>;
+              };
             };
             setCurrentSession({
               id: session.id,
@@ -766,6 +808,14 @@ export function useOpenCode() {
                 ? new Date(session.time.updated)
                 : undefined,
             });
+            
+            // Extract session diffs
+            if (session.summary?.diffs) {
+              setCurrentSessionDiffs(session.summary.diffs);
+              debugLog("[Hydration] Loaded session diffs:", session.summary.diffs.length);
+            } else {
+              setCurrentSessionDiffs([]);
+            }
 
             try {
               const messagesResponse = await openCodeService.getMessages(
@@ -2571,6 +2621,30 @@ export function useOpenCode() {
           setCurrentSession(session);
           await loadMessages(sessionId);
 
+          // Fetch full session data to get diffs
+          const response = await openCodeService.getSession(
+            sessionId,
+            currentProject?.worktree
+          );
+          if (response.data) {
+            const fullSession = response.data as unknown as {
+              summary?: {
+                diffs?: Array<{
+                  file: string;
+                  before: string;
+                  after: string;
+                  additions: number;
+                  deletions: number;
+                }>;
+              };
+            };
+            if (fullSession.summary?.diffs) {
+              setCurrentSessionDiffs(fullSession.summary.diffs);
+            } else {
+              setCurrentSessionDiffs([]);
+            }
+          }
+
           // Restore the last used model for this session
           if (sessionModelMap[sessionId]) {
             manualModelSelectionRef.current = false;
@@ -2581,7 +2655,7 @@ export function useOpenCode() {
         console.error("Failed to switch session:", error);
       }
     },
-    [sessions, loadMessages, sessionModelMap],
+    [sessions, loadMessages, sessionModelMap, currentProject?.worktree],
   );
 
   const deleteSession = useCallback(
@@ -2759,6 +2833,8 @@ export function useOpenCode() {
       content: string,
       encoding: string | null,
       mimeType: string | null,
+      diff?: string,
+      patch?: FileContentData['patch'],
     ): FileContentData => {
       const normalizedEncoding =
         typeof encoding === "string" ? encoding.trim().toLowerCase() : null;
@@ -2778,6 +2854,8 @@ export function useOpenCode() {
         mimeType: mimeType ?? null,
         text,
         dataUrl: buildDataUrl(content, normalizedEncoding, mimeType ?? null),
+        diff,
+        patch,
       };
     },
     [decodeBase64ToUtf8, shouldDecodeAsText],
@@ -2811,7 +2889,15 @@ export function useOpenCode() {
               "mimeType" in data && typeof data.mimeType === "string"
                 ? data.mimeType
                 : null;
-            return buildFileContent(filePath, data.content, encoding, mimeType);
+            const diff =
+              "diff" in data && typeof data.diff === "string"
+                ? data.diff
+                : undefined;
+            const patch =
+              "patch" in data && typeof data.patch === "object"
+                ? data.patch as FileContentData['patch']
+                : undefined;
+            return buildFileContent(filePath, data.content, encoding, mimeType, diff, patch);
           }
           if ("diff" in data && typeof data.diff === "string") {
             return buildFileContent(filePath, data.diff, null, "text/plain");
@@ -3571,5 +3657,7 @@ export function useOpenCode() {
     refreshMcpStatus,
     refreshGitStatus,
     refreshStatusAll,
+    // Session diffs
+    currentSessionDiffs,
   };
 }
