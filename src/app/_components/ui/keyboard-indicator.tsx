@@ -114,6 +114,11 @@ export function KeyboardIndicator({ keyboardState, className }: KeyboardIndicato
     ? getSecondaryShortcuts(keyboardState.activeModal) 
     : [];
 
+  // Don't render if secondary shortcuts are active but there are no shortcuts to show
+  if (keyboardState.secondaryShortcutsActive && secondaryShortcuts.length === 0) {
+    return null;
+  }
+
   return (
     <div
       ref={indicatorRef}

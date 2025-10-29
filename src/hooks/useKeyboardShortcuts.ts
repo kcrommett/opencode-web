@@ -105,17 +105,13 @@ export function useKeyboardShortcuts() {
       secondaryShortcutsActive: true
     }));
 
-    // Auto-deactivate after 2 seconds
+    // Clear any existing timeout
     if (secondaryTimeoutRef.current) {
       clearTimeout(secondaryTimeoutRef.current);
+      secondaryTimeoutRef.current = null;
     }
 
-    secondaryTimeoutRef.current = setTimeout(() => {
-      setKeyboardState((prev) => ({ 
-        ...prev, 
-        secondaryShortcutsActive: false 
-      }));
-    }, 2000);
+    // Don't auto-deactivate - let user dismiss with ESC
   }, []);
 
   /**
@@ -264,6 +260,13 @@ export function useKeyboardShortcuts() {
 
       // Handle ESC key
       if (key === "Escape") {
+        // If secondary shortcuts are active but no dialog, dismiss them
+        if (keyboardState.secondaryShortcutsActive && !isDialogOpen()) {
+          event.preventDefault();
+          deactivateSecondaryShortcuts();
+          return;
+        }
+
         if (isDialogOpen()) {
           return;
         }
@@ -286,6 +289,10 @@ export function useKeyboardShortcuts() {
 
           if (keyboardState.leaderActive) {
             deactivateLeader();
+          }
+
+          if (keyboardState.secondaryShortcutsActive) {
+            deactivateSecondaryShortcuts();
           }
 
           setKeyboardState((prev) => ({
@@ -429,6 +436,7 @@ export function useKeyboardShortcuts() {
     shortcuts,
     activateLeader,
     deactivateLeader,
+    deactivateSecondaryShortcuts,
   ]);
 
   return {

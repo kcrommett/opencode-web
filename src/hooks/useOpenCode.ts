@@ -551,27 +551,53 @@ export function useOpenCode() {
     
     try {
       const response = await openCodeService.getFileStatus(currentProject.worktree);
-      const gitData = response.data as { 
-        branch?: string;
-        ahead?: number;
-        behind?: number;
-        staged?: string[];
-        modified?: string[];
-        untracked?: string[];
-        deleted?: string[];
-      } | undefined;
+      // API returns array of file status objects: [{ path, status, added, removed }]
+      const fileStatusArray = response.data as Array<{
+        path: string;
+        status: string;
+        added?: number;
+        removed?: number;
+      }> | undefined;
       
-      if (gitData) {
+      if (fileStatusArray) {
+        // Transform array into separate arrays by status
+        const staged: string[] = [];
+        const modified: string[] = [];
+        const untracked: string[] = [];
+        const deleted: string[] = [];
+        
+        fileStatusArray.forEach(file => {
+          switch (file.status) {
+            case 'staged':
+              staged.push(file.path);
+              break;
+            case 'modified':
+              modified.push(file.path);
+              break;
+            case 'untracked':
+              untracked.push(file.path);
+              break;
+            case 'deleted':
+              deleted.push(file.path);
+              break;
+            default:
+              // Handle any other status as modified for now
+              if (file.status !== 'unchanged') {
+                modified.push(file.path);
+              }
+          }
+        });
+        
         setSidebarStatus((prev) => ({
           ...prev,
           gitStatus: {
-            branch: gitData.branch,
-            ahead: gitData.ahead,
-            behind: gitData.behind,
-            staged: gitData.staged || [],
-            modified: gitData.modified || [],
-            untracked: gitData.untracked || [],
-            deleted: gitData.deleted || [],
+            branch: undefined, // API doesn't provide branch info
+            ahead: undefined,  // API doesn't provide ahead/behind info
+            behind: undefined,
+            staged,
+            modified,
+            untracked,
+            deleted,
             timestamp: new Date(),
           },
         }));

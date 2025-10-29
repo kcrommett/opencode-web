@@ -1220,6 +1220,11 @@ function OpenCodeChatTUI() {
       return;
     }
 
+    if (showHelp) {
+      setActiveModal("help");
+      return;
+    }
+
     setActiveModal(null);
   }, [
     showSessionPicker,
@@ -1229,6 +1234,7 @@ function OpenCodeChatTUI() {
     showThemes,
     showConfig,
     showCommandPicker,
+    showHelp,
     setActiveModal,
   ]);
 
