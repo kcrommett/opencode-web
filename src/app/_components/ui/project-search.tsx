@@ -21,7 +21,7 @@ export const ProjectSearchInput = forwardRef<ProjectSearchInputRef, ProjectSearc
   const [localValue, setLocalValue] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
   const lastKeyRef = useRef<string>("");
-  const keyTimeoutRef = useRef<NodeJS.Timeout>();
+  const keyTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Debounce: update parent after 300ms
   useEffect(() => {

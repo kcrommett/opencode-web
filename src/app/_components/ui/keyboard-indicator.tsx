@@ -182,6 +182,9 @@ export function KeyboardIndicator({ keyboardState, className }: KeyboardIndicato
               <kbd className="px-1.5 py-0.5 rounded font-mono text-xs" style={{ backgroundColor: "var(--theme-backgroundAlt)", borderColor: "var(--theme-primary)", borderWidth: "1px" }}>W</kbd> Workspace
             </div>
             <div className="text-sm opacity-80">
+              <kbd className="px-1.5 py-0.5 rounded font-mono text-xs" style={{ backgroundColor: "var(--theme-backgroundAlt)", borderColor: "var(--theme-primary)", borderWidth: "1px" }}>I</kbd> Info
+            </div>
+            <div className="text-sm opacity-80">
               <kbd className="px-1.5 py-0.5 rounded font-mono text-xs" style={{ backgroundColor: "var(--theme-backgroundAlt)", borderColor: "var(--theme-primary)", borderWidth: "1px" }}>M</kbd> Models
             </div>
             <div className="text-sm opacity-80">
@@ -193,7 +196,7 @@ export function KeyboardIndicator({ keyboardState, className }: KeyboardIndicato
             <div className="text-sm opacity-80">
               <kbd className="px-1.5 py-0.5 rounded font-mono text-xs" style={{ backgroundColor: "var(--theme-backgroundAlt)", borderColor: "var(--theme-primary)", borderWidth: "1px" }}>C</kbd> Config
             </div>
-            <div className="text-sm opacity-80 col-span-2">
+            <div className="text-sm opacity-80">
               <kbd className="px-1.5 py-0.5 rounded font-mono text-xs" style={{ backgroundColor: "var(--theme-backgroundAlt)", borderColor: "var(--theme-primary)", borderWidth: "1px" }}>H</kbd> Help
             </div>
           </div>

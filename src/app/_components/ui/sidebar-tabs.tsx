@@ -68,7 +68,7 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
           role="tab"
           aria-selected={activeTab === tab.id}
           aria-controls={`sidebar-panel-${tab.id}`}
-          tabIndex={activeTab === tab.id ? 0 : -1}
+          tabIndex={tab.disabled ? -1 : 0}
           onClick={() => onTabChange(tab.id)}
           variant={activeTab === tab.id ? "foreground0" : undefined}
           box="square"

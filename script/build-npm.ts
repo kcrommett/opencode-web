@@ -99,6 +99,24 @@ await Bun.write(rootPackageJsonPath, JSON.stringify(rootPackageJson, null, 2));
 const packageJsonPath = "packages/opencode-web/package.json";
 const packageJson = JSON.parse(await Bun.file(packageJsonPath).text());
 packageJson.version = Script.version;
+
+// Update SDK dependency based on channel
+// - For dev/preview builds: Use the latest dev branch from GitHub (includes unreleased MCP features)
+// - For production builds: Use the latest stable release from npm
+if (Script.channel === "preview" || Script.channel === "dev") {
+  const devSdkRef = "github:sst/opencode#dev:packages/sdk/js";
+  console.log(
+    `[SDK] Using dev branch for ${Script.channel} channel: ${devSdkRef}`,
+  );
+  packageJson.dependencies["@opencode-ai/sdk"] = devSdkRef;
+} else {
+  const stableSdkVersion = "^0.15.14";
+  console.log(
+    `[SDK] Using stable release for ${Script.channel} channel: ${stableSdkVersion}`,
+  );
+  packageJson.dependencies["@opencode-ai/sdk"] = stableSdkVersion;
+}
+
 await Bun.write(packageJsonPath, JSON.stringify(packageJson, null, 2));
 
 // Verify version synchronization
