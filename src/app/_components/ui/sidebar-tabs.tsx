@@ -30,6 +30,10 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
         if (currentEnabledIndex > 0) {
           const newTab = enabledTabs[currentEnabledIndex - 1];
           onTabChange(newTab.id);
+          // Move focus to the newly active tab button
+          setTimeout(() => {
+            document.getElementById(`sidebar-tab-${newTab.id}`)?.focus();
+          }, 0);
         }
         break;
       case "ArrowRight":
@@ -37,18 +41,29 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
         if (currentEnabledIndex < enabledTabs.length - 1) {
           const newTab = enabledTabs[currentEnabledIndex + 1];
           onTabChange(newTab.id);
+          setTimeout(() => {
+            document.getElementById(`sidebar-tab-${newTab.id}`)?.focus();
+          }, 0);
         }
         break;
       case "Home":
         e.preventDefault();
         if (enabledTabs.length > 0) {
-          onTabChange(enabledTabs[0].id);
+          const newId = enabledTabs[0].id;
+          onTabChange(newId);
+          setTimeout(() => {
+            document.getElementById(`sidebar-tab-${newId}`)?.focus();
+          }, 0);
         }
         break;
       case "End":
         e.preventDefault();
         if (enabledTabs.length > 0) {
-          onTabChange(enabledTabs[enabledTabs.length - 1].id);
+          const newId = enabledTabs[enabledTabs.length - 1].id;
+          onTabChange(newId);
+          setTimeout(() => {
+            document.getElementById(`sidebar-tab-${newId}`)?.focus();
+          }, 0);
         }
         break;
     }
@@ -68,7 +83,7 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
           role="tab"
           aria-selected={activeTab === tab.id}
           aria-controls={`sidebar-panel-${tab.id}`}
-          tabIndex={tab.disabled ? -1 : 0}
+          tabIndex={activeTab === tab.id && !tab.disabled ? 0 : -1}
           onClick={() => onTabChange(tab.id)}
           variant={activeTab === tab.id ? "foreground0" : undefined}
           box="square"

@@ -884,7 +884,7 @@ function OpenCodeChatTUI() {
     // Files tab shortcuts (when files tab is active)
     unregisterFns.push(
       registerShortcut({
-        key: "s",
+        key: "/",
         handler: () => {
           if (activeTab === "files") {
             fileSearchInputRef.current?.focus();
@@ -1238,11 +1238,13 @@ function OpenCodeChatTUI() {
         sessionsHeading.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     } else if (selectedFrame === "files") {
-      // Switch to files tab
+      // Switch to files tab and ensure sidebar is visible
       setActiveTab("files");
+      setIsLeftSidebarOpen(true);
     } else if (selectedFrame === "workspace") {
-      // Switch to workspace tab and focus on input area
+      // Switch to workspace tab and focus on input area; ensure sidebar is visible
       setActiveTab("workspace");
+      setIsLeftSidebarOpen(true);
       setTimeout(() => {
         if (textareaRef.current) {
           textareaRef.current.focus();
@@ -2153,6 +2155,7 @@ function OpenCodeChatTUI() {
           const filePath = args[0];
           await handleFileSelect(filePath);
           setActiveTab("files");
+          setIsLeftSidebarOpen(true);
           const successMsg = {
             id: `assistant-${Date.now()}`,
             type: "assistant" as const,
