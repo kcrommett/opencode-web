@@ -11,6 +11,7 @@ Created a Bun-powered utility that:
 - Resolves color references from `defs` to hex values
 - Handles both direct string values and `{dark, light}` object structures
 - Supports cross-references between theme keys (e.g., `diffLineNumber` -> `diffContextBg`)
+- Intelligently finds bright variants for hover states (e.g., `blue` -> `blueBright`, `darkStep9` -> `darkStep10`)
 - Maps TUI semantic keys to web `Theme` interface fields
 - Outputs deterministic TypeScript code
 
@@ -52,6 +53,7 @@ All 24 themes updated to match TUI source:
 ### Color Accuracy
 - Verified OpenCode theme: `primary: #fab283` matches `darkStep9` from source
 - Verified Catppuccin theme: `primary: #89b4fa` matches `darkBlue` from source
+- Verified hover states use bright variants: Cobalt2 `primaryHover: #5cb7ff` (blueBright) instead of purple secondary
 - All themes successfully converted without errors
 
 ### Runtime Integration

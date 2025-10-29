@@ -134,13 +134,47 @@ function getThemeValueWithFallback(
 }
 
 /**
+ * Try to find a bright variant of a color reference
+ * e.g., "blue" -> "blueBright", "darkStep9" -> "darkStep10"
+ */
+function getBrightVariant(
+  colorRef: string,
+  defs: Record<string, string>,
+  theme: Record<string, string | { dark: string; light?: string }>
+): string | null {
+  // Try adding "Bright" suffix
+  const brightRef = colorRef + "Bright";
+  if (defs[brightRef]) {
+    return resolveColor(brightRef, defs, theme);
+  }
+  
+  // Try incrementing step numbers (e.g., darkStep9 -> darkStep10)
+  const stepMatch = colorRef.match(/^(.*?)(\d+)$/);
+  if (stepMatch) {
+    const [, prefix, num] = stepMatch;
+    const nextStep = prefix + (parseInt(num) + 1);
+    if (defs[nextStep]) {
+      return resolveColor(nextStep, defs, theme);
+    }
+  }
+  
+  return null;
+}
+
+/**
  * Convert a TUI theme JSON to web Theme format
  */
 function convertTheme(tuiTheme: TUIThemeDef, themeId: string, themeName: string): WebTheme {
   const { defs, theme } = tuiTheme;
   
-  // Helper to get primary with hover fallback
+  // Get primary color and try to find a bright variant for hover
+  const primaryEntry = theme.primary;
+  const primaryRef = typeof primaryEntry === "string" ? primaryEntry : (primaryEntry as any).dark;
   const primary = getThemeValue(theme, "primary", defs);
+  
+  // Try to find bright variant, otherwise fall back to primary itself
+  const primaryHover = getBrightVariant(primaryRef, defs, theme) || primary;
+  
   const secondary = getThemeValueWithFallback(theme, ["secondary", "accent"], defs);
   
   return {
@@ -166,7 +200,7 @@ function convertTheme(tuiTheme: TUIThemeDef, themeId: string, themeName: string)
       
       // Primary/accent colors
       primary: primary,
-      primaryHover: secondary, // Use secondary as hover state
+      primaryHover: primaryHover,
       secondary: secondary,
       accent: getThemeValue(theme, "accent", defs),
       
