@@ -496,14 +496,22 @@ export function useOpenCode() {
 
   // Sidebar status refresh functions
   const refreshMcpStatus = useCallback(async () => {
-    setSidebarStatus((prev) => ({
-      ...prev,
-      mcpStatusLoading: true,
-      mcpStatusError: null,
-    }));
+    // Delay showing loading state to prevent flash on fast responses
+    const LOADING_DELAY = 200; // ms
+    let showLoading = false;
+    
+    const loadingTimer = setTimeout(() => {
+      showLoading = true;
+      setSidebarStatus((prev) => ({
+        ...prev,
+        mcpStatusLoading: true,
+        mcpStatusError: null,
+      }));
+    }, LOADING_DELAY);
 
     try {
       const response = await openCodeService.getMcpStatus();
+      clearTimeout(loadingTimer);
       setSidebarStatus((prev) => ({
         ...prev,
         mcpStatus: response.data ?? null,
@@ -511,6 +519,7 @@ export function useOpenCode() {
         mcpStatusError: null,
       }));
     } catch (error) {
+      clearTimeout(loadingTimer);
       if (isDevEnvironment) {
         console.error("Failed to refresh MCP status:", error);
       }
