@@ -2833,6 +2833,8 @@ export function useOpenCode() {
       content: string,
       encoding: string | null,
       mimeType: string | null,
+      diff?: string,
+      patch?: FileContentData['patch'],
     ): FileContentData => {
       const normalizedEncoding =
         typeof encoding === "string" ? encoding.trim().toLowerCase() : null;
@@ -2852,6 +2854,8 @@ export function useOpenCode() {
         mimeType: mimeType ?? null,
         text,
         dataUrl: buildDataUrl(content, normalizedEncoding, mimeType ?? null),
+        diff,
+        patch,
       };
     },
     [decodeBase64ToUtf8, shouldDecodeAsText],
@@ -2885,7 +2889,15 @@ export function useOpenCode() {
               "mimeType" in data && typeof data.mimeType === "string"
                 ? data.mimeType
                 : null;
-            return buildFileContent(filePath, data.content, encoding, mimeType);
+            const diff =
+              "diff" in data && typeof data.diff === "string"
+                ? data.diff
+                : undefined;
+            const patch =
+              "patch" in data && typeof data.patch === "object"
+                ? data.patch as FileContentData['patch']
+                : undefined;
+            return buildFileContent(filePath, data.content, encoding, mimeType, diff, patch);
           }
           if ("diff" in data && typeof data.diff === "string") {
             return buildFileContent(filePath, data.diff, null, "text/plain");

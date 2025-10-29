@@ -67,6 +67,21 @@ export interface FileContentData {
   mimeType: string | null;
   text: string | null;
   dataUrl: string | null;
+  diff?: string; // Unified diff format for modified files
+  patch?: {
+    oldFileName: string;
+    newFileName: string;
+    oldHeader?: string;
+    newHeader?: string;
+    hunks: Array<{
+      oldStart: number;
+      oldLines: number;
+      newStart: number;
+      newLines: number;
+      lines: string[];
+    }>;
+    index?: string;
+  };
 }
 
 export interface Agent {
