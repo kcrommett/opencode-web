@@ -54,6 +54,7 @@ import { parseCommand } from "@/lib/commandParser";
 import {
   getCommandSuggestions,
   completeCommand,
+  COMMANDS,
   type Command,
 } from "@/lib/commands";
 import { useTheme } from "@/hooks/useTheme";
@@ -76,6 +77,12 @@ import { KeyboardIndicator } from "@/app/_components/ui";
 import "highlight.js/styles/github-dark.css";
 
 const MAX_IMAGE_SIZE_MB = 10;
+
+// Commands that open pickers when executed
+const PICKER_COMMANDS = ["models", "agents", "themes", "sessions"];
+
+// Commands that take no arguments and execute immediately
+const NO_ARG_COMMANDS = ["new", "clear", "undo", "redo", "share", "unshare", "init", "compact", "details", "export", "help"];
 
 // UUID generator with fallback for environments without crypto.randomUUID
 const generateClientId = (): string => {
@@ -1607,7 +1614,7 @@ function OpenCodeChatTUI() {
   const handleCommand = async (command: string) => {
     const parsed = parseCommand(command, commands);
     const cmd = parsed.command;
-    const args = parsed.args;
+    const _args = parsed.args; // Preserved for future commands with args
     const directory = currentProject?.worktree || "";
 
     if (parsed.matchedCommand) {
@@ -1639,42 +1646,9 @@ function OpenCodeChatTUI() {
         setMessages((prev) => [...prev, newMessage]);
         break;
       case "models":
-        // Open model picker dialog
+        setInput("");
+        closeAllModals();
         setShowModelPicker(true);
-        break;
-      case "model":
-        if (!args || args.length < 1) {
-          const errorMessage = {
-            id: `assistant-${Date.now()}`,
-            type: "assistant" as const,
-            content: "Usage: /model <provider>/<model>",
-            timestamp: new Date(),
-          };
-          setMessages((prev) => [...prev, errorMessage]);
-          break;
-        }
-        const [providerID, modelID] = args[0].split("/");
-        const model = models.find(
-          (m) => m.providerID === providerID && m.modelID === modelID,
-        );
-        if (model) {
-          selectModel(model);
-          const successMessage = {
-            id: `assistant-${Date.now()}`,
-            type: "assistant" as const,
-            content: `Selected model: ${model.name}`,
-            timestamp: new Date(),
-          };
-          setMessages((prev) => [...prev, successMessage]);
-        } else {
-          const errorMessage = {
-            id: `assistant-${Date.now()}`,
-            type: "assistant" as const,
-            content: `Model not found: ${args[0]}`,
-            timestamp: new Date(),
-          };
-          setMessages((prev) => [...prev, errorMessage]);
-        }
         break;
       case "help":
         setInput("");
@@ -2199,29 +2173,6 @@ function OpenCodeChatTUI() {
           setMessages((prev) => [...prev, errorMessage]);
         }
         break;
-      case "editor":
-        if (args && args.length > 0) {
-          const filePath = args[0];
-          await handleFileSelect(filePath);
-          setActiveTab("files");
-          setIsLeftSidebarOpen(true);
-          const successMsg = {
-            id: `assistant-${Date.now()}`,
-            type: "assistant" as const,
-            content: `Opened ${filePath} in file viewer.`,
-            timestamp: new Date(),
-          };
-          setMessages((prev) => [...prev, successMsg]);
-        } else {
-          const errorMsg = {
-            id: `assistant-${Date.now()}`,
-            type: "assistant" as const,
-            content: "Usage: /editor <file-path>",
-            timestamp: new Date(),
-          };
-          setMessages((prev) => [...prev, errorMsg]);
-        }
-        break;
       default:
         const unknownMessage = {
           id: `assistant-${Date.now()}`,
@@ -2436,13 +2387,49 @@ function OpenCodeChatTUI() {
       if (showCommandPicker && commandSuggestions.length > 0) {
         const completed = completeCommand(input, customCommandSuggestions);
         if (completed) {
-          setInput(completed + " ");
-          setShowCommandPicker(false);
+          // Check if it's a picker command that should execute immediately
+          const commandName = completed.slice(1); // Remove leading /
+
+          if (PICKER_COMMANDS.includes(commandName) || NO_ARG_COMMANDS.includes(commandName)) {
+            // Execute immediately for picker and no-arg commands
+            const normalizedCommandName = commandName.toLowerCase();
+            const resolvedCommand =
+              commandSuggestions.find(
+                (cmd) => cmd.name.toLowerCase() === normalizedCommandName,
+              ) ??
+              customCommandSuggestions.find(
+                (cmd) => cmd.name.toLowerCase() === normalizedCommandName,
+              ) ??
+              COMMANDS.find(
+                (cmd) => cmd.name.toLowerCase() === normalizedCommandName,
+              );
+
+            if (resolvedCommand) {
+              handleCommandSelect(resolvedCommand);
+            } else {
+              setShowCommandPicker(false);
+              setInput(completed + " ");
+            }
+          } else {
+            // For custom commands, just complete and wait for user input
+            setInput(completed + " ");
+            setShowCommandPicker(false);
+          }
         }
       } else if (input.startsWith("/")) {
         const completed = completeCommand(input, customCommandSuggestions);
         if (completed) {
-          setInput(completed + " ");
+          // Check if it's a picker command that should execute immediately
+          const commandName = completed.slice(1); // Remove leading /
+          
+          if (PICKER_COMMANDS.includes(commandName) || NO_ARG_COMMANDS.includes(commandName)) {
+            // Execute immediately for picker and no-arg commands
+            setInput("");
+            void handleCommand(completed);
+          } else {
+            // For custom commands, just complete and wait for user input
+            setInput(completed + " ");
+          }
         }
       } else {
         cycleAgent();
@@ -2763,22 +2750,7 @@ function OpenCodeChatTUI() {
     } else if (command.name === "agents") {
       setInput("");
       setShowAgentPicker(true);
-    } else if (
-      [
-        "new",
-        "clear",
-        "undo",
-        "redo",
-        "share",
-        "unshare",
-        "init",
-        "compact",
-        "details",
-        "export",
-        "editor",
-        "exit",
-      ].includes(command.name)
-    ) {
+    } else if (NO_ARG_COMMANDS.includes(command.name)) {
       setInput("");
       void handleCommand(`/${command.name}`);
     } else {
