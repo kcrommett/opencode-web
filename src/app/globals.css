@@ -619,6 +619,31 @@ button[box-="double"][variant-="foreground0"] {
   user-select: none;
 }
 
+/* Code block click-to-copy interactions */
+.markdown-content pre[data-copy-status] {
+  position: relative;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.markdown-content pre[data-copy-status]:hover {
+  background-color: rgb(from var(--theme-backgroundAccent) r g b / 0.6);
+}
+
+.markdown-content pre[data-copy-status]:focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 2px;
+}
+
+.markdown-content pre[data-copy-status="copied"] {
+  background-color: rgb(from var(--theme-primary) r g b / 0.1);
+  border-color: var(--theme-primary);
+}
+
+.markdown-content pre[data-copy-status="error"] {
+  background-color: rgb(from var(--theme-error) r g b / 0.1);
+  border-color: var(--theme-error);
+}
+
 /* Theme-aware utility classes */
 @layer utilities {
   /* Background Colors */
