@@ -23,12 +23,7 @@ export const COMMANDS: Command[] = [
   { name: "compact", description: "Toggle compact view", category: "other" },
   { name: "details", description: "Toggle details view", category: "other" },
   { name: "export", description: "Export session", category: "other" },
-  {
-    name: "debug",
-    description: "Export session data (JSON)",
-    category: "other",
-  },
-  { name: "editor", description: "Open editor", category: "other" },
+  { name: "debug", description: "Export session data (JSON)", category: "other" },
 ];
 
 /**

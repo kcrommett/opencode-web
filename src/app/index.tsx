@@ -1607,7 +1607,7 @@ function OpenCodeChatTUI() {
   const handleCommand = async (command: string) => {
     const parsed = parseCommand(command, commands);
     const cmd = parsed.command;
-    const args = parsed.args;
+    const _args = parsed.args; // Preserved for future commands with args
     const directory = currentProject?.worktree || "";
 
     if (parsed.matchedCommand) {
@@ -2164,29 +2164,6 @@ function OpenCodeChatTUI() {
             timestamp: new Date(),
           };
           setMessages((prev) => [...prev, errorMessage]);
-        }
-        break;
-      case "editor":
-        if (args && args.length > 0) {
-          const filePath = args[0];
-          await handleFileSelect(filePath);
-          setActiveTab("files");
-          setIsLeftSidebarOpen(true);
-          const successMsg = {
-            id: `assistant-${Date.now()}`,
-            type: "assistant" as const,
-            content: `Opened ${filePath} in file viewer.`,
-            timestamp: new Date(),
-          };
-          setMessages((prev) => [...prev, successMsg]);
-        } else {
-          const errorMsg = {
-            id: `assistant-${Date.now()}`,
-            type: "assistant" as const,
-            content: "Usage: /editor <file-path>",
-            timestamp: new Date(),
-          };
-          setMessages((prev) => [...prev, errorMsg]);
         }
         break;
       default:
@@ -2767,7 +2744,6 @@ function OpenCodeChatTUI() {
         "compact",
         "details",
         "export",
-        "editor",
         "exit",
       ].includes(command.name)
     ) {
