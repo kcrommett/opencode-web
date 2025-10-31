@@ -77,6 +77,12 @@ import "highlight.js/styles/github-dark.css";
 
 const MAX_IMAGE_SIZE_MB = 10;
 
+// Commands that open pickers when executed
+const PICKER_COMMANDS = ["models", "agents", "themes", "sessions"];
+
+// Commands that take no arguments and execute immediately
+const NO_ARG_COMMANDS = ["new", "clear", "undo", "redo", "share", "unshare", "init", "compact", "details", "export", "help"];
+
 // UUID generator with fallback for environments without crypto.randomUUID
 const generateClientId = (): string => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -2382,10 +2388,8 @@ function OpenCodeChatTUI() {
         if (completed) {
           // Check if it's a picker command that should execute immediately
           const commandName = completed.slice(1); // Remove leading /
-          const pickerCommands = ["models", "agents", "themes", "sessions"];
-          const noArgCommands = ["new", "clear", "undo", "redo", "share", "unshare", "init", "compact", "details", "export", "help"];
           
-          if (pickerCommands.includes(commandName) || noArgCommands.includes(commandName)) {
+          if (PICKER_COMMANDS.includes(commandName) || NO_ARG_COMMANDS.includes(commandName)) {
             // Execute immediately for picker and no-arg commands
             setInput("");
             setShowCommandPicker(false);
@@ -2401,10 +2405,8 @@ function OpenCodeChatTUI() {
         if (completed) {
           // Check if it's a picker command that should execute immediately
           const commandName = completed.slice(1); // Remove leading /
-          const pickerCommands = ["models", "agents", "themes", "sessions"];
-          const noArgCommands = ["new", "clear", "undo", "redo", "share", "unshare", "init", "compact", "details", "export", "help"];
           
-          if (pickerCommands.includes(commandName) || noArgCommands.includes(commandName)) {
+          if (PICKER_COMMANDS.includes(commandName) || NO_ARG_COMMANDS.includes(commandName)) {
             // Execute immediately for picker and no-arg commands
             setInput("");
             void handleCommand(completed);
