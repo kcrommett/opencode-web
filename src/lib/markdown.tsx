@@ -45,6 +45,10 @@ const CodeBlock: React.FC<{
   const match = /language-(\w+)/.exec(className || "");
   const language = match ? match[1] : "";
   const code = String(children).replace(/\n$/, "");
+  const isSingleLineContent = !code.includes("\n");
+  const shouldRenderInline = inline || isSingleLineContent;
+  const successResetMs = shouldRenderInline ? 800 : 1500;
+  const errorResetMs = shouldRenderInline ? 1200 : 2000;
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
   const resetTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -60,7 +64,6 @@ const CodeBlock: React.FC<{
   const handleCopy = useCallback(async () => {
     if (!code) return;
 
-    // Clear any existing timer
     if (resetTimerRef.current) {
       clearTimeout(resetTimerRef.current);
     }
@@ -72,36 +75,84 @@ const CodeBlock: React.FC<{
         fallbackCopy(code);
       }
       setCopyStatus("copied");
-      
-      // Reset after 1.5s
+
       resetTimerRef.current = setTimeout(() => {
         setCopyStatus("idle");
-      }, 1500);
+      }, successResetMs);
     } catch (error) {
       if (process.env.NODE_ENV !== "production") {
         console.error("Copy failed", error);
       }
       setCopyStatus("error");
-      
-      // Reset error state after 2s
+
       resetTimerRef.current = setTimeout(() => {
         setCopyStatus("idle");
-      }, 2000);
+      }, errorResetMs);
     }
-  }, [code]);
+  }, [code, errorResetMs, successResetMs]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLPreElement>) => {
+  const handleInlineKeyDown = useCallback((e: React.KeyboardEvent<HTMLElement>) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       handleCopy();
     }
   }, [handleCopy]);
 
-  if (inline) {
+  const handleBlockKeyDown = useCallback((e: React.KeyboardEvent<HTMLPreElement>) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      handleCopy();
+    }
+  }, [handleCopy]);
+
+  const copyStatusMessage =
+    copyStatus === "copied"
+      ? "Code copied to clipboard"
+      : copyStatus === "error"
+      ? "Failed to copy code"
+      : "";
+
+  if (shouldRenderInline) {
+    const statusClass =
+      copyStatus === "copied"
+        ? "border-green-400"
+        : copyStatus === "error"
+        ? "border-red-400"
+        : "";
+    const commonProps = {
+      className: `inline px-1 py-0.5 rounded border border-theme-border text-theme-markdown-code font-mono text-sm cursor-pointer transition-colors duration-200 ${statusClass}`,
+      onClick: handleCopy,
+      onKeyDown: handleInlineKeyDown,
+      role: "button",
+      tabIndex: 0,
+      "aria-label": language
+        ? `Copy ${language} snippet to clipboard`
+        : "Copy code snippet to clipboard",
+      title: "Click to copy",
+      "data-copy-status": copyStatus,
+      "data-language": language || undefined,
+    };
+
+    const inlineNode = language ? (
+      <code {...commonProps} dangerouslySetInnerHTML={{ __html: highlighted }} />
+    ) : (
+      <code {...commonProps}>{code}</code>
+    );
+
     return (
-      <code className="px-1.5 py-0.5 rounded bg-theme-background-accent text-theme-markdown-code font-mono text-sm">
-        {children}
-      </code>
+      <>
+        {inlineNode}
+        {copyStatusMessage ? (
+          <span
+            className="sr-only"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {copyStatusMessage}
+          </span>
+        ) : null}
+      </>
     );
   }
 
@@ -110,7 +161,7 @@ const CodeBlock: React.FC<{
       <pre
         className="p-4 overflow-x-auto bg-theme-background-element cursor-pointer transition-colors duration-150"
         onClick={handleCopy}
-        onKeyDown={handleKeyDown}
+        onKeyDown={handleBlockKeyDown}
         role="button"
         tabIndex={0}
         aria-label={`Copy ${language || "code"} block to clipboard`}
@@ -124,15 +175,16 @@ const CodeBlock: React.FC<{
         />
       </pre>
       {/* Accessible feedback for screen readers */}
-      <span
-        className="sr-only"
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-      >
-        {copyStatus === "copied" && "Code copied to clipboard"}
-        {copyStatus === "error" && "Failed to copy code"}
-      </span>
+      {copyStatusMessage ? (
+        <span
+          className="sr-only"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {copyStatusMessage}
+        </span>
+      ) : null}
     </div>
   );
 };
