@@ -1639,42 +1639,9 @@ function OpenCodeChatTUI() {
         setMessages((prev) => [...prev, newMessage]);
         break;
       case "models":
-        // Open model picker dialog
+        setInput("");
+        closeAllModals();
         setShowModelPicker(true);
-        break;
-      case "model":
-        if (!args || args.length < 1) {
-          const errorMessage = {
-            id: `assistant-${Date.now()}`,
-            type: "assistant" as const,
-            content: "Usage: /model <provider>/<model>",
-            timestamp: new Date(),
-          };
-          setMessages((prev) => [...prev, errorMessage]);
-          break;
-        }
-        const [providerID, modelID] = args[0].split("/");
-        const model = models.find(
-          (m) => m.providerID === providerID && m.modelID === modelID,
-        );
-        if (model) {
-          selectModel(model);
-          const successMessage = {
-            id: `assistant-${Date.now()}`,
-            type: "assistant" as const,
-            content: `Selected model: ${model.name}`,
-            timestamp: new Date(),
-          };
-          setMessages((prev) => [...prev, successMessage]);
-        } else {
-          const errorMessage = {
-            id: `assistant-${Date.now()}`,
-            type: "assistant" as const,
-            content: `Model not found: ${args[0]}`,
-            timestamp: new Date(),
-          };
-          setMessages((prev) => [...prev, errorMessage]);
-        }
         break;
       case "help":
         setInput("");
@@ -2436,13 +2403,38 @@ function OpenCodeChatTUI() {
       if (showCommandPicker && commandSuggestions.length > 0) {
         const completed = completeCommand(input, customCommandSuggestions);
         if (completed) {
-          setInput(completed + " ");
-          setShowCommandPicker(false);
+          // Check if it's a picker command that should execute immediately
+          const commandName = completed.slice(1); // Remove leading /
+          const pickerCommands = ["models", "agents", "themes", "sessions"];
+          const noArgCommands = ["new", "clear", "undo", "redo", "share", "unshare", "init", "compact", "details", "export", "help"];
+          
+          if (pickerCommands.includes(commandName) || noArgCommands.includes(commandName)) {
+            // Execute immediately for picker and no-arg commands
+            setInput("");
+            setShowCommandPicker(false);
+            handleCommandSelect(commandSuggestions[selectedCommandIndex]);
+          } else {
+            // For custom commands, just complete and wait for user input
+            setInput(completed + " ");
+            setShowCommandPicker(false);
+          }
         }
       } else if (input.startsWith("/")) {
         const completed = completeCommand(input, customCommandSuggestions);
         if (completed) {
-          setInput(completed + " ");
+          // Check if it's a picker command that should execute immediately
+          const commandName = completed.slice(1); // Remove leading /
+          const pickerCommands = ["models", "agents", "themes", "sessions"];
+          const noArgCommands = ["new", "clear", "undo", "redo", "share", "unshare", "init", "compact", "details", "export", "help"];
+          
+          if (pickerCommands.includes(commandName) || noArgCommands.includes(commandName)) {
+            // Execute immediately for picker and no-arg commands
+            setInput("");
+            void handleCommand(completed);
+          } else {
+            // For custom commands, just complete and wait for user input
+            setInput(completed + " ");
+          }
         }
       } else {
         cycleAgent();
