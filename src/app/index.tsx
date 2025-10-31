@@ -54,6 +54,7 @@ import { parseCommand } from "@/lib/commandParser";
 import {
   getCommandSuggestions,
   completeCommand,
+  COMMANDS,
   type Command,
 } from "@/lib/commands";
 import { useTheme } from "@/hooks/useTheme";
@@ -2388,12 +2389,27 @@ function OpenCodeChatTUI() {
         if (completed) {
           // Check if it's a picker command that should execute immediately
           const commandName = completed.slice(1); // Remove leading /
-          
+
           if (PICKER_COMMANDS.includes(commandName) || NO_ARG_COMMANDS.includes(commandName)) {
             // Execute immediately for picker and no-arg commands
-            setInput("");
-            setShowCommandPicker(false);
-            handleCommandSelect(commandSuggestions[selectedCommandIndex]);
+            const normalizedCommandName = commandName.toLowerCase();
+            const resolvedCommand =
+              commandSuggestions.find(
+                (cmd) => cmd.name.toLowerCase() === normalizedCommandName,
+              ) ??
+              customCommandSuggestions.find(
+                (cmd) => cmd.name.toLowerCase() === normalizedCommandName,
+              ) ??
+              COMMANDS.find(
+                (cmd) => cmd.name.toLowerCase() === normalizedCommandName,
+              );
+
+            if (resolvedCommand) {
+              handleCommandSelect(resolvedCommand);
+            } else {
+              setShowCommandPicker(false);
+              setInput(completed + " ");
+            }
           } else {
             // For custom commands, just complete and wait for user input
             setInput(completed + " ");
