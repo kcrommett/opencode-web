@@ -2385,34 +2385,18 @@ function OpenCodeChatTUI() {
     if (e.key === "Tab") {
       e.preventDefault();
       if (showCommandPicker && commandSuggestions.length > 0) {
-        const completed = completeCommand(input, customCommandSuggestions);
-        if (completed) {
+        // Use the currently selected command instead of common prefix
+        const selectedCommand = commandSuggestions[selectedCommandIndex];
+        if (selectedCommand) {
           // Check if it's a picker command that should execute immediately
-          const commandName = completed.slice(1); // Remove leading /
+          const commandName = selectedCommand.name;
 
           if (PICKER_COMMANDS.includes(commandName) || NO_ARG_COMMANDS.includes(commandName)) {
             // Execute immediately for picker and no-arg commands
-            const normalizedCommandName = commandName.toLowerCase();
-            const resolvedCommand =
-              commandSuggestions.find(
-                (cmd) => cmd.name.toLowerCase() === normalizedCommandName,
-              ) ??
-              customCommandSuggestions.find(
-                (cmd) => cmd.name.toLowerCase() === normalizedCommandName,
-              ) ??
-              COMMANDS.find(
-                (cmd) => cmd.name.toLowerCase() === normalizedCommandName,
-              );
-
-            if (resolvedCommand) {
-              handleCommandSelect(resolvedCommand);
-            } else {
-              setShowCommandPicker(false);
-              setInput(completed + " ");
-            }
+            handleCommandSelect(selectedCommand);
           } else {
             // For custom commands, just complete and wait for user input
-            setInput(completed + " ");
+            setInput(`/${selectedCommand.name} `);
             setShowCommandPicker(false);
           }
         }
