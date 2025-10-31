@@ -2734,21 +2734,7 @@ function OpenCodeChatTUI() {
     } else if (command.name === "agents") {
       setInput("");
       setShowAgentPicker(true);
-    } else if (
-      [
-        "new",
-        "clear",
-        "undo",
-        "redo",
-        "share",
-        "unshare",
-        "init",
-        "compact",
-        "details",
-        "export",
-        "exit",
-      ].includes(command.name)
-    ) {
+    } else if (NO_ARG_COMMANDS.includes(command.name)) {
       setInput("");
       void handleCommand(`/${command.name}`);
     } else {
