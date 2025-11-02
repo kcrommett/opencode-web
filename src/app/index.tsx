@@ -58,6 +58,7 @@ import {
 } from "@/lib/commands";
 import { useTheme } from "@/hooks/useTheme";
 import { themeList } from "@/lib/themes";
+import { getFeatureFlags } from "@/lib/config";
 import {
   detectLanguage,
   highlightCode,
@@ -74,9 +75,11 @@ import { useIsMobile } from "@/lib/breakpoints";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { KeyboardIndicator } from "@/app/_components/ui";
 import "highlight.js/styles/github-dark.css";
+import { MarkdownRenderer } from "@/lib/markdown";
 
 const MAX_IMAGE_SIZE_MB = 10;
 
+type FileViewMode = "code" | "preview" | "diff";
 // UUID generator with fallback for environments without crypto.randomUUID
 const generateClientId = (): string => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -524,7 +527,7 @@ function OpenCodeChatTUI() {
   });
   const [fileContent, setFileContent] = useState<FileContentData | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [showFileDiff, setShowFileDiff] = useState(false);
+  const [fileViewMode, setFileViewMode] = useState<FileViewMode>("code");
   const [mentionSuggestions, setMentionSuggestions] = useState<
     MentionSuggestion[]
   >([]);
@@ -706,8 +709,18 @@ function OpenCodeChatTUI() {
     sidebarStatus,
   } = useOpenCodeContext();
   const { currentTheme, changeTheme } = useTheme(config?.theme);
+  const featureFlags = useMemo(() => getFeatureFlags(config), [config]);
+  const selectedFileIsMarkdown =
+    !!selectedFile &&
+    (detectLanguage(selectedFile) === "markdown" ||
+      fileContent?.mimeType?.toLowerCase() === "text/markdown");
+  const canPreviewMarkdown =
+    featureFlags.enableMarkdown &&
+    selectedFileIsMarkdown &&
+    !!fileContent?.text;
 
   // MCP status aggregation for header badge
+
   const mcpAggregated = useMemo(() => {
     const { mcpStatus, mcpStatusLoading, mcpStatusError } = sidebarStatus;
     
@@ -2799,7 +2812,7 @@ function OpenCodeChatTUI() {
     setActiveTab("files");
     setIsLeftSidebarOpen(true);
     setIsMobileSidebarOpen(false);
-    setShowFileDiff(false); // Reset diff view when selecting a new file
+    setFileViewMode("code"); // Reset to code view when selecting a new file
 
     try {
       const result = await readFile(filePath);
@@ -2809,7 +2822,7 @@ function OpenCodeChatTUI() {
         setFileError(null);
         // Auto-show diff if file has changes
         if (result.diff) {
-          setShowFileDiff(true);
+          setFileViewMode("diff");
         }
       } else {
         setFileContent(null);
@@ -3164,6 +3177,10 @@ function OpenCodeChatTUI() {
       }
     }
   }, [selectedFile]);
+
+  useEffect(() => {
+    setFileViewMode("code");
+  }, [selectedFile, fileContent?.text]);
 
   useEffect(() => {
     const restoreFilesTab = async () => {
@@ -4803,12 +4820,30 @@ function OpenCodeChatTUI() {
                     <div className="flex gap-2">
                       {fileContent?.diff && (
                         <Button
-                          variant={showFileDiff ? "foreground1" : "foreground0"}
+                          variant={fileViewMode === "diff" ? "foreground1" : "foreground0"}
                           box="round"
-                          onClick={() => setShowFileDiff(!showFileDiff)}
+                          onClick={() =>
+                            setFileViewMode(fileViewMode === "diff" ? "code" : "diff")
+                          }
                           size="small"
+                          aria-pressed={fileViewMode === "diff"}
                         >
-                          {showFileDiff ? "Show Code" : "Show Diff"}
+                          {fileViewMode === "diff" ? "Show Code" : "Show Diff"}
+                        </Button>
+                      )}
+                      {canPreviewMarkdown && (
+                        <Button
+                          variant={fileViewMode === "preview" ? "foreground1" : "foreground0"}
+                          box="round"
+                          onClick={() =>
+                            setFileViewMode(
+                              fileViewMode === "preview" ? "code" : "preview",
+                            )
+                          }
+                          size="small"
+                          aria-pressed={fileViewMode === "preview"}
+                        >
+                          {fileViewMode === "preview" ? "Show Code" : "Preview"}
                         </Button>
                       )}
                       {hasBinaryDownload && fileContent?.dataUrl && (
@@ -4841,15 +4876,15 @@ function OpenCodeChatTUI() {
                           Copy
                         </Button>
                       )}
-                       <Button
-                         variant="background2"
-                         box="round"
-                         onClick={() => {
-                           setSelectedFile(null);
-                           setFileContent(null);
-                           setFileError(null);
-                         }}
-                         size="small"
+                      <Button
+                        variant="background2"
+                        box="round"
+                        onClick={() => {
+                          setSelectedFile(null);
+                          setFileContent(null);
+                          setFileError(null);
+                        }}
+                        size="small"
                       >
                         Close
                       </Button>
@@ -4860,11 +4895,19 @@ function OpenCodeChatTUI() {
                       <div className="text-center text-sm text-red-400 p-4">
                         {fileError}
                       </div>
-                    ) : showFileDiff && fileContent?.diff ? (
+                    ) : fileViewMode === "diff" && fileContent?.diff ? (
                       <div className="h-full overflow-auto scrollbar">
                         <PrettyDiff diffText={fileContent.diff} />
                       </div>
+                    ) : fileViewMode === "preview" && canPreviewMarkdown ? (
+                      <div className="h-full overflow-auto scrollbar bg-theme-background p-6">
+                        <MarkdownRenderer
+                          content={fileContent?.text ?? ""}
+                          enableImages={featureFlags.enableMarkdownImages}
+                        />
+                      </div>
                     ) : selectedFileIsImage ? (
+
                       <div className="flex items-center justify-center h-full max-w-full bg-theme-backgroundAccent rounded p-4 overflow-auto scrollbar">
                         {fileContent?.dataUrl ? (
                           <img
