@@ -12,13 +12,7 @@ export const COMMANDS: Command[] = [
   { name: "sessions", description: "View all sessions", category: "session" },
   { name: "project", description: "Switch projects", category: "other" },
   { name: "models", description: "Open model picker", category: "model" },
-  {
-    name: "model",
-    description: "Select a specific model",
-    args: "<provider>/<model>",
-    category: "model",
-  },
-  { name: "agents", description: "Cycle through agents", category: "agent" },
+  { name: "agents", description: "Open agent picker", category: "agent" },
   { name: "themes", description: "Open theme picker", category: "theme" },
   { name: "help", description: "Show help dialog", category: "other" },
   { name: "undo", description: "Undo last file changes", category: "file" },
@@ -29,12 +23,7 @@ export const COMMANDS: Command[] = [
   { name: "compact", description: "Toggle compact view", category: "other" },
   { name: "details", description: "Toggle details view", category: "other" },
   { name: "export", description: "Export session", category: "other" },
-  {
-    name: "debug",
-    description: "Export session data (JSON)",
-    category: "other",
-  },
-  { name: "editor", description: "Open editor", category: "other" },
+  { name: "debug", description: "Export session data (JSON)", category: "other" },
 ];
 
 /**

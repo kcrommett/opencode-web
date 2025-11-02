@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useCallback, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
@@ -15,7 +15,26 @@ interface MarkdownRendererProps {
 }
 
 /**
- * Custom code block component with syntax highlighting and copy functionality.
+ * Fallback copy implementation for browsers without async clipboard API.
+ * Uses a temporary textarea element for DOM-based copying.
+ */
+function fallbackCopy(text: string): void {
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  textarea.style.pointerEvents = "none";
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    document.execCommand("copy");
+  } finally {
+    document.body.removeChild(textarea);
+  }
+}
+
+/**
+ * Custom code block component with syntax highlighting and click-to-copy functionality.
  * Integrates with existing highlight.js configuration.
  */
 const CodeBlock: React.FC<{
@@ -26,7 +45,12 @@ const CodeBlock: React.FC<{
   const match = /language-(\w+)/.exec(className || "");
   const language = match ? match[1] : "";
   const code = String(children).replace(/\n$/, "");
-  const [copied, setCopied] = useState(false);
+  const isSingleLineContent = !code.includes("\n");
+  const shouldRenderInline = inline || isSingleLineContent;
+  const successResetMs = shouldRenderInline ? 800 : 1500;
+  const errorResetMs = shouldRenderInline ? 1200 : 2000;
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
+  const resetTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const highlighted = useMemo(() => {
     if (!language) return code;
@@ -37,44 +61,130 @@ const CodeBlock: React.FC<{
     }
   }, [code, language]);
 
-  if (inline) {
+  const handleCopy = useCallback(async () => {
+    if (!code) return;
+
+    if (resetTimerRef.current) {
+      clearTimeout(resetTimerRef.current);
+    }
+
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(code);
+      } else {
+        fallbackCopy(code);
+      }
+      setCopyStatus("copied");
+
+      resetTimerRef.current = setTimeout(() => {
+        setCopyStatus("idle");
+      }, successResetMs);
+    } catch (error) {
+      if (process.env.NODE_ENV !== "production") {
+        console.error("Copy failed", error);
+      }
+      setCopyStatus("error");
+
+      resetTimerRef.current = setTimeout(() => {
+        setCopyStatus("idle");
+      }, errorResetMs);
+    }
+  }, [code, errorResetMs, successResetMs]);
+
+  const handleInlineKeyDown = useCallback((e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      handleCopy();
+    }
+  }, [handleCopy]);
+
+  const handleBlockKeyDown = useCallback((e: React.KeyboardEvent<HTMLPreElement>) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      handleCopy();
+    }
+  }, [handleCopy]);
+
+  const copyStatusMessage =
+    copyStatus === "copied"
+      ? "Code copied to clipboard"
+      : copyStatus === "error"
+      ? "Failed to copy code"
+      : "";
+
+  if (shouldRenderInline) {
+    const statusClass =
+      copyStatus === "copied"
+        ? "border-green-400"
+        : copyStatus === "error"
+        ? "border-red-400"
+        : "";
+    const commonProps = {
+      className: `inline px-1 py-0.5 rounded border border-theme-border text-theme-markdown-code font-mono text-sm cursor-pointer transition-colors duration-200 ${statusClass}`,
+      onClick: handleCopy,
+      onKeyDown: handleInlineKeyDown,
+      role: "button",
+      tabIndex: 0,
+      "aria-label": language
+        ? `Copy ${language} snippet to clipboard`
+        : "Copy code snippet to clipboard",
+      title: "Click to copy",
+      "data-copy-status": copyStatus,
+      "data-language": language || undefined,
+    };
+
+    const inlineNode = language ? (
+      <code {...commonProps} dangerouslySetInnerHTML={{ __html: highlighted }} />
+    ) : (
+      <code {...commonProps}>{code}</code>
+    );
+
     return (
-      <code className="px-1.5 py-0.5 rounded bg-theme-background-accent text-theme-markdown-code font-mono text-sm">
-        {children}
-      </code>
+      <>
+        {inlineNode}
+        {copyStatusMessage ? (
+          <span
+            className="sr-only"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {copyStatusMessage}
+          </span>
+        ) : null}
+      </>
     );
   }
 
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Failed to copy code:", err);
-    }
-  };
-
   return (
-    <div className="relative my-4 rounded-md overflow-hidden border border-theme-border group">
-      <div className="flex items-center justify-between px-4 py-2 bg-theme-background-alt border-b border-theme-border">
-        {language && (
-          <span className="text-xs text-theme-muted font-mono">{language}</span>
-        )}
-        <button
-          onClick={handleCopy}
-          className="ml-auto text-xs text-theme-muted hover:text-theme-foreground transition-colors px-2 py-1 rounded hover:bg-theme-background-accent"
-          aria-label="Copy code to clipboard"
-        >
-          {copied ? "Copied!" : "Copy"}
-        </button>
-      </div>
-      <pre className="p-4 overflow-x-auto bg-theme-background-element">
+    <div className="relative my-4 rounded-md overflow-hidden border border-theme-border">
+      <pre
+        className="p-4 overflow-x-auto bg-theme-background-element cursor-pointer transition-colors duration-150"
+        onClick={handleCopy}
+        onKeyDown={handleBlockKeyDown}
+        role="button"
+        tabIndex={0}
+        aria-label={`Copy ${language || "code"} block to clipboard`}
+        title="Click to copy"
+        data-language={language || undefined}
+        data-copy-status={copyStatus}
+      >
         <code
           className="hljs font-mono text-sm leading-relaxed"
           dangerouslySetInnerHTML={{ __html: highlighted }}
         />
       </pre>
+      {/* Accessible feedback for screen readers */}
+      {copyStatusMessage ? (
+        <span
+          className="sr-only"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {copyStatusMessage}
+        </span>
+      ) : null}
     </div>
   );
 };
