@@ -22,7 +22,9 @@ OpenCode Web is a web-based interface for the OpenCode Server API, providing a b
 
 ## 🚀 Quick Start
 
-### Option 1: Run with bunx (Recommended)
+### Linux/macOS
+
+#### Option 1: Run with bunx (Recommended)
 
 ```bash
 # Latest stable release
@@ -32,7 +34,7 @@ bunx opencode-web@latest
 bunx opencode-web@dev
 ```
 
-### Option 2: Install Globally
+#### Option 2: Install Globally
 
 ```bash
 # Using Bun
@@ -48,13 +50,44 @@ yarn global add opencode-web
 opencode-web
 ```
 
-### Option 3: One-liner Installer
+#### Option 3: One-liner Installer
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/kcrommett/opencode-web/main/install.sh | bash
 ```
 
-Once started, open **http://localhost:3000** in your browser. The CLI launches a local OpenCode Server through the OpenCode SDK by default and wires its URL into the web client automatically. Use the command-line flags to connect to an existing server or adjust the listening host/port without touching environment variables.
+### Windows
+
+Due to current limitations in the bundled OpenCode server on Windows, use one of these approaches:
+
+#### Option 1: External OpenCode Server (Recommended)
+
+1. **Download the Windows OpenCode binary:**
+   - Visit https://github.com/sst/opencode/releases/latest
+   - Download `opencode-windows-x64.zip`
+   - Extract to a folder and add to your PATH, or note the full path
+
+2. **Start the OpenCode server:**
+   ```cmd
+   opencode.exe serve
+   ```
+   Or specify a custom port/host:
+   ```cmd
+   opencode.exe serve --hostname=127.0.0.1 --port=4096
+   ```
+
+3. **In a new terminal, start OpenCode Web:**
+   ```cmd
+   bunx opencode-web --external-server http://localhost:4096
+   ```
+
+#### Option 2: Use WSL (Windows Subsystem for Linux)
+
+Install WSL and follow the Linux/macOS instructions from within your Linux environment.
+
+### Getting Started
+
+Once started, open **http://localhost:3000** in your browser. The CLI launches a local OpenCode Server through the OpenCode SDK by default on Linux/macOS and wires its URL into the web client automatically. On Windows, use the `--external-server` flag to connect to a separately-run OpenCode server. Use the command-line flags to connect to an existing server or adjust the listening host/port without touching environment variables.
 
 > **⚠️ Security Warning**: This application runs without authentication by default. Do not expose it directly to the internet without proper security measures. For secure remote access, consider using Cloudflare Access with Cloudflare Tunnel to add authentication and protect your instance.
 

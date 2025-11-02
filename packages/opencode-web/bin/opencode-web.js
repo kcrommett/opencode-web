@@ -293,6 +293,21 @@ if (shouldStartBundledServer) {
     console.error(
       error instanceof Error ? (error.stack ?? error.message) : error,
     );
+    
+    // Provide Windows-specific guidance
+    const isWindows = process.platform === "win32";
+    if (isWindows) {
+      console.error("\n[Windows] The bundled OpenCode server may not work on Windows due to path resolution issues.");
+      console.error("\nTo use OpenCode Web on Windows, you have two options:\n");
+      console.error("1. Use an external OpenCode Server:");
+      console.error("   Download the Windows binary from:");
+      console.error("   https://github.com/sst/opencode/releases/latest");
+      console.error("   Extract and run: opencode.exe serve");
+      console.error("   Then start opencode-web with: bunx opencode-web --external-server http://localhost:4096\n");
+      console.error("2. Use WSL (Windows Subsystem for Linux):");
+      console.error("   Install WSL and run opencode-web from within the Linux environment.\n");
+    }
+    
     process.exit(1);
   }
 } else if (externalServerUrl) {

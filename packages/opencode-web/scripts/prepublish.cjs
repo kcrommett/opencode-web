@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 // Prepublish script to ensure package is built before publishing
-const { spawn } = require("child_process");
 const path = require("path");
 
 console.log("Running prepublish checks...");
