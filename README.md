@@ -57,7 +57,9 @@ curl -sSL https://raw.githubusercontent.com/kcrommett/opencode-web/main/install.
 Once started, open **http://localhost:3000** in your browser. The CLI launches a local OpenCode Server by default and wires its URL into the web client automatically. Use the command-line flags to connect to an existing server or adjust the listening host/port without touching environment variables.
 
 **Platform Notes:**
-- On **Windows**, opencode-web uses your locally installed `opencode` CLI from PATH. Ensure the OpenCode CLI is installed before running opencode-web.
+- On **Windows**, opencode-web uses your locally installed `opencode` CLI from PATH. 
+  - ⚠️ **`bunx` limitation**: Cannot auto-launch the bundled server due to Bun's `/bin/sh` issue. Use `--external-server` or install locally. [See details](#windows--bunx-limitation)
+  - ✅ **Local install**: Works perfectly with automatic server launch
 - On **macOS/Linux**, opencode-web uses the bundled OpenCode SDK server (no additional installation required).
 
 > **⚠️ Security Warning**: This application runs without authentication by default. Do not expose it directly to the internet without proper security measures. For secure remote access, consider using Cloudflare Access with Cloudflare Tunnel to add authentication and protect your instance.
@@ -215,21 +217,108 @@ If you encounter `Cannot find module` errors when building on Windows (e.g., `@r
    - `@tailwindcss/oxide-win32-x64-msvc` (64-bit Intel/AMD)
    - `@tailwindcss/oxide-win32-arm64-msvc` (64-bit ARM, e.g., Surface devices)
 
-### bunx on Windows
+### Windows + bunx Limitation
 
-When using `bunx opencode-web@dev` on Windows, you may encounter a `/bin/sh not found` error. This happens because Bun doesn't generate proper Windows CLI shims for the OpenCode binary. 
+> ⚠️ **Important**: `bunx opencode-web` on Windows cannot automatically launch the bundled OpenCode Server due to a Bun runtime limitation with `/bin/sh` remapping. You must either use an external server or install locally.
 
-**Solution**: The package now includes a postinstall script that automatically creates Windows-compatible shims (`opencode.cmd` and `opencode.ps1`) when installed via bunx on Windows. If you still encounter issues:
+#### The Issue
 
-1. **Ensure you have the latest version** (v0.5.1+) with the postinstall fix
-2. **Manual workaround** (if needed):
-   ```bash
-   # Navigate to the bunx temp directory and rebuild opencode-ai
-   cd %TEMP%\bunx-*
-   npm rebuild opencode-ai --ignore-scripts
+When running `bunx opencode-web@latest` on Windows, the bundled OpenCode Server fails to start with:
+```
+error: interpreter executable "/bin/sh" not found in %PATH%
+[ERROR] Failed to start OpenCode Server.
+```
+
+This happens because:
+- `bunx` creates temporary installations that don't properly install the Windows OpenCode binary
+- Bun's current Windows implementation cannot find `/bin/sh` when spawning the bundled server process
+- The bundled server requires the `opencode` CLI, which fails under these conditions
+
+#### Recommended Workarounds
+
+**Option 1: Use an External OpenCode Server** (Easiest for `bunx`)
+
+First, start an OpenCode server separately:
+```powershell
+# Install OpenCode CLI globally if you haven't already
+# Download from: https://github.com/opencode-ai/opencode
+
+# Start the server
+opencode serve --hostname=127.0.0.1 --port=4096
+```
+
+Then run opencode-web pointing to it:
+```powershell
+bunx opencode-web@latest --external-server http://127.0.0.1:4096
+```
+
+**Option 2: Install Locally** (Recommended for regular use)
+
+Install the package locally so Windows binaries are properly resolved:
+```powershell
+# Create a directory and install
+mkdir my-opencode-web
+cd my-opencode-web
+bun install opencode-web
+
+# Run it
+bun run opencode-web
+```
+
+Or install globally:
+```powershell
+bun add -g opencode-web
+opencode-web
+```
+
+**Option 3: Build from Source** (For contributors or advanced users)
+
+```powershell
+git clone https://github.com/sst/opencode-web
+cd opencode-web
+bun install
+bun run build
+bun run packages/opencode-web/bin/opencode-web.js
+```
+
+#### Other Platforms
+
+This limitation only affects **Windows users running via `bunx`**:
+- ✅ **macOS/Linux + bunx**: Works perfectly (uses bundled SDK)
+- ✅ **Windows + local install**: Works perfectly (proper binary resolution)
+- ⚠️ **Windows + bunx**: Requires `--external-server` flag
+
+#### Technical Details
+
+The CLI detects `bunx` on Windows and exits early with actionable guidance. If you see the error, it means:
+1. You're on Windows
+2. Running from a `bunx` temporary directory
+3. No `--external-server` flag was provided
+
+For more information about this Bun limitation, see:
+- **Bun issue tracking**: [oven-sh/bun#issues](https://github.com/oven-sh/bun/issues) (to be filed - search for "/bin/sh Windows")
+- **OpenCode upstream**: [sst/opencode#issues](https://github.com/sst/opencode/issues) (to be filed - search for "Windows bunx")
+- **OpenCode Server**: https://github.com/sst/opencode
+
+#### Troubleshooting
+
+If you encounter errors even with `--external-server`:
+
+1. **Verify the server is running**:
+   ```powershell
+   # Test the server URL
+   curl http://127.0.0.1:4096/health
    ```
 
-The postinstall script handles this automatically for most users.
+2. **Check firewall settings**: Ensure localhost connections are allowed
+
+3. **Try a different port**: If 4096 is in use, start the server on another port:
+   ```powershell
+   opencode serve --hostname=127.0.0.1 --port=4097
+   bunx opencode-web@latest --external-server http://127.0.0.1:4097
+   ```
+
+4. **Use host IP instead of localhost**: Sometimes `127.0.0.1` works better than `localhost` on Windows
 
 ## Project Structure
 

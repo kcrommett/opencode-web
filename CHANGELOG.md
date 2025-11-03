@@ -1,0 +1,84 @@
+# Changelog
+
+All notable changes to opencode-web will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+- Windows `bunx` limitation detection and graceful error handling
+  - Automatically detects when running via `bunx` on Windows
+  - Displays clear error message with actionable workarounds
+  - Provides three recommended solutions: external server, local install, or source build
+  - Includes confirmation message when using `--external-server` on Windows
+- Comprehensive Windows troubleshooting documentation in README
+- Windows-specific sections in API, SSE, and event documentation
+- Test matrix for Windows scenarios (manual testing guide)
+- PowerShell smoke test script for automated validation of Windows flows
+
+### Fixed
+- Enhanced error messages for Windows users when OpenCode Server fails to start
+  - Added detection for `/bin/sh` and interpreter errors
+  - Improved guidance for ENOENT and timeout errors
+  - Added direct links to troubleshooting documentation
+
+### Documentation
+- New "Windows + bunx Limitation" section in README with detailed workarounds
+- Updated "Platform Notes" to clearly indicate Windows `bunx` limitation
+- Added Windows configuration notes to API endpoints documentation
+- Added Windows-specific troubleshooting to SSE proxy documentation
+- Added Windows error troubleshooting to SSE events documentation
+- Created comprehensive Windows test matrix (`CONTEXT/WINDOWS-TEST-MATRIX.md`)
+- Created automated smoke test script (`CONTEXT/WINDOWS-TEST-SMOKE.ps1`)
+- Cross-linked to upstream issue tracking for Bun and OpenCode repositories
+
+### Technical Details
+- Implemented heuristic for detecting `bunx` temporary directory patterns on Windows
+- Detection checks for: `bunx-<number>-` pattern, `.bunx` directory, and `Temp.*bunx` paths
+- Exit code 1 when `bunx` detected without `--external-server` flag
+- Preflight warning prevents misleading error messages and confusing stack traces
+
+## Background
+
+This release addresses a known limitation where `bunx opencode-web` on Windows cannot automatically launch the bundled OpenCode Server due to Bun's `/bin/sh` remapping issue. The changes ensure Windows users receive clear guidance and can successfully use opencode-web via alternative methods (external server or local install).
+
+For technical details, see `CONTEXT/PLAN-windows-bunx-server-2025-11-03.md`.
+
+## Migration Guide
+
+### For Windows Users
+
+**If you were using `bunx opencode-web@latest` on Windows:**
+
+You now have three options:
+
+1. **Use an external server** (recommended for `bunx`):
+   ```powershell
+   # Terminal 1: Start OpenCode Server
+   opencode serve --hostname=127.0.0.1 --port=4096
+   
+   # Terminal 2: Run opencode-web
+   bunx opencode-web@latest --external-server http://127.0.0.1:4096
+   ```
+
+2. **Install locally** (recommended for regular use):
+   ```powershell
+   bun install opencode-web
+   bun run opencode-web
+   ```
+
+3. **Build from source**:
+   ```powershell
+   git clone https://github.com/sst/opencode-web
+   cd opencode-web
+   bun install && bun run build
+   bun run packages/opencode-web/bin/opencode-web.js
+   ```
+
+**macOS and Linux users:** No changes required. `bunx opencode-web@latest` continues to work as expected with automatic server launch.
+
+---
+
+**Note:** This changelog will be updated with version numbers upon release.

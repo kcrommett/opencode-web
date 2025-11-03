@@ -247,6 +247,51 @@ The TUI handles various error scenarios:
 - **Provider Errors**: Displayed with specific error messages
 - **Connection Issues**: Graceful handling of disconnections
 
+### Windows-Specific Troubleshooting
+
+#### Error: `interpreter executable "/bin/sh" not found in %PATH%`
+
+**Cause**: Running `bunx opencode-web` on Windows cannot launch the bundled OpenCode Server due to Bun's `/bin/sh` remapping limitation.
+
+**Symptoms**:
+- CLI exits with code 255
+- Error message mentions `/bin/sh not found`
+- SSE connection fails because no server is running
+- Browser shows `ECONNREFUSED` when trying to connect to `/api/events`
+
+**Solution**:
+
+1. **Start an external OpenCode Server** in a separate terminal:
+   ```powershell
+   # Ensure OpenCode CLI is installed
+   # Download from: https://github.com/opencode-ai/opencode
+   
+   opencode serve --hostname=127.0.0.1 --port=4096
+   ```
+
+2. **Connect opencode-web to the external server**:
+   ```powershell
+   bunx opencode-web@latest --external-server http://127.0.0.1:4096
+   ```
+
+3. **Verify SSE connection**:
+   - Open browser DevTools → Network tab
+   - Look for `/api/events` request with type "eventsource"
+   - Should show status 200 and streaming events
+   - First event should be `server.connected`
+
+**Alternative**: Install locally to avoid the limitation:
+```powershell
+bun install opencode-web
+bun run opencode-web
+```
+
+With a local install, the bundled server launches automatically and SSE events work without additional configuration.
+
+**Related Documentation**:
+- [Windows + bunx Limitation](../README.md#windows--bunx-limitation)
+- [SSE Proxy Documentation](./SSE-PROXY-DOCUMENTATION.md#windows-specific-troubleshooting)
+
 ## Filtering and Display Logic
 
 ### Session-Specific Filtering

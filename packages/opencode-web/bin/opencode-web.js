@@ -129,6 +129,32 @@ const isTruthy = (value) => {
   return Boolean(value);
 };
 
+/**
+ * Detect if running via bunx on Windows
+ * bunx creates temporary install directories that follow patterns like:
+ * - C:\Users\...\AppData\Local\Temp\bunx-<random>-<package>
+ * - Contains .bunx in the path
+ */
+const isBunxOnWindows = () => {
+  if (process.platform !== "win32") {
+    return false;
+  }
+  
+  const cwd = process.cwd();
+  const scriptPath = process.argv[1] || "";
+  
+  // Check for bunx temporary directory patterns
+  const bunxPatterns = [
+    /bunx-\d+-/i,      // bunx-12345-opencode-web
+    /\.bunx/i,         // .bunx directory
+    /Temp.*bunx/i,     // Temp directory with bunx
+  ];
+  
+  return bunxPatterns.some(pattern => 
+    pattern.test(cwd) || pattern.test(scriptPath)
+  );
+};
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -354,6 +380,51 @@ const startWindowsOpencodeServer = async (serverOptions) => {
 if (shouldStartBundledServer) {
   const isWindows = process.platform === "win32";
   
+  // Detect bunx on Windows - bunx cannot launch bundled server due to Bun's /bin/sh limitation
+  const isBunxOnWindows = isWindows && (() => {
+    const cwd = process.cwd();
+    const scriptPath = process.argv[1] || "";
+    
+    // Check for bunx temporary directory patterns
+    const bunxPatterns = [
+      /bunx-\d+-/i,      // bunx-12345-opencode-web
+      /\.bunx/i,         // .bunx directory
+      /Temp.*bunx/i,     // Temp directory with bunx
+    ];
+    
+    return bunxPatterns.some(pattern => 
+      pattern.test(cwd) || pattern.test(scriptPath)
+    );
+  })();
+  
+  if (isBunxOnWindows) {
+    console.error("");
+    console.error("[ERROR] Cannot launch bundled OpenCode Server via 'bunx' on Windows.");
+    console.error("");
+    console.error("This is a known limitation caused by Bun's /bin/sh remapping on Windows.");
+    console.error("The bundled server requires the 'opencode' CLI, which fails to start under bunx.");
+    console.error("");
+    console.error("✅ Recommended workarounds:");
+    console.error("");
+    console.error("  1. Use an external OpenCode Server:");
+    console.error("     bunx opencode-web@latest --external-server http://127.0.0.1:4096");
+    console.error("");
+    console.error("  2. Install locally and run:");
+    console.error("     bun install opencode-web");
+    console.error("     bun run opencode-web");
+    console.error("");
+    console.error("  3. Clone and build from source:");
+    console.error("     git clone https://github.com/sst/opencode-web");
+    console.error("     cd opencode-web");
+    console.error("     bun install && bun run build");
+    console.error("     bun run packages/opencode-web/bin/opencode-web.js");
+    console.error("");
+    console.error("📚 For more details, see the Windows troubleshooting section in:");
+    console.error("   https://github.com/sst/opencode-web#windows-bunx-limitation");
+    console.error("");
+    process.exit(1);
+  }
+  
   if (isWindows) {
     console.log("Starting local OpenCode Server (Windows)...");
   } else {
@@ -472,24 +543,59 @@ if (shouldStartBundledServer) {
     console.log(`OpenCode Server ${versionInfo} listening at ${serverUrl}`);
   } catch (error) {
     console.error("[ERROR] Failed to start OpenCode Server.");
+    console.error("");
     
     // Provide helpful error message for Windows users
     if (isWindows && error instanceof Error && 
-        (error.message.includes("Timeout") || error.message.includes("ENOENT"))) {
-      console.error("");
+        (error.message.includes("Timeout") || error.message.includes("ENOENT") || 
+         error.message.includes("/bin/sh") || error.message.includes("interpreter executable"))) {
       console.error("The 'opencode' CLI is not found or failed to start.");
-      console.error("Please ensure OpenCode is installed and available in your PATH:");
-      console.error("  - Download from: https://github.com/opencode-ai/opencode");
-      console.error("  - Or use an external server with: --external-server <url>");
+      console.error("");
+      console.error("Common causes on Windows:");
+      console.error("  • OpenCode CLI not installed or not in PATH");
+      console.error("  • Running via 'bunx' (see workarounds below)");
+      console.error("  • Missing Windows binary for your architecture");
+      console.error("");
+      console.error("✅ Solutions:");
+      console.error("");
+      console.error("  1. Install OpenCode CLI:");
+      console.error("     Download from: https://github.com/opencode-ai/opencode");
+      console.error("");
+      console.error("  2. Use an external OpenCode Server:");
+      console.error("     opencode-web --external-server http://127.0.0.1:4096");
+      console.error("");
+      console.error("  3. Install locally instead of bunx:");
+      console.error("     bun install opencode-web");
+      console.error("     bun run opencode-web");
+      console.error("");
+      console.error("📚 See troubleshooting docs:");
+      console.error("   https://github.com/sst/opencode-web#windows-troubleshooting");
+      console.error("");
     }
     
+    console.error("Error details:");
     console.error(
       error instanceof Error ? (error.stack ?? error.message) : error,
     );
+    console.error("");
     process.exit(1);
   }
 } else if (externalServerUrl) {
   console.log(`ℹ️ Using external OpenCode Server: ${externalServerUrl}`);
+  
+  // On Windows, remind users this is required for bunx
+  if (process.platform === "win32") {
+    const cwd = process.cwd();
+    const scriptPath = process.argv[1] || "";
+    const bunxPatterns = [/bunx-\d+-/i, /\.bunx/i, /Temp.*bunx/i];
+    const isBunx = bunxPatterns.some(pattern => 
+      pattern.test(cwd) || pattern.test(scriptPath)
+    );
+    
+    if (isBunx) {
+      console.log("   (External server is required when using 'bunx' on Windows)");
+    }
+  }
 } else {
   console.log(
     "ℹ️ Bundled OpenCode Server disabled via OPENCODE_WEB_DISABLE_BUNDLED_SERVER.",
