@@ -261,7 +261,7 @@ const startWindowsOpencodeServer = async (serverOptions) => {
     }
   }
 
-  console.log(`Spawning local OpenCode CLI: opencode ${args.join(" ")}`);
+  console.log(`Spawning local OpenCode CLI: ${opencodeCommand} ${args.join(" ")}`);
 
   const proc = Bun.spawn(["cmd.exe", "/c", opencodeCommand, ...args], {
     stdout: "pipe",
@@ -410,8 +410,29 @@ if (shouldStartBundledServer) {
     let versionInfo = "unknown";
     try {
       if (isWindows) {
-        // On Windows, try to get version from CLI
-        const versionProc = Bun.spawnSync(["opencode", "--version"], {
+        // On Windows, try to get version from the Windows binary directly
+        let opencodeBinary = "opencode"; // fallback
+        
+        const os = require('os');
+        const path = require('path');
+        const fs = require('fs');
+        
+        let arch;
+        switch (os.arch()) {
+          case 'x64': arch = 'x64'; break;
+          case 'arm64': arch = 'arm64'; break;
+          default: arch = os.arch(); break;
+        }
+        
+        const packageName = `opencode-windows-${arch}`;
+        const nodeModulesPath = path.join(__dirname, '..', 'node_modules', 'opencode-ai', 'node_modules');
+        const binaryPath = path.join(nodeModulesPath, packageName, 'bin', 'opencode.exe');
+        
+        if (fs.existsSync(binaryPath)) {
+          opencodeBinary = binaryPath;
+        }
+        
+        const versionProc = Bun.spawnSync(["cmd.exe", "/c", opencodeBinary, "--version"], {
           stdout: "pipe",
         });
         if (versionProc.exitCode === 0) {
