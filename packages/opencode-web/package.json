@@ -1,6 +1,6 @@
 {
   "name": "opencode-web",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "description": "OpenCode Web - Self-hosted web interface for OpenCode",
   "type": "module",
   "main": "./dist/index.js",
