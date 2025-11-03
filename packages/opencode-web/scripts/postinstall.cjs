@@ -53,8 +53,8 @@ function ensureWindowsOpencodeShim() {
     // Try to find Windows binary package
     const packageName = `opencode-${platform}-${arch}`;
     
-    // Look for binary package in node_modules
-    const nodeModulesPath = path.join(__dirname, '..', 'node_modules');
+    // Look for binary package in opencode-ai's node_modules
+    const nodeModulesPath = path.join(__dirname, '..', 'node_modules', 'opencode-ai', 'node_modules');
     const packageJsonPath = path.join(nodeModulesPath, packageName, 'package.json');
     
     if (!fs.existsSync(packageJsonPath)) {
@@ -70,8 +70,9 @@ function ensureWindowsOpencodeShim() {
       return;
     }
 
-    // Create .bin directory if it doesn't exist
-    const binDir = path.join(nodeModulesPath, '.bin');
+    // Create .bin directory if it doesn't exist (in the main node_modules)
+    const mainNodeModulesPath = path.join(__dirname, '..', 'node_modules');
+    const binDir = path.join(mainNodeModulesPath, '.bin');
     if (!fs.existsSync(binDir)) {
       fs.mkdirSync(binDir, { recursive: true });
     }
