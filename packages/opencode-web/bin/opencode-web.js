@@ -244,15 +244,14 @@ const startWindowsOpencodeServer = async (serverOptions) => {
   const fs = require('fs');
   
   if (os.platform() === 'win32') {
-    const { arch } = (() => {
-      switch (os.arch()) {
-        case 'x64': return { arch: 'x64' };
-        case 'arm64': return { arch: 'arm64' };
-        default: return { arch: os.arch() };
-      }
-    })();
+    let arch;
+    switch (os.arch()) {
+      case 'x64': arch = 'x64'; break;
+      case 'arm64': arch = 'arm64'; break;
+      default: arch = os.arch(); break;
+    }
     
-    const packageName = `opencode-windows-${arch.arch}`;
+    const packageName = `opencode-windows-${arch}`;
     const nodeModulesPath = path.join(__dirname, '..', 'node_modules');
     const binaryPath = path.join(nodeModulesPath, packageName, 'bin', 'opencode.exe');
     
