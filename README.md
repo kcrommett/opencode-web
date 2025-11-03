@@ -199,7 +199,7 @@ Set `PORT`, `OPENCODE_SERVER_URL`, `VITE_OPENCODE_SERVER_URL`, or `NODE_ENV` to 
 
 ### Windows Build Troubleshooting
 
-If you encounter a `Cannot find module '@rollup/rollup-win32-x64-msvc'` error when building on Windows:
+If you encounter `Cannot find module` errors when building on Windows (e.g., `@rollup/rollup-win32-x64-msvc` or `@tailwindcss/oxide-win32-x64-msvc`):
 
 1. **Clear node_modules and reinstall:**
    ```bash
@@ -207,11 +207,13 @@ If you encounter a `Cannot find module '@rollup/rollup-win32-x64-msvc'` error wh
    bun install
    ```
    
-   This error occurs when lockfiles created on Linux/macOS omit Windows-specific platform binaries. The project now explicitly includes Windows Rollup binaries in `optionalDependencies` to prevent this issue ([npm/cli#4828](https://github.com/npm/cli/issues/4828)).
+   These errors occur when lockfiles created on Linux/macOS omit Windows-specific platform binaries. The project now explicitly includes Windows binaries in `optionalDependencies` to prevent this issue ([npm/cli#4828](https://github.com/npm/cli/issues/4828)).
 
 2. **If the error persists after reinstalling**, ensure you're using the latest version of the repository with updated lockfiles that include:
    - `@rollup/rollup-win32-x64-msvc` (64-bit Intel/AMD)
    - `@rollup/rollup-win32-arm64-msvc` (64-bit ARM, e.g., Surface devices)
+   - `@tailwindcss/oxide-win32-x64-msvc` (64-bit Intel/AMD)
+   - `@tailwindcss/oxide-win32-arm64-msvc` (64-bit ARM, e.g., Surface devices)
 
 ## Project Structure
 

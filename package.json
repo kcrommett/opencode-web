@@ -58,6 +58,8 @@
   "optionalDependencies": {
     "@rollup/rollup-win32-arm64-msvc": "4.52.5",
     "@rollup/rollup-win32-x64-msvc": "4.52.5",
+    "@tailwindcss/oxide-win32-arm64-msvc": "4.1.16",
+    "@tailwindcss/oxide-win32-x64-msvc": "4.1.16",
     "lightningcss-win32-arm64-msvc": "1.30.2",
     "lightningcss-win32-x64-msvc": "1.30.2"
   }
