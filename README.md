@@ -215,6 +215,22 @@ If you encounter `Cannot find module` errors when building on Windows (e.g., `@r
    - `@tailwindcss/oxide-win32-x64-msvc` (64-bit Intel/AMD)
    - `@tailwindcss/oxide-win32-arm64-msvc` (64-bit ARM, e.g., Surface devices)
 
+### bunx on Windows
+
+When using `bunx opencode-web@dev` on Windows, you may encounter a `/bin/sh not found` error. This happens because Bun doesn't generate proper Windows CLI shims for the OpenCode binary. 
+
+**Solution**: The package now includes a postinstall script that automatically creates Windows-compatible shims (`opencode.cmd` and `opencode.ps1`) when installed via bunx on Windows. If you still encounter issues:
+
+1. **Ensure you have the latest version** (v0.5.1+) with the postinstall fix
+2. **Manual workaround** (if needed):
+   ```bash
+   # Navigate to the bunx temp directory and rebuild opencode-ai
+   cd %TEMP%\bunx-*
+   npm rebuild opencode-ai --ignore-scripts
+   ```
+
+The postinstall script handles this automatically for most users.
+
 ## Project Structure
 
 ```
