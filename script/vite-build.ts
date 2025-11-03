@@ -14,11 +14,17 @@
 
 import { spawn } from "bun";
 
+const env = { ...process.env };
+if (process.platform === "win32" && !env.CSS_TRANSFORMER_WASM) {
+  env.CSS_TRANSFORMER_WASM = "1";
+}
+
 const proc = spawn({
   cmd: ["vite", "build"],
   stdout: "pipe",
   stderr: "pipe",
   stdin: "inherit",
+  env,
 });
 
 let buffer = "";

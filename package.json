@@ -54,5 +54,9 @@
     "vite-plugin-pwa": "^1.0.3",
     "vite-tsconfig-paths": "^5.1.4",
     "workbox-window": "^7.3.0"
+  },
+  "optionalDependencies": {
+    "lightningcss-win32-arm64-msvc": "1.30.2",
+    "lightningcss-win32-x64-msvc": "1.30.2"
   }
 }

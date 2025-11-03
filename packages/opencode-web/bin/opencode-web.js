@@ -474,5 +474,16 @@ if (host === "0.0.0.0") {
 }
 console.log(`Serving from: ${packageDir}`);
 
+const distServerEntry = join(packageDir, "dist", "server", "server.js");
+if (!existsSync(distServerEntry)) {
+  console.error(
+    `[ERROR] Build output missing at ${distServerEntry}. Run \`bun run build\` from the repo root before starting the bundled server.`,
+  );
+  console.error(
+    "       If you're using a published opencode-web package, reinstall it to restore the dist/ directory.",
+  );
+  process.exit(1);
+}
+
 const serverPath = join(packageDir, "server.ts");
 await import(serverPath);
