@@ -490,6 +490,10 @@ function OpenCodeChatTUI() {
   const [isHandlingImageUpload, setIsHandlingImageUpload] = useState(false);
   const [isDraggingOverInput, setIsDraggingOverInput] = useState(false);
   const [newSessionTitle, setNewSessionTitle] = useState("");
+  // Message history navigation state
+  const [messageHistoryIndex, setMessageHistoryIndex] = useState(-1);
+  const [isNavigatingHistory, setIsNavigatingHistory] = useState(false);
+  const [draftBeforeHistory, setDraftBeforeHistory] = useState("");
   const [showNewProjectForm, setShowNewProjectForm] = useState(false);
   const [newProjectDirectory, setNewProjectDirectory] = useState("");
   const closeNewProjectDialog = () => {
@@ -571,6 +575,7 @@ function OpenCodeChatTUI() {
   const inputRef = useRef<HTMLInputElement>(null);
   const sessionPickerEditControls =
     useRef<SessionPickerEditControls | null>(null);
+  const isHistoryNavigationRef = useRef(false);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("opencode-sidebar-width");
@@ -788,6 +793,13 @@ function OpenCodeChatTUI() {
     }
     return { colorClass, badgeVariant, text, title };
   }, [sidebarStatus]);
+
+  // Build user message history for ArrowUp/ArrowDown navigation
+  const userMessageHistory = useMemo(() => {
+    return messages
+      .filter((m) => m.type === "user" && m.content?.trim())
+      .map((m) => m.content!.trim());
+  }, [messages]);
 
   // Initialize keyboard shortcuts
   const {
@@ -1414,6 +1426,11 @@ function OpenCodeChatTUI() {
     if (hasAttachments) {
       setImageAttachments([]);
     }
+    
+    // Reset history navigation state when sending a message
+    setMessageHistoryIndex(-1);
+    setIsNavigatingHistory(false);
+    setDraftBeforeHistory("");
 
     const messageParts: Part[] = [];
 
@@ -1578,6 +1595,14 @@ function OpenCodeChatTUI() {
       textareaRef.current.focus();
     }
   }, [loading, currentSession]);
+
+  // Reset history navigation state when session changes or messages are cleared
+  const messagesEmpty = messages.length === 0;
+  useEffect(() => {
+    setMessageHistoryIndex(-1);
+    setIsNavigatingHistory(false);
+    setDraftBeforeHistory("");
+  }, [currentSession?.id, messagesEmpty]);
 
   const handleShellCommand = async (command: string) => {
     if (!currentSession) {
@@ -2443,6 +2468,51 @@ function OpenCodeChatTUI() {
         setSelectedMentionIndex((prev) =>
           prev < mentionSuggestions.length - 1 ? prev + 1 : prev,
         );
+      } else if (
+        isNavigatingHistory &&
+        !e.shiftKey &&
+        !e.ctrlKey &&
+        !e.metaKey
+      ) {
+        // History navigation: ArrowDown moves forward (toward more recent)
+        e.preventDefault();
+        
+        if (messageHistoryIndex > 0) {
+          const newIndex = messageHistoryIndex - 1;
+          setMessageHistoryIndex(newIndex);
+          const historyMessage = userMessageHistory[userMessageHistory.length - 1 - newIndex];
+          
+          // Mark that we're programmatically changing input
+          isHistoryNavigationRef.current = true;
+          setInput(historyMessage);
+          
+          // Place cursor at end of text
+          requestAnimationFrame(() => {
+            if (textareaRef.current) {
+              const len = historyMessage.length;
+              textareaRef.current.setSelectionRange(len, len);
+            }
+            isHistoryNavigationRef.current = false;
+          });
+        } else {
+          // Exit history navigation and restore draft
+          setMessageHistoryIndex(-1);
+          setIsNavigatingHistory(false);
+          
+          // Mark that we're programmatically changing input
+          isHistoryNavigationRef.current = true;
+          setInput(draftBeforeHistory);
+          setDraftBeforeHistory("");
+          
+          // Place cursor at end
+          requestAnimationFrame(() => {
+            if (textareaRef.current) {
+              const len = draftBeforeHistory.length;
+              textareaRef.current.setSelectionRange(len, len);
+            }
+            isHistoryNavigationRef.current = false;
+          });
+        }
       }
     }
     if (e.key === "ArrowUp") {
@@ -2452,6 +2522,40 @@ function OpenCodeChatTUI() {
       } else if (showMentionSuggestions) {
         e.preventDefault();
         setSelectedMentionIndex((prev) => (prev > 0 ? prev - 1 : prev));
+      } else if (
+        !e.shiftKey &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        userMessageHistory.length > 0
+      ) {
+        // History navigation: ArrowUp moves backward into history
+        e.preventDefault();
+        
+        // Save draft before entering history navigation
+        if (!isNavigatingHistory) {
+          setDraftBeforeHistory(input);
+          setIsNavigatingHistory(true);
+        }
+        
+        const newIndex = Math.min(
+          messageHistoryIndex + 1,
+          userMessageHistory.length - 1,
+        );
+        setMessageHistoryIndex(newIndex);
+        const historyMessage = userMessageHistory[userMessageHistory.length - 1 - newIndex];
+        
+        // Mark that we're programmatically changing input
+        isHistoryNavigationRef.current = true;
+        setInput(historyMessage);
+        
+        // Place cursor at end of text
+        requestAnimationFrame(() => {
+          if (textareaRef.current) {
+            const len = historyMessage.length;
+            textareaRef.current.setSelectionRange(len, len);
+          }
+          isHistoryNavigationRef.current = false;
+        });
       }
     }
     if (e.key === "Escape") {
@@ -2536,6 +2640,14 @@ function OpenCodeChatTUI() {
 
   const handleInputChange = async (value: string) => {
     setInput(value);
+    
+    // Reset history navigation if user is actually typing (not programmatic change)
+    if (!isHistoryNavigationRef.current && isNavigatingHistory) {
+      setMessageHistoryIndex(-1);
+      setIsNavigatingHistory(false);
+      setDraftBeforeHistory("");
+    }
+    
     if (value.startsWith("/")) {
       if (process.env.NODE_ENV !== "production") {
         console.log("Commands from context:", commands);
@@ -2583,6 +2695,11 @@ function OpenCodeChatTUI() {
     setImageAttachments((prev) =>
       prev.filter((attachment) => attachment.id !== id),
     );
+    
+    // Reset history navigation when attachments change
+    setMessageHistoryIndex(-1);
+    setIsNavigatingHistory(false);
+    setDraftBeforeHistory("");
   }, []);
 
   const handleImageAttachments = useCallback(
@@ -2643,6 +2760,11 @@ function OpenCodeChatTUI() {
 
         if (validAttachments.length > 0) {
           setImageAttachments((prev) => [...prev, ...validAttachments]);
+          
+          // Reset history navigation when attachments change
+          setMessageHistoryIndex(-1);
+          setIsNavigatingHistory(false);
+          setDraftBeforeHistory("");
         }
       } finally {
         setIsHandlingImageUpload(false);
