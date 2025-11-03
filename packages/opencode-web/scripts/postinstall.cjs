@@ -52,11 +52,12 @@ function ensureWindowsOpencodeShim() {
   try {
     // Try to find the Windows binary package
     const packageName = `opencode-${platform}-${arch}`;
-    const require = require('resolve').sync || require;
     
     let packageJsonPath;
     try {
-      packageJsonPath = require.resolve(`${packageName}/package.json`);
+      // Try to use resolve package if available
+      const resolveSync = require('resolve').sync;
+      packageJsonPath = resolveSync(`${packageName}/package.json`);
     } catch (error) {
       // Fallback: try to find it in node_modules
       const nodeModulesPath = path.join(__dirname, '..', 'node_modules');
