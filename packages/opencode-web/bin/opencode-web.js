@@ -476,8 +476,34 @@ console.log(`Serving from: ${packageDir}`);
 
 const distServerEntry = join(packageDir, "dist", "server", "server.js");
 if (!existsSync(distServerEntry)) {
+  const workspaceDistDir = join(packageDir, "..", "..", "dist");
+  const workspaceServerEntry = join(
+    workspaceDistDir,
+    "server",
+    "server.js",
+  );
+
+  if (existsSync(workspaceServerEntry)) {
+    console.log(
+      "Detected workspace build output. Copying dist/ into the package directory...",
+    );
+    const { rm, mkdir, cp } = await import("node:fs/promises");
+    const packageDistDir = join(packageDir, "dist");
+
+    await rm(packageDistDir, { recursive: true, force: true });
+    await mkdir(packageDistDir, { recursive: true });
+    await cp(join(workspaceDistDir, "client"), join(packageDistDir, "client"), {
+      recursive: true,
+    });
+    await cp(join(workspaceDistDir, "server"), join(packageDistDir, "server"), {
+      recursive: true,
+    });
+  }
+}
+
+if (!existsSync(distServerEntry)) {
   console.error(
-    `[ERROR] Build output missing at ${distServerEntry}. Run \`bun run build\` from the repo root before starting the bundled server.`,
+    `[ERROR] Build output missing at ${distServerEntry}. Run \`bun run build\` (or \`bun run build:npm\` when preparing the npm package) before starting the bundled server.`,
   );
   console.error(
     "       If you're using a published opencode-web package, reinstall it to restore the dist/ directory.",
