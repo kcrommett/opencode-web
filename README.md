@@ -54,7 +54,11 @@ opencode-web
 curl -sSL https://raw.githubusercontent.com/kcrommett/opencode-web/main/install.sh | bash
 ```
 
-Once started, open **http://localhost:3000** in your browser. The CLI launches a local OpenCode Server through the OpenCode SDK by default and wires its URL into the web client automatically. Use the command-line flags to connect to an existing server or adjust the listening host/port without touching environment variables.
+Once started, open **http://localhost:3000** in your browser. The CLI launches a local OpenCode Server by default and wires its URL into the web client automatically. Use the command-line flags to connect to an existing server or adjust the listening host/port without touching environment variables.
+
+**Platform Notes:**
+- On **Windows**, opencode-web uses your locally installed `opencode` CLI from PATH. Ensure the OpenCode CLI is installed before running opencode-web.
+- On **macOS/Linux**, opencode-web uses the bundled OpenCode SDK server (no additional installation required).
 
 > **⚠️ Security Warning**: This application runs without authentication by default. Do not expose it directly to the internet without proper security measures. For secure remote access, consider using Cloudflare Access with Cloudflare Tunnel to add authentication and protect your instance.
 
