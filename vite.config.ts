@@ -36,9 +36,7 @@ export default defineConfig(({ mode }) => {
       ? "postcss"
       : normalizedTransformer === "lightningcss"
         ? "lightningcss"
-        : process.platform === "win32"
-          ? "postcss"
-          : "lightningcss";
+        : "postcss";
 
   return {
     base: basePath,
