@@ -197,6 +197,22 @@ Progressive Web App hooks keep the client a tap away with full-screen, app-like 
 
 Set `PORT`, `OPENCODE_SERVER_URL`, `VITE_OPENCODE_SERVER_URL`, or `NODE_ENV` to customize runtime behavior. The server URL is resolved at runtime using the precedence order.
 
+### Windows Build Troubleshooting
+
+If you encounter a `Cannot find module '@rollup/rollup-win32-x64-msvc'` error when building on Windows:
+
+1. **Clear node_modules and reinstall:**
+   ```bash
+   rm -rf node_modules
+   bun install
+   ```
+   
+   This error occurs when lockfiles created on Linux/macOS omit Windows-specific platform binaries. The project now explicitly includes Windows Rollup binaries in `optionalDependencies` to prevent this issue ([npm/cli#4828](https://github.com/npm/cli/issues/4828)).
+
+2. **If the error persists after reinstalling**, ensure you're using the latest version of the repository with updated lockfiles that include:
+   - `@rollup/rollup-win32-x64-msvc` (64-bit Intel/AMD)
+   - `@rollup/rollup-win32-arm64-msvc` (64-bit ARM, e.g., Surface devices)
+
 ## Project Structure
 
 ```

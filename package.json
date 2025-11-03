@@ -56,6 +56,8 @@
     "workbox-window": "^7.3.0"
   },
   "optionalDependencies": {
+    "@rollup/rollup-win32-arm64-msvc": "4.52.5",
+    "@rollup/rollup-win32-x64-msvc": "4.52.5",
     "lightningcss-win32-arm64-msvc": "1.30.2",
     "lightningcss-win32-x64-msvc": "1.30.2"
   }
