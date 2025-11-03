@@ -3,7 +3,8 @@
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, delimiter } from "node:path";
-import { createOpencode } from "@opencode-ai/sdk";
+// Use our cross-platform wrapper instead of SDK directly
+import { createOpencode } from "../lib/opencode-sdk-wrapper.js";
 
 if (typeof globalThis.Bun === "undefined") {
   console.error(

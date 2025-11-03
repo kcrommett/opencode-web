@@ -10,6 +10,7 @@
   "files": [
     "dist/",
     "bin/",
+    "lib/",
     "server.ts",
     "package.json",
     "README.md",

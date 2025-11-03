@@ -141,22 +141,31 @@ The SDK uses Node's `spawn()` without the `shell: true` option, which fails on W
 2. Or needs `shell: true` to use `cmd.exe` for command resolution
 
 ### Our Solution
-Since we cannot modify the SDK dependency, we implemented a **detection and guidance** approach:
+We implemented a **cross-platform SDK wrapper** that fixes the Windows compatibility issue:
 
-1. **Enhanced Error Messages** (`packages/opencode-web/bin/opencode-web.js`):
+1. **Cross-Platform SDK Wrapper** (`packages/opencode-web/lib/opencode-sdk-wrapper.js`):
    - Detects Windows platform (`process.platform === "win32"`)
-   - Provides actionable error messages when bundled server fails
-   - Guides users to two workarounds:
-     - Download Windows binary and use `--external-server`
-     - Use WSL (Windows Subsystem for Linux)
+   - Uses `shell: true` on Windows to properly resolve npm binaries (`opencode.cmd`)
+   - Maintains full compatibility with existing SDK API
+   - Provides `createOpencode()` and `createOpencodeServer()` functions
 
-2. **Comprehensive Documentation**:
-   - Updated `README.md` with Windows-specific quick start section
-   - Updated `packages/opencode-web/README.md` with detailed Windows instructions
-   - Documented all CLI flags including `--external-server`
+2. **Updated CLI Entry Point** (`packages/opencode-web/bin/opencode-web.js`):
+   - Modified to import from our wrapper instead of direct SDK
+   - Maintains all existing functionality and CLI options
 
-3. **Code Cleanup**:
-   - Removed unused `spawn` import from `prepublish.cjs`
+3. **Path Normalization** (`src/lib/opencode-http-api.ts`):
+   - Added `normalizePath()` function to convert Windows backslashes to forward slashes
+   - Applied to `path` and `directory` parameters in HTTP requests
+   - Ensures URL compatibility between Windows clients and OpenCode server
+
+4. **Package Configuration** (`packages/opencode-web/package.json`):
+   - Added `lib/` directory to published files list
+   - Ensures wrapper is included in npm package distribution
+
+5. **CI/CD Updates** (`.github/workflows/ci.yml`):
+   - Added Windows to test matrix (`ubuntu-latest, windows-latest, macos-latest`)
+   - Added platform-specific package installation tests
+   - Ensures cross-platform compatibility in CI
 
 ### Validated Workaround
 Windows users can successfully run OpenCode Web via:
