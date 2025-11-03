@@ -235,9 +235,36 @@ const startWindowsOpencodeServer = async (serverOptions) => {
   args.push(`--hostname=${hostname}`);
   args.push(`--port=${serverPort}`);
 
+  // Try to find the actual Windows OpenCode binary
+  let opencodeCommand = "opencode"; // fallback to PATH
+  
+  // Look for Windows binary in node_modules first (for bunx compatibility)
+  const os = require('os');
+  const path = require('path');
+  const fs = require('fs');
+  
+  if (os.platform() === 'win32') {
+    const { arch } = (() => {
+      switch (os.arch()) {
+        case 'x64': return { arch: 'x64' };
+        case 'arm64': return { arch: 'arm64' };
+        default: return { arch: os.arch() };
+      }
+    })();
+    
+    const packageName = `opencode-windows-${arch.arch}`;
+    const nodeModulesPath = path.join(__dirname, '..', 'node_modules');
+    const binaryPath = path.join(nodeModulesPath, packageName, 'bin', 'opencode.exe');
+    
+    if (fs.existsSync(binaryPath)) {
+      opencodeCommand = binaryPath;
+      console.log(`Using OpenCode binary from: ${binaryPath}`);
+    }
+  }
+
   console.log(`Spawning local OpenCode CLI: opencode ${args.join(" ")}`);
 
-  const proc = Bun.spawn(["cmd.exe", "/c", "opencode", ...args], {
+  const proc = Bun.spawn(["cmd.exe", "/c", opencodeCommand, ...args], {
     stdout: "pipe",
     stderr: "pipe",
     env: {
