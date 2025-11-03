@@ -72,7 +72,7 @@ This document defines the test matrix for Windows scenarios to validate the bunx
 **Command**: 
 ```powershell
 bun install opencode-web
-bun run opencode-web
+bun run packages/opencode-web/bin/opencode-web.js
 ```
 
 **Expected Behavior**:
@@ -82,7 +82,7 @@ bun run opencode-web
 
 **Validation Steps**:
 1. Install locally: `bun install opencode-web`
-2. Run: `bun run opencode-web`
+2. **IMPORTANT**: Run binary directly: `bun run packages/opencode-web/bin/opencode-web.js`
 3. Verify server launch message:
    ```
    Starting local OpenCode Server (Windows)...
@@ -96,6 +96,8 @@ bun run opencode-web
 - Web UI accessible
 - All features functional
 - Exit code: 0 (clean exit on Ctrl+C)
+
+**Important Note**: Using `bun run opencode-web` (npm script) may still fail with `/bin/sh` error. You must run binary directly on Windows.
 
 ---
 

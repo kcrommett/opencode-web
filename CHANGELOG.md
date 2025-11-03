@@ -66,7 +66,8 @@ You now have three options:
 2. **Install locally** (recommended for regular use):
    ```powershell
    bun install opencode-web
-   bun run opencode-web
+   # IMPORTANT: Run binary directly on Windows
+   bun run packages/opencode-web/bin/opencode-web.js
    ```
 
 3. **Build from source**:
@@ -78,6 +79,8 @@ You now have three options:
    ```
 
 **macOS and Linux users:** No changes required. `bunx opencode-web@latest` continues to work as expected with automatic server launch.
+
+**⚠️ Critical Windows Note**: When installing locally, you must run the binary directly (`bun run packages/opencode-web/bin/opencode-web.js`) rather than using the npm script (`bun run opencode-web`). The npm script may still encounter the same `/bin/sh` limitation.
 
 ---
 

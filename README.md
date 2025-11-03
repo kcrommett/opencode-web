@@ -255,21 +255,25 @@ bunx opencode-web@latest --external-server http://127.0.0.1:4096
 **Option 2: Install Locally** (Recommended for regular use)
 
 Install the package locally so Windows binaries are properly resolved:
+
 ```powershell
 # Create a directory and install
 mkdir my-opencode-web
 cd my-opencode-web
 bun install opencode-web
 
-# Run it
-bun run opencode-web
+# IMPORTANT: Run the binary directly on Windows
+bun run packages/opencode-web/bin/opencode-web.js
 ```
 
 Or install globally:
 ```powershell
 bun add -g opencode-web
+# Then run the binary directly
 opencode-web
 ```
+
+**⚠️ Important Note for Windows**: When installing locally, you must run the binary directly (`bun run packages/opencode-web/bin/opencode-web.js`) rather than using the npm script (`bun run opencode-web`). The npm script may still encounter the same `/bin/sh` limitation. Running the binary directly ensures proper Windows binary resolution.
 
 **Option 3: Build from Source** (For contributors or advanced users)
 

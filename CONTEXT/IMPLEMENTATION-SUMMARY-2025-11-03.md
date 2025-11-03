@@ -126,6 +126,7 @@ const isBunxOnWindows = isWindows && (() => {
 ✅ **Windows + local install still auto-starts OpenCode Server**
 - No changes to local install flow
 - Existing logic preserved (lines 459-476)
+- **CRITICAL**: Must run binary directly (`bun run packages/opencode-web/bin/opencode-web.js`) not npm script (`bun run opencode-web`)
 
 ✅ **Docs clearly differentiate between bunx and local workflows**
 - README has dedicated section for Windows + bunx
