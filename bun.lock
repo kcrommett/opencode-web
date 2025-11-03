@@ -49,8 +49,10 @@
     },
     "packages/opencode-web": {
       "name": "opencode-web",
-      "version": "0.4.3",
-      "bin": "bin/opencode-web.js",
+      "version": "0.5.2",
+      "bin": {
+        "opencode-web": "bin/opencode-web.js",
+      },
       "dependencies": {
         "@opencode-ai/sdk": "^0.15.14",
         "@tanstack/react-router": "^1.132.25",
@@ -70,6 +72,7 @@
       "devDependencies": {
         "@types/mime-types": "3.0.1",
         "@types/node": "^20",
+        "resolve": "^1.22.8",
       },
     },
     "packages/script": {
