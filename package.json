@@ -35,6 +35,7 @@
     "remark-gfm": "4.0.1"
   },
   "devDependencies": {
+    "@rollup/rollup-win32-x64-msvc": "4.52.5",
     "@tailwindcss/vite": "^4.1.13",
     "@types/bun": "^1.2.23",
     "@types/mime-types": "3.0.1",
