@@ -14,6 +14,7 @@ if (typeof globalThis.Bun === "undefined") {
 
 const DEFAULT_PORT = 3000;
 const DEFAULT_HOST = "127.0.0.1";
+const IS_WINDOWS = process.platform === "win32";
 
 const usage = `Usage: opencode-web [options]
 
@@ -146,6 +147,79 @@ if (existsSync(localBinDir)) {
   }
 }
 
+const NODE_MODULES_BIN_REGEX = /[\\\/]node_modules[\\\/]\.bin/i;
+let cachedWindowsCliPath;
+
+const getPathEntries = (value) =>
+  (value ? value.split(delimiter) : [])
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+const removeNodeModulesBinEntries = (entries) =>
+  entries.filter((segment) => !NODE_MODULES_BIN_REGEX.test(segment));
+
+const sanitizePathValue = (value) => {
+  const entries = removeNodeModulesBinEntries(getPathEntries(value));
+  return entries.join(delimiter);
+};
+
+const resolveWindowsOpencodeCliPath = () => {
+  if (!IS_WINDOWS) {
+    return undefined;
+  }
+
+  if (cachedWindowsCliPath && existsSync(cachedWindowsCliPath)) {
+    return cachedWindowsCliPath;
+  }
+
+  const explicitRaw = process.env.OPENCODE_CLI_PATH?.trim();
+  const explicit = explicitRaw?.replace(/^"(.*)"$/, "$1");
+  if (explicit) {
+    if (existsSync(explicit)) {
+      cachedWindowsCliPath = explicit;
+      return cachedWindowsCliPath;
+    }
+    console.warn(
+      `[WARN] OPENCODE_CLI_PATH is set to ${explicit}, but the file does not exist.`,
+    );
+  }
+
+  const currentPath = process.env.PATH ?? "";
+  const prioritizedEntries = removeNodeModulesBinEntries(
+    getPathEntries(currentPath),
+  );
+  const searchEntries =
+    prioritizedEntries.length > 0 ? prioritizedEntries : getPathEntries(currentPath);
+
+  for (const entry of searchEntries) {
+    const candidate = join(entry, "opencode.exe");
+    if (existsSync(candidate)) {
+      cachedWindowsCliPath = candidate;
+      return cachedWindowsCliPath;
+    }
+  }
+
+  return undefined;
+};
+
+
+const createWindowsCliEnv = () => {
+  if (!IS_WINDOWS) {
+    return process.env;
+  }
+
+  const originalPath = process.env.PATH ?? "";
+  const sanitized = sanitizePathValue(originalPath);
+  if (!sanitized || sanitized === originalPath) {
+    return process.env;
+  }
+
+  return {
+    ...process.env,
+    PATH: sanitized,
+  };
+};
+
 let cliOptions;
 try {
   cliOptions = parseArgs(process.argv.slice(2));
@@ -237,12 +311,17 @@ const startWindowsOpencodeServer = async (serverOptions) => {
 
   console.log(`Spawning local OpenCode CLI: opencode ${args.join(" ")}`);
 
-  const proc = Bun.spawn(["cmd.exe", "/c", "opencode", ...args], {
+  const cliPath = resolveWindowsOpencodeCliPath();
+  if (!cliPath) {
+    throw new Error(
+      "Unable to locate opencode.exe on your PATH. Install the OpenCode CLI from https://github.com/opencode-ai/opencode/releases or set OPENCODE_CLI_PATH to the executable.",
+    );
+  }
+
+  const proc = Bun.spawn([cliPath, ...args], {
     stdout: "pipe",
     stderr: "pipe",
-    env: {
-      ...process.env,
-    },
+    env: createWindowsCliEnv(),
   });
 
   // Parse server URL from stdout
@@ -326,9 +405,7 @@ const startWindowsOpencodeServer = async (serverOptions) => {
 };
 
 if (shouldStartBundledServer) {
-  const isWindows = process.platform === "win32";
-  
-  if (isWindows) {
+  if (IS_WINDOWS) {
     console.log("Starting local OpenCode Server (Windows)...");
   } else {
     console.log("Starting bundled OpenCode Server via SDK...");
@@ -359,7 +436,7 @@ if (shouldStartBundledServer) {
   try {
     let serverUrl;
     
-    if (isWindows) {
+    if (IS_WINDOWS) {
       // On Windows, use local CLI installation
       const result = await startWindowsOpencodeServer(serverOptions);
       serverUrl = result.url;
@@ -383,13 +460,17 @@ if (shouldStartBundledServer) {
     // Get OpenCode version info
     let versionInfo = "unknown";
     try {
-      if (isWindows) {
+      if (IS_WINDOWS) {
         // On Windows, try to get version from CLI
-        const versionProc = Bun.spawnSync(["opencode", "--version"], {
-          stdout: "pipe",
-        });
-        if (versionProc.exitCode === 0) {
-          versionInfo = new TextDecoder().decode(versionProc.stdout).trim();
+        const cliExecutable = resolveWindowsOpencodeCliPath();
+        if (cliExecutable) {
+          const versionProc = Bun.spawnSync([cliExecutable, "--version"], {
+            stdout: "pipe",
+            env: createWindowsCliEnv(),
+          });
+          if (versionProc.exitCode === 0) {
+            versionInfo = new TextDecoder().decode(versionProc.stdout).trim();
+          }
         }
       } else {
         // On other platforms, get version from opencode-ai package
@@ -427,7 +508,7 @@ if (shouldStartBundledServer) {
     console.error("[ERROR] Failed to start OpenCode Server.");
     
     // Provide helpful error message for Windows users
-    if (isWindows && error instanceof Error && 
+    if (IS_WINDOWS && error instanceof Error && 
         (error.message.includes("Timeout") || error.message.includes("ENOENT"))) {
       console.error("");
       console.error("The 'opencode' CLI is not found or failed to start.");
