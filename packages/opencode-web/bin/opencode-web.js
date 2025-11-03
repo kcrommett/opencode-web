@@ -237,7 +237,7 @@ const startWindowsOpencodeServer = async (serverOptions) => {
 
   console.log(`Spawning local OpenCode CLI: opencode ${args.join(" ")}`);
 
-  const proc = Bun.spawn(["opencode", ...args], {
+  const proc = Bun.spawn(["cmd.exe", "/c", "opencode", ...args], {
     stdout: "pipe",
     stderr: "pipe",
     env: {
