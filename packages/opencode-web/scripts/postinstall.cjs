@@ -50,23 +50,16 @@ function ensureWindowsOpencodeShim() {
   }
 
   try {
-    // Try to find the Windows binary package
+    // Try to find Windows binary package
     const packageName = `opencode-${platform}-${arch}`;
     
-    let packageJsonPath;
-    try {
-      // Try to use resolve package if available
-      const resolveSync = require('resolve').sync;
-      packageJsonPath = resolveSync(`${packageName}/package.json`);
-    } catch (error) {
-      // Fallback: try to find it in node_modules
-      const nodeModulesPath = path.join(__dirname, '..', 'node_modules');
-      packageJsonPath = path.join(nodeModulesPath, packageName, 'package.json');
-      
-      if (!fs.existsSync(packageJsonPath)) {
-        console.log(`OpenCode Windows binary package ${packageName} not found, skipping shim creation`);
-        return;
-      }
+    // Look for binary package in node_modules
+    const nodeModulesPath = path.join(__dirname, '..', 'node_modules');
+    const packageJsonPath = path.join(nodeModulesPath, packageName, 'package.json');
+    
+    if (!fs.existsSync(packageJsonPath)) {
+      console.log(`OpenCode Windows binary package ${packageName} not found, skipping shim creation`);
+      return;
     }
 
     const packageDir = path.dirname(packageJsonPath);
@@ -78,7 +71,7 @@ function ensureWindowsOpencodeShim() {
     }
 
     // Create .bin directory if it doesn't exist
-    const binDir = path.join(__dirname, '..', 'node_modules', '.bin');
+    const binDir = path.join(nodeModulesPath, '.bin');
     if (!fs.existsSync(binDir)) {
       fs.mkdirSync(binDir, { recursive: true });
     }
@@ -107,7 +100,7 @@ function ensureWindowsOpencodeShim() {
 
   } catch (error) {
     console.error('Failed to create OpenCode CLI shim:', error.message);
-    // Don't exit with error, just log it - the package should still be usable
+    // Don't exit with error, just log it - package should still be usable
   }
 }
 
