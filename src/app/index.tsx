@@ -765,11 +765,9 @@ function OpenCodeChatTUI() {
     const entries = Object.entries(mcpStatus);
     let connected = 0;
     let failed = 0;
-    let disabled = 0;
     for (const [, value] of entries) {
       if (value === 'connected') connected++;
       else if (value === 'failed') failed++;
-      else if (value === 'disabled') disabled++;
     }
 
     let colorClass = 'bg-green-500';
@@ -777,19 +775,15 @@ function OpenCodeChatTUI() {
     if (failed > 0) {
       colorClass = 'bg-red-500';
       badgeVariant = 'foreground0';
-    } else if (connected === 0 && entries.length - disabled > 0) {
+    } else if (connected === 0 && entries.length > 0) {
       colorClass = 'bg-yellow-500';
-      badgeVariant = 'foreground1';
-    } else if (disabled > 0 && entries.length === disabled) {
-      // All disabled
-      colorClass = 'bg-gray-400';
       badgeVariant = 'foreground1';
     }
 
     const text = `MCP (${connected} Connected)`;
     const title = entries.map(([name, status]) => `${name}: ${status}`).join(', ');
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[MCP] Aggregated:', { connected, failed, disabled, text });
+      console.log('[MCP] Aggregated:', { connected, failed, text });
     }
     return { colorClass, badgeVariant, text, title };
   }, [sidebarStatus]);
