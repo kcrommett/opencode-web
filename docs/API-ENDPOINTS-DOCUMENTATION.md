@@ -360,9 +360,51 @@ Runs a shell command within a session.
 ```json
 {
   "agent": "string",
-  "command": "string"
+  "command": "string",
+  "args": ["string"],
+  "directory": "string",
+  "multiline": "boolean"
 }
 ```
+
+**Enhanced Response** (for shell command enhancements):
+```json
+{
+  "info": {
+    "id": "string",
+    "exitCode": "number",
+    "duration": "number",
+    "workingDirectory": "string",
+    "command": "string"
+  },
+  "parts": [
+    {
+      "type": "tool",
+      "tool": "shell",
+      "status": "completed|error|running",
+      "input": "string",
+      "output": "string",
+      "error": {
+        "message": "string",
+        "stack": "string"
+      },
+      "state": {
+        "timings": {
+          "duration": "number"
+        }
+      }
+    }
+  ]
+}
+```
+
+**Shell Command Enhancements**:
+- Multi-line command support with preserved formatting
+- ANSI color code rendering in output
+- Command history with metadata (exit codes, timestamps)
+- Real-time status indicators (running, completed, error)
+- Enhanced error handling with stderr separation
+- Keyboard shortcuts for multi-line editing (Shift+Enter)
 
 ### Revert Message
 **POST** `/session/{id}/revert`

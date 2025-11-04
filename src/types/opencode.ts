@@ -29,6 +29,7 @@ export interface ToolPartDetail {
   status: "pending" | "running" | "completed" | "error";
   input?: unknown;
   output?: unknown;
+  metadata?: Record<string, unknown>;
   error?: {
     message?: string;
     stack?: string;

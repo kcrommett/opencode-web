@@ -308,10 +308,11 @@ export const openCodeService = {
     command: string,
     args?: string[],
     directory?: string,
+    agent?: string,
   ) {
     try {
       const response = await serverFns.runCommand({
-        data: { sessionId, command, args, directory },
+        data: { sessionId, command, args, directory, agent },
       });
       return { data: response };
     } catch (error) {

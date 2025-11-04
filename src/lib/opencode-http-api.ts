@@ -357,9 +357,21 @@ export async function runCommand(
   command: string,
   args?: string[],
   directory?: string,
+  agent?: string,
 ) {
   const body: Record<string, unknown> = { command };
-  if (args) body.args = args;
+
+  if (Array.isArray(args)) {
+    body.args = args;
+  }
+
+  if (directory) {
+    body.directory = directory;
+  }
+
+  if (agent) {
+    body.agent = agent;
+  }
 
   const response = await fetch(
     buildUrl(
@@ -373,7 +385,34 @@ export async function runCommand(
     },
   );
   if (!response.ok) {
-    throw new Error(`Failed to run command: ${response.statusText}`);
+    let errorMessage = response.statusText;
+    try {
+      const responseText = await response.text();
+      if (responseText) {
+        try {
+          const parsed = JSON.parse(responseText);
+          errorMessage =
+            parsed?.error ||
+            parsed?.message ||
+            parsed?.data?.message ||
+            parsed;
+        } catch {
+          errorMessage = responseText;
+        }
+      }
+    } catch {
+      // Ignore secondary errors and fall back to status text
+    }
+
+    if (typeof errorMessage === "object") {
+      try {
+        errorMessage = JSON.stringify(errorMessage);
+      } catch {
+        errorMessage = "[object Object]";
+      }
+    }
+
+    throw new Error(`Failed to run command: ${errorMessage}`);
   }
   return response.json();
 }

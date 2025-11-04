@@ -136,6 +136,7 @@ export const runCommand = createServerFn({ method: "POST" })
       command: string;
       args?: string[];
       directory?: string;
+      agent?: string;
     }) => data,
   )
   .handler(async ({ data }) => {
@@ -144,6 +145,7 @@ export const runCommand = createServerFn({ method: "POST" })
       data.command,
       data.args,
       data.directory,
+      data.agent,
     );
   });
 

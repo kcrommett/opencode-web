@@ -1,204 +1,315 @@
-# Implementation Summary: Windows bunx Server Launch Fix
+# Shell Command Enhancements - Implementation Summary
 
-**Date**: November 3, 2025  
-**Plan**: `PLAN-windows-bunx-server-2025-11-03.md`  
-**Status**: ✅ Complete (Milestones 1-4)
+## Current State Analysis (as of 2025-11-03)
 
-## Overview
+### TUI vs Web Interface Comparison
 
-Successfully implemented detection and graceful error handling for the Windows `bunx` limitation where the bundled OpenCode Server cannot be launched due to Bun's `/bin/sh` remapping issue.
+#### TUI Shell Command Features
+Based on the codebase analysis, the TUI implementation (referenced but not directly accessible) appears to have:
+- Multi-line command support with proper parsing
+- Command history with navigation
+- ANSI color/formatting support
+- Real-time status indicators
+- Better error handling and display
 
-## What Was Implemented
+#### Current Web Interface Limitations
 
-### ✅ Milestone 1: Detection & Messaging
-- **File**: `packages/opencode-web/bin/opencode-web.js:384-426`
-- **Changes**:
-  - Added `isBunxOnWindows` detection using pattern matching on `process.cwd()` and `process.argv[1]`
-  - Detects bunx temporary directory patterns: `/bunx-\d+-/`, `/\.bunx/`, `/Temp.*bunx/`
-  - Exits with code 1 and comprehensive error message when detected
-  - Displays 3 recommended workarounds with exact commands
-  - Links to GitHub documentation for more details
+1. **Command Parsing (`src/lib/commandParser.ts`)**
+   - Only supports single-line shell commands
+   - No multi-line detection or handling
+   - Simple `!` prefix detection without advanced parsing
+   - No support for here-doc syntax or line continuations
 
-**Key Implementation**:
-```javascript
-const isBunxOnWindows = isWindows && (() => {
-    const cwd = process.cwd();
-    const scriptPath = process.argv[1] || "";
-    
-    const bunxPatterns = [
-        /bunx-\d+-/i,
-        /\.bunx/i,
-        /Temp.*bunx/i,
-    ];
-    
-    return bunxPatterns.some(pattern => 
-        pattern.test(cwd) || pattern.test(scriptPath)
-    );
-})();
+2. **Input Handling (`src/app/index.tsx`)**
+   - Textarea doesn't support multi-line mode
+   - No `Shift+Enter` handling for newlines
+   - Commands are trimmed, losing intentional whitespace
+   - No visual indicators for shell mode
+
+3. **Output Rendering (`src/app/_components/message/ToolPart.tsx`)**
+   - Plain text output without ANSI color support
+   - No syntax highlighting for shell output
+   - No streaming or progress indicators
+   - Basic error display without structured formatting
+
+4. **Command History**
+   - No shell-specific history storage
+   - No history navigation or search
+   - No persistence across sessions
+
+5. **Visual Indicators**
+   - No running/progress indicators for shell commands
+   - No success/failure badges
+   - No command duration display
+
+6. **Keyboard Shortcuts**
+   - No shell-specific shortcuts
+   - No multi-line toggle
+   - No history search functionality
+
+### API Contract Analysis
+
+#### Current Shell Execution Flow
+```
+User Input → parseCommand() → handleShellCommand() → runShell() → HTTP API → Backend
 ```
 
-### ✅ Milestone 2: Documentation Updates
+#### Current API Structure (`src/lib/opencode-http-api.ts:355-379`)
+- Endpoint: `POST /session/{sessionId}/shell`
+- Request: `{ command, args?, directory? }`
+- Response: `{ info, parts }`
 
-#### README.md
-- Added comprehensive "Windows + bunx Limitation" section (lines 218-332)
-- Updated "Platform Notes" with warning and link to limitation section
-- Documented all three workarounds with step-by-step instructions
-- Added troubleshooting subsection for common issues
+#### Required API Enhancements
+1. **Request Payload Extensions**
+   - Add `multiline: boolean` flag
+   - Add `rawInput: string` for preserving original text
+   - Add `segments: string[]` for multi-line parsing
 
-#### docs/SSE-PROXY-DOCUMENTATION.md
-- Added Windows-specific troubleshooting section
-- Documented required setup for Windows + bunx
-- Provided verification steps for SSE connections
-- Added error resolution guidance
+2. **Response Metadata Extensions**
+   - Add `exitCode: number`
+   - Add `duration: number` (milliseconds)
+   - Add `stdout: string[]` and `stderr: string[]`
+   - Add `ansiMarkers: AnsiMarker[]` for formatting
 
-#### docs/API-ENDPOINTS-DOCUMENTATION.md
-- Added Windows configuration note to base information section
-- Documented default host/port for `--external-server`
-- Provided example commands for Windows users
+### Data Model Extensions Needed
 
-#### docs/SSE-EVENTS-DOCUMENTATION.md
-- Added Windows-specific troubleshooting section
-- Documented `/bin/sh` error with symptoms and solutions
-- Cross-linked to other documentation
+#### ParsedCommand Interface (`src/lib/commandParser.ts`)
+```typescript
+interface ParsedCommand {
+  type: "slash" | "shell" | "file" | "plain";
+  command?: string;
+  args?: string[];
+  filePath?: string;
+  content?: string;
+  matchedCommand?: Command;
+  // NEW FIELDS
+  multiline?: boolean;
+  rawInput?: string;
+  segments?: string[];
+}
+```
 
-### ✅ Milestone 3: Runtime Enhancements
+#### ShellHistoryEntry Interface (new)
+```typescript
+interface ShellHistoryEntry {
+  command: string;
+  timestamp: number;
+  exitCode?: number;
+  duration?: number;
+  workingDirectory?: string;
+}
+```
 
-#### Preflight Detection (lines 384-426)
-- Prevents confusing error messages by detecting bunx early
-- Exits before attempting to spawn OpenCode Server
-- Provides actionable guidance immediately
+#### Message Part Extensions
+```typescript
+interface Part {
+  // existing fields...
+  toolData?: {
+    // existing fields...
+    shellLogs?: {
+      stdout: string[];
+      stderr: string[];
+      exitCode: number;
+      duration: number;
+      workingDirectory: string;
+    };
+  };
+}
+```
 
-#### Enhanced Failure Handler (lines 544-586)
-- Improved error messages for Windows users
-- Added detection for `/bin/sh` and interpreter errors
-- Provides exact commands for all workarounds
-- Links to troubleshooting documentation
+### Implementation Dependencies
 
-#### External Server Confirmation (lines 562-577)
-- Logs confirmation when using `--external-server`
-- Reminds users that external server is required for bunx on Windows
-- Only shows reminder when running via bunx
+#### External Libraries Required
+1. **ANSI Processing**
+   - `strip-ansi` - for removing ANSI codes
+   - `ansi-to-html` or custom parser - for converting ANSI to HTML
 
-### ✅ Milestone 4: Testing & Validation
+2. **Multi-line Text Handling**
+   - Auto-resizing textarea component
+   - Better cursor/selection management
 
-#### Test Matrix Documentation
-- **File**: `CONTEXT/WINDOWS-TEST-MATRIX.md`
-- Defined 5 test scenarios covering all Windows workflows
-- Documented success criteria and validation steps
-- Created manual testing checklist
-- Included known issues and workarounds
+#### Configuration Extensions
+```typescript
+interface ShellConfig {
+  historyLimit: number; // default: 50
+  multiLineShortcut: string; // default: "Shift+Enter"
+  outputTheme: "auto" | "plain" | "themed"; // default: "auto"
+  showStatusBadges: boolean; // default: true
+}
+```
 
-#### Automated Smoke Test
-- **File**: `CONTEXT/WINDOWS-TEST-SMOKE.ps1`
-- PowerShell script for automated validation
-- Tests bunx detection heuristic
-- Validates error message format
-- Confirms regular directories are not flagged
-- Provides pass/fail summary
+### Testing Requirements
 
-#### Changelog
-- **File**: `CHANGELOG.md` (new)
-- Documented all changes in "Unreleased" section
-- Included migration guide for Windows users
-- Noted technical details and background
+#### Unit Tests Needed
+1. **Command Parser Tests**
+   - Single-line shell commands
+   - Multi-line shell commands
+   - Here-doc syntax
+   - Line continuations (trailing `\`)
+   - Edge cases (empty commands, whitespace)
 
-## Files Modified
+2. **ANSI Processing Tests**
+   - Color code stripping
+   - Color code conversion to HTML
+   - Mixed content handling
+   - Performance with large outputs
 
-1. `packages/opencode-web/bin/opencode-web.js` - CLI entry point (3 changes)
-2. `README.md` - Main documentation (2 changes)
-3. `docs/SSE-PROXY-DOCUMENTATION.md` - SSE proxy docs (1 change)
-4. `docs/API-ENDPOINTS-DOCUMENTATION.md` - API docs (1 change)
-5. `docs/SSE-EVENTS-DOCUMENTATION.md` - SSE events docs (1 change)
+3. **History Management Tests**
+   - Storage/retrieval
+   - Deduplication
+   - MRU ordering
+   - Limit enforcement
 
-## Files Created
+#### Integration Tests Needed
+1. **End-to-end Shell Command Flow**
+   - Input → Execution → Output rendering
+   - Error handling scenarios
+   - Multi-line command execution
 
-1. `CONTEXT/WINDOWS-TEST-MATRIX.md` - Test scenarios and validation
-2. `CONTEXT/WINDOWS-TEST-SMOKE.ps1` - Automated test script
-3. `CHANGELOG.md` - Project changelog
-4. `CONTEXT/IMPLEMENTATION-SUMMARY-2025-11-03.md` - This file
+2. **Keyboard Shortcut Tests**
+   - Multi-line toggle
+   - History navigation
+   - Custom shortcut handling
 
-## Validation Criteria (from plan)
+3. **UI Component Tests**
+   - Status indicator rendering
+   - History picker functionality
+   - Responsive design
 
-✅ **Windows + bunx run prints the new warning**
-- Implemented in lines 384-426 of opencode-web.js
-- Tested with `bun packages/opencode-web/bin/opencode-web.js --version` (works)
+### Performance Considerations
 
-✅ **Windows + local install still auto-starts OpenCode Server**
-- No changes to local install flow
-- Existing logic preserved (lines 459-476)
-- **CRITICAL**: Must run binary directly (`bun run packages/opencode-web/bin/opencode-web.js`) not npm script (`bun run opencode-web`)
+1. **Large Output Handling**
+   - Implement virtual scrolling for long outputs
+   - Collapse long logs by default
+   - Streaming updates via SSE
 
-✅ **Docs clearly differentiate between bunx and local workflows**
-- README has dedicated section for Windows + bunx
-- Platform Notes updated with clear warnings
-- All documentation cross-links properly
+2. **History Search Performance**
+   - Implement efficient fuzzy matching
+   - Debounce search input
+   - Limit search results
 
-✅ **SSE proxy documentation reflects new requirements**
-- Added Windows-specific section to SSE-PROXY-DOCUMENTATION.md
-- Documented setup steps and verification
+3. **ANSI Rendering Performance**
+   - Lazy rendering for visible content
+   - Cache parsed ANSI sequences
+   - Optimize regex patterns
 
-✅ **Manual PowerShell smoke test confirms CLI behavior**
-- Created WINDOWS-TEST-SMOKE.ps1
-- Tests detection, error messages, and false positives
+### Security Considerations
 
-✅ **Upstream issues/PRs reference this repository**
-- Placeholder links added to README
-- Will be filed after validation (Milestone 5)
+1. **Command History Privacy**
+   - Local storage only (no server persistence)
+   - Clear history option
+   - Opt-out configuration
+   - Sanitize commands before storage
 
-## What's NOT Included (Deferred to Milestone 5)
+2. **Output Sanitization**
+   - Strip potentially harmful ANSI sequences
+   - Escape HTML in output
+   - Handle binary data gracefully
 
-The following tasks are intentionally deferred until after internal validation:
+### Documentation Updates Required
 
-- Filing issue in `sst/opencode` repository
-- Filing issue in `oven-sh/bun` repository
-- Tracking upstream resolution status
+1. **API Documentation**
+   - Update `docs/API-ENDPOINTS-DOCUMENTATION.md`
+   - Document new request/response fields
+   - Add shell-specific examples
 
-These will be completed after Windows users validate the workarounds are effective.
+2. **SSE Events Documentation**
+   - Update `docs/SSE-EVENTS-DOCUMENTATION.md`
+   - Document shell progress events
+   - Add status update examples
 
-## Testing Recommendations
+3. **User Documentation**
+   - Update `README.md` shell section
+   - Add keyboard shortcuts reference
+   - Document configuration options
 
-### Before Release
+### Migration Strategy
 
-1. Run manual tests from `CONTEXT/WINDOWS-TEST-MATRIX.md`
-2. Execute `CONTEXT/WINDOWS-TEST-SMOKE.ps1` on Windows
-3. Verify all scenarios work:
-   - ❌ Windows + bunx (should fail gracefully)
-   - ✅ Windows + bunx + external server (should work)
-   - ✅ Windows + local install (should work)
-   - ✅ macOS/Linux + bunx (should work)
+1. **Backward Compatibility**
+   - Maintain existing API contracts
+   - Graceful degradation for old clients
+   - Feature flags for new functionality
 
-### Post-Release
+2. **Progressive Enhancement**
+   - Start with basic multi-line support
+   - Add ANSI rendering incrementally
+   - Implement history as final feature
 
-1. Monitor user feedback on Windows
-2. File upstream issues with reproduction steps
-3. Update documentation with any additional findings
+### Risk Mitigation
 
-## Known Issues
+1. **Multi-line Parsing Collisions**
+   - Clear delimiter rules
+   - Comprehensive test coverage
+   - Fallback to single-line parsing
 
-### Linting Warning
-- `packages/opencode-web/bin/opencode-web.js:138:7` shows hint about `isBunxOnWindows` being declared but not read
-- This is a false positive - the variable IS used on line 400 in an if statement
-- Can be safely ignored or suppressed with a comment if needed
+2. **Performance Degradation**
+   - Implement performance monitoring
+   - Add output size limits
+   - Provide user controls for rendering
 
-## Success Metrics
+3. **Keyboard Shortcut Conflicts**
+   - Customizable shortcuts
+   - Platform-specific defaults
+   - Conflict detection and resolution
 
-- No confused Windows users with cryptic `/bin/sh` errors ✅
-- Clear path to working solution for all Windows users ✅
-- Comprehensive documentation for troubleshooting ✅
-- Automated tests for regression prevention ✅
-- Graceful degradation with actionable guidance ✅
+## Implementation Decisions
 
-## Next Steps
+### Multi-line Syntax
+- Use Shift+Enter to insert newlines without sending
+- Preserve full multi-line text in command payload
+- Strip leading `!` only from first line
+- Support here-doc style syntax (`!<<'EOF'`)
 
-1. **Code Review**: Review all changes for accuracy and completeness
-2. **Windows Testing**: Manual validation on Windows 10 and 11
-3. **Release**: Create PR or merge to main branch
-4. **Milestone 5**: File upstream issues after user validation
-5. **Monitor**: Track user feedback and update docs as needed
+### ANSI Rendering Strategy
+- Use `strip-ansi` for plaintext fallback
+- Use `ansi-to-html` for colorized rendering
+- Implement lazy rendering for large outputs
+- Provide toggle between colorized and plain text
 
-## References
+### History Storage
+- Per-session history in localStorage
+- Key format: `opencode-shell-history::{sessionId}`
+- Default limit: 50 entries
+- Store command, timestamp, exit code
+- MRU (Most Recently Used) ordering
 
-- Original plan: `CONTEXT/PLAN-windows-bunx-server-2025-11-03.md`
-- Test matrix: `CONTEXT/WINDOWS-TEST-MATRIX.md`
-- Smoke tests: `CONTEXT/WINDOWS-TEST-SMOKE.ps1`
-- Changelog: `CHANGELOG.md`
+### Keyboard Shortcuts
+- Shift+Enter: Insert newline (multi-line mode)
+- Ctrl+Enter: Execute command (from multi-line)
+- Ctrl+R: Open history search
+- Arrow Up/Down: Navigate history
+- Esc: Exit multi-line mode
+
+## Technical Architecture
+
+### Component Hierarchy
+1. `CommandParser` - Enhanced to handle multi-line syntax
+2. `Input Handler` - Manage multi-line mode and keyboard shortcuts
+3. `Shell History Manager` - LocalStorage integration and search
+4. `ToolPart` - Enhanced rendering with ANSI support
+5. `Status Indicators` - Real-time command state visualization
+
+### State Management
+- Session-level shell activity tracking
+- Per-session history storage
+- Multi-line mode state in input component
+- Command execution state for status indicators
+
+### API Integration
+- Extend `/session/{id}/shell` endpoint metadata
+- Enhance SSE events for shell status updates
+- Add command ID for deduplication
+- Support streaming output updates
+
+## Testing Strategy
+- Unit tests for command parser enhancements
+- Integration tests for history functionality
+- Component tests for ANSI rendering
+- End-to-end tests for multi-line workflows
+- Cross-browser compatibility testing
+
+## Performance Considerations
+- Lazy rendering for large command outputs
+- Debounced history search
+- Efficient ANSI parsing for real-time updates
+- Memory management for long-running sessions
