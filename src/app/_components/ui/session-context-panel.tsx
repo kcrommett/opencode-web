@@ -6,7 +6,7 @@ import { Button } from "./button";
 import { Separator } from "./separator";
 
 export const SessionContextPanel: React.FC = () => {
-  const { sidebarStatus, currentSession, sseConnectionState } = useOpenCodeContext();
+  const { sidebarStatus, currentSession, sseConnectionState, isConnected } = useOpenCodeContext();
   const { sessionContext } = sidebarStatus;
 
   const numberFormatter = useMemo(() => new Intl.NumberFormat(), []);
@@ -33,20 +33,36 @@ export const SessionContextPanel: React.FC = () => {
     sessionContext.cacheTokens?.write ?? sessionContext.tokenUsage?.cacheWrite ?? 0;
   const hasDuration = Boolean(sessionContext.activeSince || sessionContext.lastActivity);
 
-  const connectionStatus = useMemo(() => {
+  // Server connection status
+  const serverConnectionStatus = useMemo(() => {
+    if (isConnected === null) {
+      return { status: "info" as const, label: "Server Unknown", title: "Server connection status unknown" };
+    }
+    if (isConnected) {
+      return { status: "success" as const, label: "Server Connected", title: "Connected to OpenCode server" };
+    }
+    return { status: "error" as const, label: "Server Disconnected", title: "Disconnected from OpenCode server" };
+  }, [isConnected]);
+
+  // SSE connection status
+  const sseStatus = useMemo(() => {
     if (!sseConnectionState) {
-      return { status: "info" as const, label: "Unknown" };
+      return { status: "info" as const, label: "SSE Unknown", title: "SSE connection status unknown" };
     }
     if (sseConnectionState.error) {
-      return { status: "error" as const, label: "Error" };
+      return { 
+        status: "error" as const, 
+        label: "SSE Error", 
+        title: `SSE error: ${sseConnectionState.error}` 
+      };
     }
     if (sseConnectionState.reconnecting) {
-      return { status: "pending" as const, label: "Reconnecting" };
+      return { status: "pending" as const, label: "SSE Reconnecting", title: "SSE connection is reconnecting..." };
     }
     if (sseConnectionState.connected) {
-      return { status: "success" as const, label: "Connected" };
+      return { status: "success" as const, label: "SSE Live", title: "SSE connection active" };
     }
-    return { status: "warning" as const, label: "Disconnected" };
+    return { status: "warning" as const, label: "SSE Off", title: "SSE connection inactive" };
   }, [sseConnectionState]);
 
   if (!currentSession && !sessionContext.id) {
@@ -173,21 +189,56 @@ export const SessionContextPanel: React.FC = () => {
           </div>
         </div>
 
-        {/* Meta Row */}
-        <div className="flex flex-wrap items-center gap-2">
-          {hasDuration && (
-            <Badge variant="background2" cap="square" className={metaBadgeClass}>
-              DUR {formatDuration(sessionContext.activeSince, sessionContext.lastActivity)}
-            </Badge>
-          )}
-          <StatusBadge status={connectionStatus.status} className={metaBadgeClass}>
-            {connectionStatus.label}
-          </StatusBadge>
-          {sessionContext.isStreaming && (
-            <StatusBadge status="info" className={metaBadgeClass}>
-              Streaming…
+        {/* Connection Status Row */}
+        <div className="space-y-1">
+          <div className="text-xs text-theme-muted">Connection Status</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge 
+              status={serverConnectionStatus.status} 
+              className={metaBadgeClass}
+              title={serverConnectionStatus.title}
+            >
+              <div className="flex items-center gap-1">
+                <div 
+                  className={`w-2 h-2 rounded-full ${
+                    isConnected === null 
+                      ? "bg-gray-400" 
+                      : isConnected 
+                        ? "bg-green-500" 
+                        : "bg-red-500"
+                  }`}
+                />
+                {serverConnectionStatus.label}
+              </div>
             </StatusBadge>
-          )}
+            <StatusBadge 
+              status={sseStatus.status} 
+              className={metaBadgeClass}
+              title={sseStatus.title}
+            >
+              <div className="flex items-center gap-1">
+                <div 
+                  className={`w-2 h-2 rounded-full ${
+                    !sseConnectionState
+                      ? "bg-gray-400"
+                      : sseConnectionState.error
+                        ? "bg-red-500"
+                        : sseConnectionState.reconnecting
+                          ? "bg-yellow-500 animate-pulse"
+                          : sseConnectionState.connected
+                            ? "bg-green-500"
+                            : "bg-red-500"
+                  }`}
+                />
+                {sseStatus.label}
+              </div>
+            </StatusBadge>
+            {sessionContext.isStreaming && (
+              <StatusBadge status="info" className={metaBadgeClass}>
+                Streaming…
+              </StatusBadge>
+            )}
+          </div>
         </div>
 
         {sessionContext.lastError && (

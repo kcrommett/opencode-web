@@ -872,19 +872,6 @@ textarea::placeholder {
 
 /* Semantic Component Classes */
 
-/* Connection Status Indicator */
-.connection-indicator {
-  @apply w-2 h-2 rounded-full;
-}
-
-.connection-indicator.connected {
-  background-color: rgb(34, 197, 94);
-}
-
-.connection-indicator.disconnected {
-  background-color: var(--theme-error);
-}
-
 /* Message Container Backgrounds */
 .message-user {
   background-color: var(--theme-backgroundAlt);
