@@ -1042,13 +1042,7 @@ function OpenCodeChatTUI() {
       registerShortcut({
         key: "w",
         handler: () => {
-          // Toggle Workspace sidebar if already on Workspace tab, otherwise navigate to Workspace
-          if (activeTab === "workspace" && isLeftSidebarOpen) {
-            setIsLeftSidebarOpen(false);
-          } else {
-            setActiveTab("workspace");
-            setIsLeftSidebarOpen(true);
-          }
+          handleTabChange("workspace");
           closeAllModals();
         },
         requiresLeader: true,
@@ -3202,6 +3196,12 @@ function OpenCodeChatTUI() {
   const handleTabChange = (tab: string) => {
     // If clicking the same tab that's already active, toggle sidebar visibility
     if (tab === activeTab && isLeftSidebarOpen) {
+      if (tab === "workspace") {
+        // Workspace: only toggle sidebar, keep activeTab set to preserve chat
+        setIsLeftSidebarOpen(false);
+        return;
+      }
+      // Other tabs (Files, etc.): toggle sidebar and clear activeTab
       setIsLeftSidebarOpen(false);
       setActiveTab(""); // Clear active tab when hiding sidebar
       return;
