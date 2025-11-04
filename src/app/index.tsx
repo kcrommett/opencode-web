@@ -4376,13 +4376,13 @@ function OpenCodeChatTUI() {
           }}
         >
           {/* Header */}
-          <div className="px-4 py-0.5 flex items-center bg-theme-background-alt min-w-0 gap-2">
+          <div className="px-2 sm:px-3 py-1 flex items-center bg-theme-background-alt min-w-0 gap-2">
             <button
               onClick={() => {
                 closeAllModals();
                 setShowProjectPicker(true);
               }}
-              className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer hover:opacity-80 transition-opacity py-1"
+              className="min-w-0 flex-1 cursor-pointer hover:opacity-80 transition-opacity"
               style={{
                 background: "none",
                 border: "none",
@@ -4393,11 +4393,9 @@ function OpenCodeChatTUI() {
               title={`Project: ${currentProject?.worktree || "No project"}`}
               aria-label={`Current project: ${currentProject?.worktree || "No project"}. Click to change project.`}
             >
-              <span 
-                className="text-sm font-normal text-theme-foreground-alt min-w-0 truncate flex-1"
-              >
+              <div className="text-sm font-normal text-theme-foreground-alt truncate">
                 {currentProject?.worktree || "No project"}
-              </span>
+              </div>
               {currentSessionTodos.length > 0 && (
                 <Badge variant="foreground0" cap="square" className="text-xs flex-shrink-0">
                   {currentSessionTodos.length} todo
@@ -4610,21 +4608,20 @@ function OpenCodeChatTUI() {
                         closeAllModals();
                         setShowModelPicker(true);
                       }}
-                      className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none min-w-0 truncate flex-1"
+                      className="text-theme-primary hover:underline cursor-pointer min-w-0 flex-1"
                       style={{
                         background: "none",
                         border: "none",
                         padding: 0,
                         margin: 0,
-                        font: "inherit",
-                        color: "inherit",
-                        height: "auto",
-                        lineHeight: "inherit",
+                        textAlign: "left",
                       }}
                       title={selectedModel?.name || "Loading..."}
                       aria-label={`Current model: ${selectedModel?.name || "Loading..."}`}
                     >
-                      {selectedModel?.name || "Loading..."}
+                      <div className="truncate">
+                        {selectedModel?.name || "Loading..."}
+                      </div>
                     </button>
                     <span className="text-theme-muted flex-shrink-0">•</span>
                     <button
@@ -4632,21 +4629,20 @@ function OpenCodeChatTUI() {
                         closeAllModals();
                         setShowSessionPicker(true);
                       }}
-                      className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none min-w-0 truncate flex-1"
+                      className="text-theme-primary hover:underline cursor-pointer min-w-0 flex-1"
                       style={{
                         background: "none",
                         border: "none",
                         padding: 0,
                         margin: 0,
-                        font: "inherit",
-                        color: "inherit",
-                        height: "auto",
-                        lineHeight: "inherit",
+                        textAlign: "left",
                       }}
                       title={currentSession?.title || "No session"}
                       aria-label={`Current session: ${currentSession?.title || "No session"}`}
                     >
-                      {currentSession?.title || "No session"}
+                      <div className="truncate">
+                        {currentSession?.title || "No session"}
+                      </div>
                     </button>
                     {currentSessionBusy && (
                       <>
