@@ -109,7 +109,10 @@ export const SessionContextPanel: React.FC = () => {
             </Badge>
           </div>
           {(sessionContext.title || currentSession?.title) && (
-            <div className="text-sm font-medium truncate">
+            <div 
+              className="text-sm font-medium truncate"
+              title={sessionContext.title ?? currentSession?.title}
+            >
               {sessionContext.title ?? currentSession?.title}
             </div>
           )}

@@ -767,6 +767,24 @@ button[box-="double"][variant-="foreground0"] {
     min-height: 44px;
     min-width: 44px;
   }
+
+  /* 
+   * Text Truncation Pattern for Flex Containers
+   * 
+   * To enable ellipsis truncation inside flex layouts:
+   * 1. Parent flex container: `flex` with appropriate direction
+   * 2. Child text element: `min-w-0 truncate`
+   * 
+   * Example:
+   *   <div class="flex items-center gap-2">
+   *     <span class="min-w-0 truncate">Long text that will truncate...</span>
+   *   </div>
+   * 
+   * The `min-w-0` allows the flex child to shrink below its content size.
+   * The `truncate` applies `overflow-hidden text-ellipsis whitespace-nowrap`.
+   * 
+   * For multi-line truncation, use `line-clamp-{n}` instead of `truncate`.
+   */
 }
 
 /* Mobile viewport optimizations */

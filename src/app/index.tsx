@@ -4589,14 +4589,14 @@ function OpenCodeChatTUI() {
                 className="px-2 sm:px-3 py-2 space-y-2 bg-theme-background-alt"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-sm text-theme-foreground flex-wrap">
+                  <div className="flex items-center gap-2 text-sm text-theme-foreground flex-wrap min-w-0">
                     <span className="font-medium">Model:</span>
                     <button
                       onClick={() => {
                         closeAllModals();
                         setShowModelPicker(true);
                       }}
-                      className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none"
+                      className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none min-w-0 truncate max-w-[150px] md:max-w-[200px]"
                       style={{
                         background: "none",
                         border: "none",
@@ -4607,6 +4607,8 @@ function OpenCodeChatTUI() {
                         height: "auto",
                         lineHeight: "inherit",
                       }}
+                      title={selectedModel?.name || "Loading..."}
+                      aria-label={`Current model: ${selectedModel?.name || "Loading..."}`}
                     >
                       {selectedModel?.name || "Loading..."}
                     </button>
@@ -4617,7 +4619,7 @@ function OpenCodeChatTUI() {
                         closeAllModals();
                         setShowSessionPicker(true);
                       }}
-                      className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none"
+                      className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none min-w-0 truncate max-w-[150px] md:max-w-[300px]"
                       style={{
                         background: "none",
                         border: "none",
@@ -4628,6 +4630,8 @@ function OpenCodeChatTUI() {
                         height: "auto",
                         lineHeight: "inherit",
                       }}
+                      title={currentSession?.title || "No session"}
+                      aria-label={`Current session: ${currentSession?.title || "No session"}`}
                     >
                       {currentSession?.title || "No session"}
                     </button>
