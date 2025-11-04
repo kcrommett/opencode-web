@@ -4376,7 +4376,7 @@ function OpenCodeChatTUI() {
           }}
         >
           {/* Header */}
-          <div className="px-4 py-2 flex justify-between items-center bg-theme-background-alt min-w-0">
+          <div className="px-4 py-1 flex justify-between items-center bg-theme-background-alt min-w-0">
             <button
               onClick={() => {
                 closeAllModals();
@@ -4394,7 +4394,7 @@ function OpenCodeChatTUI() {
               aria-label={`Current project: ${currentProject?.worktree || "No project"}. Click to change project.`}
             >
               <span 
-                className="text-base font-normal text-theme-foreground-alt min-w-0 truncate max-w-[200px] md:max-w-[400px]"
+                className="text-sm font-normal text-theme-foreground-alt min-w-0 truncate flex-1"
               >
                 {currentProject?.worktree || "No project"}
               </span>
@@ -4604,13 +4604,13 @@ function OpenCodeChatTUI() {
                 className="px-2 sm:px-3 py-2 space-y-2 bg-theme-background-alt"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-sm text-theme-foreground flex-wrap min-w-0">
+                  <div className="flex items-center gap-2 text-sm text-theme-foreground flex-wrap min-w-0 flex-1">
                     <button
                       onClick={() => {
                         closeAllModals();
                         setShowModelPicker(true);
                       }}
-                      className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none min-w-0 truncate max-w-[150px] md:max-w-[200px]"
+                      className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none min-w-0 truncate max-w-[40vw] md:max-w-[300px]"
                       style={{
                         background: "none",
                         border: "none",
@@ -4626,13 +4626,13 @@ function OpenCodeChatTUI() {
                     >
                       {selectedModel?.name || "Loading..."}
                     </button>
-                    <span className="text-theme-muted">•</span>
+                    <span className="text-theme-muted flex-shrink-0">•</span>
                     <button
                       onClick={() => {
                         closeAllModals();
                         setShowSessionPicker(true);
                       }}
-                      className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none min-w-0 truncate max-w-[150px] md:max-w-[300px]"
+                      className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none min-w-0 truncate max-w-[40vw] md:max-w-[400px]"
                       style={{
                         background: "none",
                         border: "none",
