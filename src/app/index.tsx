@@ -2460,8 +2460,9 @@ function OpenCodeChatTUI() {
     if (e.key === "ArrowDown") {
       if (showCommandPicker) {
         e.preventDefault();
+        // Circular navigation: wrap to first item when reaching the end
         setSelectedCommandIndex((prev) =>
-          prev < commandSuggestions.length - 1 ? prev + 1 : prev,
+          (prev + 1) % commandSuggestions.length
         );
       } else if (showMentionSuggestions) {
         e.preventDefault();
@@ -2518,7 +2519,10 @@ function OpenCodeChatTUI() {
     if (e.key === "ArrowUp") {
       if (showCommandPicker) {
         e.preventDefault();
-        setSelectedCommandIndex((prev) => (prev > 0 ? prev - 1 : prev));
+        // Circular navigation: wrap to last item when moving past the beginning
+        setSelectedCommandIndex((prev) => 
+          (prev - 1 + commandSuggestions.length) % commandSuggestions.length
+        );
       } else if (showMentionSuggestions) {
         e.preventDefault();
         setSelectedMentionIndex((prev) => (prev > 0 ? prev - 1 : prev));
