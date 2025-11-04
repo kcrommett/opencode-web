@@ -4377,24 +4377,24 @@ function OpenCodeChatTUI() {
         >
           {/* Header */}
           <div className="px-4 py-2 flex justify-between items-center bg-theme-background-alt min-w-0">
-            <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
-              {/* Desktop: Full text. Mobile: Hide verbose labels, show compact info */}
-              <span className="hidden md:inline text-base font-normal text-theme-foreground">
-                OpenCode Chat Sessions:
-              </span>
+            <button
+              onClick={() => {
+                closeAllModals();
+                setShowProjectPicker(true);
+              }}
+              className="flex items-center gap-2 flex-wrap min-w-0 flex-1 cursor-pointer hover:opacity-80 transition-opacity"
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                margin: 0,
+                textAlign: "left",
+              }}
+              title={`Project: ${currentProject?.worktree || "No project"}`}
+              aria-label={`Current project: ${currentProject?.worktree || "No project"}. Click to change project.`}
+            >
               <span 
-                className="text-base font-medium text-theme-primary min-w-0 truncate max-w-[120px] md:max-w-[200px]"
-                title={currentSession?.title || currentSession?.id.slice(0, 8)}
-              >
-                {currentSession?.title || currentSession?.id.slice(0, 8)}
-              </span>
-              <span className="hidden md:inline text-theme-muted">•</span>
-              <span className="hidden md:inline text-base font-normal text-theme-foreground">
-                Project:
-              </span>
-              <span 
-                className="text-base font-normal text-theme-foreground-alt min-w-0 truncate max-w-[120px] md:max-w-[250px]"
-                title={currentProject?.worktree || "No project"}
+                className="text-base font-normal text-theme-foreground-alt min-w-0 truncate max-w-[200px] md:max-w-[400px]"
               >
                 {currentProject?.worktree || "No project"}
               </span>
@@ -4404,7 +4404,7 @@ function OpenCodeChatTUI() {
                   {currentSessionTodos.length === 1 ? "" : "s"} pending
                 </Badge>
               )}
-            </div>
+            </button>
           </div>
 
           <Separator />
@@ -4605,7 +4605,6 @@ function OpenCodeChatTUI() {
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 text-sm text-theme-foreground flex-wrap min-w-0">
-                    <span className="font-medium">Model:</span>
                     <button
                       onClick={() => {
                         closeAllModals();
@@ -4628,7 +4627,6 @@ function OpenCodeChatTUI() {
                       {selectedModel?.name || "Loading..."}
                     </button>
                     <span className="text-theme-muted">•</span>
-                    <span className="font-medium">Session:</span>
                     <button
                       onClick={() => {
                         closeAllModals();
