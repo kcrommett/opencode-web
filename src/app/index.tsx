@@ -3196,6 +3196,9 @@ function OpenCodeChatTUI() {
     };
   }, [sessionUsage]);
 
+  const currentSessionLabel =
+    currentSession?.title?.trim() || currentSession?.id?.slice(0, 8);
+
   const handleTabChange = (tab: string) => {
     // If clicking the same tab that's already active, toggle sidebar visibility
     if (tab === activeTab && isLeftSidebarOpen) {
@@ -4798,10 +4801,10 @@ function OpenCodeChatTUI() {
                           margin: 0,
                           textAlign: "left",
                         }}
-                        title={currentSession?.title || "No session"}
-                        aria-label={`Current session: ${currentSession?.title || "No session"}`}
+                        title={currentSessionLabel || "No session"}
+                        aria-label={`Current session: ${currentSessionLabel || "No session"}`}
                       >
-                        <div className="truncate">{currentSession?.title || "No session"}</div>
+                        <div className="truncate">{currentSessionLabel || "No session"}</div>
                       </button>
                     </div>
                     {currentSessionBusy && (
