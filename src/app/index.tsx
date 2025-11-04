@@ -4376,15 +4376,30 @@ function OpenCodeChatTUI() {
           }}
         >
           {/* Header */}
-          <div className="px-4 py-2 flex justify-between items-center bg-theme-background-alt">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-base font-normal text-theme-foreground">
-                OpenCode Chat Sessions:{" "}
-                {currentSession?.title || currentSession?.id.slice(0, 8)}... .
-                Project: {currentProject?.worktree}
+          <div className="px-4 py-2 flex justify-between items-center bg-theme-background-alt min-w-0">
+            <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
+              {/* Desktop: Full text. Mobile: Hide verbose labels, show compact info */}
+              <span className="hidden md:inline text-base font-normal text-theme-foreground">
+                OpenCode Chat Sessions:
+              </span>
+              <span 
+                className="text-base font-medium text-theme-primary min-w-0 truncate max-w-[120px] md:max-w-[200px]"
+                title={currentSession?.title || currentSession?.id.slice(0, 8)}
+              >
+                {currentSession?.title || currentSession?.id.slice(0, 8)}
+              </span>
+              <span className="hidden md:inline text-theme-muted">•</span>
+              <span className="hidden md:inline text-base font-normal text-theme-foreground">
+                Project:
+              </span>
+              <span 
+                className="text-base font-normal text-theme-foreground-alt min-w-0 truncate max-w-[120px] md:max-w-[250px]"
+                title={currentProject?.worktree || "No project"}
+              >
+                {currentProject?.worktree || "No project"}
               </span>
               {currentSessionTodos.length > 0 && (
-                <Badge variant="foreground0" cap="square" className="text-xs">
+                <Badge variant="foreground0" cap="square" className="text-xs flex-shrink-0">
                   {currentSessionTodos.length} todo
                   {currentSessionTodos.length === 1 ? "" : "s"} pending
                 </Badge>
