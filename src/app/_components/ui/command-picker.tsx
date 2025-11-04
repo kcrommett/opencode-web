@@ -16,6 +16,7 @@ export const CommandPicker: React.FC<CommandPickerProps> = ({
   selectedIndex = 0,
 }) => {
   const pickerRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -32,6 +33,19 @@ export const CommandPicker: React.FC<CommandPickerProps> = ({
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [onClose]);
+
+  // Scroll the selected command into view
+  useEffect(() => {
+    if (selectedIndex >= 0 && selectedIndex < commands.length) {
+      const selectedElement = itemRefs.current[selectedIndex];
+      if (selectedElement) {
+        selectedElement.scrollIntoView({
+          block: "nearest",
+          behavior: "smooth"
+        });
+      }
+    }
+  }, [selectedIndex, commands.length]);
 
   if (commands.length === 0) return null;
 
@@ -64,6 +78,7 @@ export const CommandPicker: React.FC<CommandPickerProps> = ({
               return (
                 <div
                   key={cmd.name}
+                  ref={(el) => (itemRefs.current[globalIndex] = el)}
                   className="px-3 py-2 cursor-pointer transition-colors"
                   style={{
                     backgroundColor: isSelected
