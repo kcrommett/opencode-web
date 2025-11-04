@@ -405,7 +405,10 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium truncate">
+                        <div 
+                          className="font-medium truncate"
+                          title={session.title || session.id.slice(0, 8)}
+                        >
                           {session.title || session.id.slice(0, 8)}
                         </div>
                         <div className="text-xs opacity-70 mt-1">

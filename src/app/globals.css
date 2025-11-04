@@ -116,6 +116,23 @@ body {
   height: 100dvh;
 }
 
+/* Button reset utility
+   ------------------------------------------------------------
+   WebTUI styles apply a default height of 3lh to all <button>
+   elements (see @webtui/css button.css). For textual/link-style
+   buttons used in compact status bars, this produces excessive
+   vertical height. The utility class below resets those metrics
+   so the element shrinks to its content height.
+*/
+.button-reset {
+  background: none !important;
+  border: none !important;
+  padding: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  line-height: 1.25 !important;
+}
+
 /* WebTUI Border Enhancements */
 [is-="view"][data-box="square"],
 [is-="view"][data-box="round"],
@@ -767,6 +784,24 @@ button[box-="double"][variant-="foreground0"] {
     min-height: 44px;
     min-width: 44px;
   }
+
+  /* 
+   * Text Truncation Pattern for Flex Containers
+   * 
+   * To enable ellipsis truncation inside flex layouts:
+   * 1. Parent flex container: `flex` with appropriate direction
+   * 2. Child text element: `min-w-0 truncate`
+   * 
+   * Example:
+   *   <div class="flex items-center gap-2">
+   *     <span class="min-w-0 truncate">Long text that will truncate...</span>
+   *   </div>
+   * 
+   * The `min-w-0` allows the flex child to shrink below its content size.
+   * The `truncate` applies `overflow-hidden text-ellipsis whitespace-nowrap`.
+   * 
+   * For multi-line truncation, use `line-clamp-{n}` instead of `truncate`.
+   */
 }
 
 /* Mobile viewport optimizations */

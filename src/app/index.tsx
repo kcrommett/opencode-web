@@ -4455,20 +4455,33 @@ function OpenCodeChatTUI() {
           }}
         >
           {/* Header */}
-          <div className="px-4 py-2 flex justify-between items-center bg-theme-background-alt">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-base font-normal text-theme-foreground">
-                OpenCode Chat Sessions:{" "}
-                {currentSession?.title || currentSession?.id.slice(0, 8)}... .
-                Project: {currentProject?.worktree}
-              </span>
+          <div className="px-2 sm:px-3 py-1 flex items-center bg-theme-background-alt min-w-0 gap-2">
+            <button
+              onClick={() => {
+                closeAllModals();
+                setShowProjectPicker(true);
+              }}
+              className="button-reset min-w-0 flex-1 cursor-pointer hover:opacity-80 transition-opacity"
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                margin: 0,
+                textAlign: "left",
+              }}
+              title={`Project: ${currentProject?.worktree || "No project"}`}
+              aria-label={`Current project: ${currentProject?.worktree || "No project"}. Click to change project.`}
+            >
+              <div className="text-sm font-normal text-theme-foreground-alt truncate">
+                {currentProject?.worktree || "No project"}
+              </div>
               {currentSessionTodos.length > 0 && (
-                <Badge variant="foreground0" cap="square" className="text-xs">
+                <Badge variant="foreground0" cap="square" className="text-xs flex-shrink-0">
                   {currentSessionTodos.length} todo
                   {currentSessionTodos.length === 1 ? "" : "s"} pending
                 </Badge>
               )}
-            </div>
+            </button>
           </div>
 
           <Separator />
@@ -4711,48 +4724,52 @@ function OpenCodeChatTUI() {
                 className="px-2 sm:px-3 py-2 space-y-2 bg-theme-background-alt"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-sm text-theme-foreground flex-wrap">
-                    <span className="font-medium">Model:</span>
-                    <button
-                      onClick={() => {
-                        closeAllModals();
-                        setShowModelPicker(true);
-                      }}
-                      className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none"
-                      style={{
-                        background: "none",
-                        border: "none",
-                        padding: 0,
-                        margin: 0,
-                        font: "inherit",
-                        color: "inherit",
-                        height: "auto",
-                        lineHeight: "inherit",
-                      }}
-                    >
-                      {selectedModel?.name || "Loading..."}
-                    </button>
-                    <span className="text-theme-muted">•</span>
-                    <span className="font-medium">Session:</span>
-                    <button
-                      onClick={() => {
-                        closeAllModals();
-                        setShowSessionPicker(true);
-                      }}
-                      className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none"
-                      style={{
-                        background: "none",
-                        border: "none",
-                        padding: 0,
-                        margin: 0,
-                        font: "inherit",
-                        color: "inherit",
-                        height: "auto",
-                        lineHeight: "inherit",
-                      }}
-                    >
-                      {currentSession?.title || "No session"}
-                    </button>
+                  <div className="flex items-center gap-4 text-xs text-theme-foreground min-w-0 flex-1">
+                    {/* Model */}
+                    <div className="flex items-center gap-1 min-w-0">
+                      <span className="hidden md:inline font-medium text-theme-foreground">Model:</span>
+                      <button
+                        onClick={() => {
+                          closeAllModals();
+                          setShowModelPicker(true);
+                        }}
+                        className="button-reset text-xs text-theme-primary hover:underline cursor-pointer min-w-0"
+                        style={{
+                          background: "none",
+                          border: "none",
+                          padding: 0,
+                          margin: 0,
+                          textAlign: "left",
+                        }}
+                        title={selectedModel?.name || "Loading..."}
+                        aria-label={`Current model: ${selectedModel?.name || "Loading..."}`}
+                      >
+                        <div className="truncate">{selectedModel?.name || "Loading..."}</div>
+                      </button>
+                    </div>
+
+                    {/* Session */}
+                    <div className="flex items-center gap-1 min-w-0">
+                      <span className="hidden md:inline font-medium text-theme-foreground">Session:</span>
+                      <button
+                        onClick={() => {
+                          closeAllModals();
+                          setShowSessionPicker(true);
+                        }}
+                        className="button-reset text-xs text-theme-primary hover:underline cursor-pointer min-w-0"
+                        style={{
+                          background: "none",
+                          border: "none",
+                          padding: 0,
+                          margin: 0,
+                          textAlign: "left",
+                        }}
+                        title={currentSession?.title || "No session"}
+                        aria-label={`Current session: ${currentSession?.title || "No session"}`}
+                      >
+                        <div className="truncate">{currentSession?.title || "No session"}</div>
+                      </button>
+                    </div>
                     {currentSessionBusy && (
                       <>
                         <span className="text-theme-muted">•</span>
@@ -4766,7 +4783,7 @@ function OpenCodeChatTUI() {
                         </Badge>
                       </>
                     )}
-                    {sessionTokenStats.totalTokens > 0 && (
+                    {sessionTokenStats.totalTokens > 0 && isMobile && (
                       <>
                         <span className="text-theme-muted">•</span>
                         <span className="font-medium">Tokens:</span>
@@ -4795,6 +4812,17 @@ function OpenCodeChatTUI() {
                       </>
                     )}
                   </div>
+                  {!isMobile && sessionTokenStats.totalTokens > 0 && (
+                    <div className="flex items-center gap-2 text-xs text-theme-foreground flex-shrink-0">
+                      <span className="font-medium">Tokens:</span>
+                      <span className="text-theme-foreground">
+                        {sessionTokenStats.totalTokens.toLocaleString()}
+                      </span>
+                      <span className="text-theme-muted">
+                        ({sessionTokenStats.contextPercentage}%)
+                      </span>
+                    </div>
+                  )}
                   <button
                     onClick={() => setShowAgentPicker(true)}
                     className="appearance-none cursor-pointer hover:opacity-80 transition-opacity h-auto"
