@@ -116,6 +116,23 @@ body {
   height: 100dvh;
 }
 
+/* Button reset utility
+   ------------------------------------------------------------
+   WebTUI styles apply a default height of 3lh to all <button>
+   elements (see @webtui/css button.css). For textual/link-style
+   buttons used in compact status bars, this produces excessive
+   vertical height. The utility class below resets those metrics
+   so the element shrinks to its content height.
+*/
+.button-reset {
+  background: none !important;
+  border: none !important;
+  padding: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  line-height: 1.25 !important;
+}
+
 /* WebTUI Border Enhancements */
 [is-="view"][data-box="square"],
 [is-="view"][data-box="round"],
