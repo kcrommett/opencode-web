@@ -763,61 +763,7 @@ function OpenCodeChatTUI() {
       ? shellTargetDirectory
       : "session directory";
 
-  // MCP status aggregation for header badge
-  const mcpAggregated = useMemo(() => {
-    const { mcpStatus, mcpStatusLoading, mcpStatusError } = sidebarStatus;
-    
-    // Only show loading state if we don't have existing status data
-    // This prevents flash when refreshing with existing data
-    if (mcpStatusLoading && !mcpStatus) {
-      return {
-        colorClass: 'bg-yellow-500',
-        badgeVariant: 'foreground1' as const,
-        text: 'MCP…',
-        title: 'Loading MCP status...'
-      };
-    }
-    if (mcpStatusError && !mcpStatus) {
-      return {
-        colorClass: 'bg-red-500',
-        badgeVariant: 'foreground0' as const,
-        text: 'MCP Error',
-        title: `MCP status error: ${mcpStatusError}`
-      };
-    }
-    if (!mcpStatus) {
-      return {
-        colorClass: 'bg-gray-400',
-        badgeVariant: 'foreground1' as const,
-        text: 'MCP (0 Connected)',
-        title: 'No MCP servers reported'
-      };
-    }
-    const entries = Object.entries(mcpStatus);
-    let connected = 0;
-    let failed = 0;
-    for (const [, value] of entries) {
-      if (value === 'connected') connected++;
-      else if (value === 'failed') failed++;
-    }
 
-    let colorClass = 'bg-green-500';
-    let badgeVariant: 'background2' | 'foreground0' | 'foreground1' | 'foreground2' = 'background2';
-    if (failed > 0) {
-      colorClass = 'bg-red-500';
-      badgeVariant = 'foreground0';
-    } else if (connected === 0 && entries.length > 0) {
-      colorClass = 'bg-yellow-500';
-      badgeVariant = 'foreground1';
-    }
-
-    const text = `MCP (${connected} Connected)`;
-    const title = entries.map(([name, status]) => `${name}: ${status}`).join(', ');
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[MCP] Aggregated:', { connected, failed, text });
-    }
-    return { colorClass, badgeVariant, text, title };
-  }, [sidebarStatus]);
 
   // Build user message history for ArrowUp/ArrowDown navigation
   const userMessageHistory = useMemo(() => {
@@ -3427,59 +3373,6 @@ function OpenCodeChatTUI() {
             >
               opencode web
             </Badge>
-            {isConnected !== null && (
-              <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-                <div
-                  className={`connection-indicator ${isConnected ? "connected" : "disconnected"}`}
-                />
-                <Badge
-                  variant={isConnected ? "background2" : "foreground0"}
-                  cap="square"
-                  className="hidden md:inline whitespace-nowrap"
-                >
-                  {isConnected ? "Connected" : "Disconnected"}
-                </Badge>
-                {sseConnectionState && (
-                  <div
-                    className="flex items-center gap-1"
-                    title={`SSE: ${sseConnectionState.connected ? "Connected" : "Disconnected"}${sseConnectionState.reconnecting ? " (Reconnecting...)" : ""}${sseConnectionState.error ? ` - ${sseConnectionState.error}` : ""}`}
-                  >
-                    return (
-                    <div
-                      className={`w-2 h-2 rounded-full ${sseConnectionState.connected ? "bg-green-500" : "bg-red-500"} ${sseConnectionState.reconnecting ? "animate-pulse" : ""}`}
-                    />
-                    <Badge
-                      variant={
-                        sseConnectionState.connected
-                          ? "background2"
-                          : "foreground0"
-                      }
-                      cap="square"
-                      className="hidden lg:inline text-xs whitespace-nowrap"
-                    >
-                      SSE {sseConnectionState.connected ? "Live" : "Off"}
-                      {sseConnectionState.reconnecting && "..."}
-                    </Badge>
-                  </div>
-                )}
-                {/* MCP Status */}
-                <div
-                  className="flex items-center gap-1"
-                  title={mcpAggregated.title}
-                >
-                  <div
-                    className={`w-2 h-2 rounded-full ${mcpAggregated.colorClass}`}
-                  />
-                  <Badge
-                    variant={mcpAggregated.badgeVariant}
-                    cap="square"
-                    className="hidden xl:inline text-xs whitespace-nowrap"
-                  >
-                    {mcpAggregated.text}
-                  </Badge>
-                </div>
-              </div>
-            )}
           </div>
           <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
             <SidebarTabs
@@ -4106,7 +3999,7 @@ function OpenCodeChatTUI() {
               tabs={[
                 { id: "workspace", label: "Workspace" },
                 { id: "files", label: "Files" },
-                { id: "status", label: "Status" },
+                { id: "status", label: "Info" },
               ]}
               activeTab={activeTab}
               onTabChange={handleTabChange}
@@ -5281,7 +5174,7 @@ function OpenCodeChatTUI() {
             style={{ width: "320px" }}
           >
             <div className="flex items-center justify-between px-4 py-2">
-              <h3 className="text-sm font-medium">Status</h3>
+              <h3 className="text-sm font-medium">Info</h3>
               <Button
                 variant="foreground1"
                 box="round"
