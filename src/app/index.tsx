@@ -4376,13 +4376,13 @@ function OpenCodeChatTUI() {
           }}
         >
           {/* Header */}
-          <div className="px-4 py-1 flex justify-between items-center bg-theme-background-alt min-w-0">
+          <div className="px-4 py-0.5 flex items-center bg-theme-background-alt min-w-0 gap-2">
             <button
               onClick={() => {
                 closeAllModals();
                 setShowProjectPicker(true);
               }}
-              className="flex items-center gap-2 flex-wrap min-w-0 flex-1 cursor-pointer hover:opacity-80 transition-opacity"
+              className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer hover:opacity-80 transition-opacity py-1"
               style={{
                 background: "none",
                 border: "none",
@@ -4604,13 +4604,13 @@ function OpenCodeChatTUI() {
                 className="px-2 sm:px-3 py-2 space-y-2 bg-theme-background-alt"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-sm text-theme-foreground flex-wrap min-w-0 flex-1">
+                  <div className="flex items-center gap-2 text-sm text-theme-foreground min-w-0 flex-1">
                     <button
                       onClick={() => {
                         closeAllModals();
                         setShowModelPicker(true);
                       }}
-                      className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none min-w-0 truncate max-w-[40vw] md:max-w-[300px]"
+                      className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none min-w-0 truncate flex-1"
                       style={{
                         background: "none",
                         border: "none",
@@ -4632,7 +4632,7 @@ function OpenCodeChatTUI() {
                         closeAllModals();
                         setShowSessionPicker(true);
                       }}
-                      className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none min-w-0 truncate max-w-[40vw] md:max-w-[400px]"
+                      className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none min-w-0 truncate flex-1"
                       style={{
                         background: "none",
                         border: "none",
