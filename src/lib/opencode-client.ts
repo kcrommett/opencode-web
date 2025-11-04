@@ -15,7 +15,7 @@ const devError = (...args: unknown[]) => {
 };
 
 const isMcpStatus = (value: unknown): value is McpServerStatus =>
-  value === "connected" || value === "failed" || value === "disabled";
+  value === "connected" || value === "failed";
 
 const extractMcpStatus = (value: unknown): McpServerStatus | null => {
   if (isMcpStatus(value)) return value;

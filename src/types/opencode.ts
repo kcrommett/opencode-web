@@ -167,7 +167,7 @@ export interface ImageAttachment {
   origin: "paste" | "drop";
 }
 
-export type McpServerStatus = "connected" | "failed" | "disabled";
+export type McpServerStatus = "connected" | "failed";
 
 export interface McpStatusResponse {
   [serverName: string]: McpServerStatus;

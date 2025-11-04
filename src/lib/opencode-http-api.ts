@@ -1,5 +1,5 @@
 import { getOpencodeServerUrl } from "./opencode-config";
-import type { Agent, Part } from "../types/opencode";
+import type { Agent, Part, McpStatusResponse } from "../types/opencode";
 
 function buildUrl(
   path: string,
@@ -734,7 +734,7 @@ export async function setAuth(
  * Get MCP (Model Context Protocol) server status
  * @returns MCP server status including connection states
  */
-export async function getMcpStatus() {
+export async function getMcpStatus(): Promise<McpStatusResponse> {
   const response = await fetch(buildUrl("/mcp"));
   if (!response.ok) {
     throw new Error(`Failed to get MCP status: ${response.statusText}`);
