@@ -21,6 +21,7 @@ import {
   InstallPrompt,
   PWAReloadPrompt,
   Checkbox,
+  Spinner,
 
 } from "@/app/_components/ui";
 import { SidebarTabs } from "@/app/_components/ui/sidebar-tabs";
@@ -513,6 +514,7 @@ function OpenCodeChatTUI() {
   const [selectedMobileSessionIds, setSelectedMobileSessionIds] = useState<
     Set<string>
   >(new Set());
+  const [isRefreshingSessions, setIsRefreshingSessions] = useState(false);
   const lastEscTimeRef = useRef<number>(0);
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== "undefined") {
@@ -2305,6 +2307,19 @@ function OpenCodeChatTUI() {
     setSidebarEditMode(!sidebarEditMode);
   };
 
+  const handleSessionsRefresh = useCallback(async () => {
+    if (!currentProject || isRefreshingSessions) return;
+    setIsRefreshingSessions(true);
+    try {
+      await loadSessions({ force: true });
+    } catch (error) {
+      console.error("Failed to refresh sessions:", error);
+      await showToast("Failed to refresh sessions", "error");
+    } finally {
+      setIsRefreshingSessions(false);
+    }
+  }, [currentProject, isRefreshingSessions, loadSessions, showToast]);
+
   const handleSidebarSessionToggle = (sessionId: string) => {
     setSelectedSidebarSessionIds((prev) => {
       const next = new Set(prev);
@@ -3502,7 +3517,7 @@ function OpenCodeChatTUI() {
                           aria-pressed={showNewProjectForm}
                           title="Create new project"
                         >
-                          New Project
+                          New
                         </Button>
                       </div>
                     </div>
@@ -3534,7 +3549,7 @@ function OpenCodeChatTUI() {
                       <div className="text-xs text-theme-muted">
                         {sortedProjects.length > 0
                           ? "Choose a project from the menu above."
-                          : "No projects yet. Use New Project to add an existing git repository."}
+                          : "No projects yet. Use New to add an existing git repository."}
                       </div>
                     )}
                   </div>
@@ -3549,15 +3564,34 @@ function OpenCodeChatTUI() {
                     className="p-2 mb-2 bg-theme-background-alt"
                   >
                     <div className="flex justify-between items-center">
-                      <h3 className="text-sm font-medium">Sessions</h3>
+                      <div className="flex items-center gap-1">
+                        <h3 className="text-sm font-medium">Sessions</h3>
+                        <Button
+                          variant="background2"
+                          box="round"
+                          onClick={handleSessionsRefresh}
+                          size="small"
+                          className="h-7 w-7 p-0 flex items-center justify-center border-none"
+                          disabled={!currentProject || isRefreshingSessions}
+                          aria-label="Refresh sessions"
+                          title="Refresh sessions"
+                        >
+                          {isRefreshingSessions ? (
+                            <Spinner size="small" className="h-3 w-3" />
+                          ) : (
+                            <span aria-hidden="true" className="text-sm">↻</span>
+                          )}
+                          <span className="sr-only">Refresh sessions</span>
+                        </Button>
+                      </div>
                       <div className="flex gap-2">
-                         <Button
-                           variant="foreground1"
-                           box="round"
-                           onClick={handleSidebarEditToggle}
-                           size="small"
-                           disabled={!currentProject}
-                         >
+                        <Button
+                          variant="foreground1"
+                          box="round"
+                          onClick={handleSidebarEditToggle}
+                          size="small"
+                          disabled={!currentProject}
+                        >
                           {sidebarEditMode ? "Done" : "Edit"}
                         </Button>
                         <Button
@@ -3572,7 +3606,7 @@ function OpenCodeChatTUI() {
                           aria-pressed={showNewSessionForm}
                           title="Create new session"
                         >
-                          New Session
+                          New
                         </Button>
                       </div>
                     </div>
@@ -3631,7 +3665,7 @@ function OpenCodeChatTUI() {
                           <Separator className="mb-2" />
                         </>
                       )}
-                      <div className="flex-1 overflow-y-auto scrollbar space-y-2 min-h-0" data-sessions-list>
+                      <div className="flex-1 overflow-y-auto scrollbar-hidden space-y-1 min-h-0" data-sessions-list>
                         {filteredSessions
                           .filter(
                             (session) =>
@@ -3647,7 +3681,7 @@ function OpenCodeChatTUI() {
                             return (
                               <div
                                 key={session.id}
-                                className="p-2 cursor-pointer transition-colors rounded"
+                                className="pl-2 pr-0 py-2 cursor-pointer transition-colors rounded"
                                 style={{
                                   backgroundColor: sidebarEditMode
                                     ? isChecked
@@ -4197,7 +4231,7 @@ function OpenCodeChatTUI() {
                             return (
                               <div
                                 key={session.id}
-                                className={`p-2 cursor-pointer transition-colors rounded ${
+                                className={`pl-2 pr-0 py-2 cursor-pointer transition-colors rounded ${
                                   mobileEditMode ? "flex items-start gap-2" : ""
                                 }`}
                                 style={{

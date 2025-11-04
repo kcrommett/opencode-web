@@ -561,15 +561,14 @@ button[box-="double"][variant-="foreground0"] {
 
 /* WebTUI Scrollbar Styles */
 .scrollbar {
-  scrollbar-width: auto;
+  scrollbar-width: thin;
   scrollbar-color: var(--theme-backgroundAccent) var(--theme-backgroundAlt);
   -webkit-overflow-scrolling: touch;
-  scrollbar-gutter: stable both-edges;
 }
 
 .scrollbar::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
+  width: 8px;
+  height: 8px;
 }
 
 .scrollbar::-webkit-scrollbar-track {
@@ -600,6 +599,28 @@ button[box-="double"][variant-="foreground0"] {
   .scrollbar {
     scrollbar-width: none;
   }
+}
+
+/* Hidden scrollbar - maintains scroll functionality without visible scrollbar */
+.scrollbar-hidden {
+  scrollbar-width: none; /* Firefox */
+  -webkit-overflow-scrolling: touch;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
+}
+
+.scrollbar-hidden::-webkit-scrollbar-track {
+  display: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar-thumb {
+  display: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar-corner {
+  display: none;
 }
 
 /* Syntax Highlighting with Line Numbers */
