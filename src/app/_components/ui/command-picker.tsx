@@ -78,7 +78,9 @@ export const CommandPicker: React.FC<CommandPickerProps> = ({
               return (
                 <div
                   key={cmd.name}
-                  ref={(el) => (itemRefs.current[globalIndex] = el)}
+                  ref={(el) => {
+                    itemRefs.current[globalIndex] = el;
+                  }}
                   className="px-3 py-2 cursor-pointer transition-colors"
                   style={{
                     backgroundColor: isSelected
