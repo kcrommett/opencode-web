@@ -2635,8 +2635,9 @@ export function useOpenCode() {
     }
   }, [currentPath, currentProject]);
 
-  const loadSessions = useCallback(async () => {
-    if (!currentProject || loadedSessionsRef.current) return;
+  const loadSessions = useCallback(async (options?: { force?: boolean }) => {
+    const force = options?.force ?? false;
+    if (!currentProject || (loadedSessionsRef.current && !force)) return;
     try {
       const response = await openCodeService.getSessions(
         currentProject.worktree,
@@ -2661,6 +2662,7 @@ export function useOpenCode() {
       debugLog(
         "[LoadSessions] Loaded sessions from API:",
         sessionsData.length,
+        force ? "(forced refresh)" : "",
       );
       debugLog("[LoadSessions] Current session state:", currentSession);
       debugLog("[LoadSessions] Messages count:", messages.length);
@@ -2691,6 +2693,7 @@ export function useOpenCode() {
       }
     } catch (error) {
       console.error("Failed to load sessions:", error);
+      throw error;
     }
   }, [currentProject, currentSession, loadMessages, messages.length]);
 
