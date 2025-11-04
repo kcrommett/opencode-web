@@ -38,6 +38,7 @@ import { SessionSearchInput } from "@/app/_components/ui/session-search";
 import { ProjectPicker } from "@/app/_components/ui/project-picker";
 import { PermissionModal } from "@/app/_components/ui/permission-modal";
 import { MessagePart } from "@/app/_components/message";
+import { GENERIC_TOOL_TEXTS } from "@/app/_components/message/TextPart";
 import { ImagePreview } from "@/app/_components/ui/image-preview";
 import { PrettyDiff } from "@/app/_components/message/PrettyDiff";
 import type {
@@ -87,6 +88,18 @@ const PICKER_COMMANDS = ["models", "agents", "themes", "sessions"];
 
 // Commands that take no arguments and execute immediately
 const NO_ARG_COMMANDS = ["new", "clear", "undo", "redo", "share", "unshare", "init", "compact", "details", "export", "help"];
+
+const RENDERABLE_PART_TYPES = new Set([
+  "text",
+  "reasoning",
+  "tool",
+  "file",
+  "step-start",
+  "step-finish",
+  "patch",
+  "agent",
+  "snapshot",
+]);
 
 // UUID generator with fallback for environments without crypto.randomUUID
 const generateClientId = (): string => {
@@ -486,6 +499,8 @@ export const Route = createFileRoute("/")({
 
 function OpenCodeChatTUI() {
   const [input, setInput] = useState("");
+  const [isMultilineMode, setIsMultilineMode] = useState(false);
+  const [multilineInput, setMultilineInput] = useState("");
   const [imageAttachments, setImageAttachments] = useState<ImageAttachment[]>([]);
   const [isHandlingImageUpload, setIsHandlingImageUpload] = useState(false);
   const [isDraggingOverInput, setIsDraggingOverInput] = useState(false);
@@ -731,6 +746,20 @@ function OpenCodeChatTUI() {
     featureFlags.enableMarkdown &&
     selectedFileIsMarkdown &&
     !!fileContent?.text;
+
+  const trimmedInput = input.trimStart();
+  const isShellInput = trimmedInput.startsWith("!");
+  const isSlashCommandInput = trimmedInput.startsWith("/");
+  const shellTargetDirectory =
+    currentProject?.worktree ||
+    currentSession?.directory ||
+    sessions.find((sessionItem) => sessionItem.id === currentSession?.id)
+      ?.directory ||
+    "";
+  const shellDirectoryLabel =
+    shellTargetDirectory && shellTargetDirectory.length > 0
+      ? shellTargetDirectory
+      : "session directory";
 
   // MCP status aggregation for header badge
   const mcpAggregated = useMemo(() => {
@@ -1613,9 +1642,12 @@ function OpenCodeChatTUI() {
     try {
       const userMessage = {
         id: `user-${Date.now()}`,
+        clientId: generateClientId(),
         type: "user" as const,
         content: `$ ${command}`,
         timestamp: new Date(),
+        optimistic: true, // Mark as optimistic so SSE events can match it
+        shellCommand: command,
       };
       setMessages((prev) => [...prev, userMessage]);
 
@@ -2404,6 +2436,30 @@ function OpenCodeChatTUI() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && e.shiftKey) {
+      e.preventDefault();
+      // Shift+Enter enables multi-line mode for shell commands
+      const parsed = parseCommand(input, commands);
+      if (parsed.type === "shell" && !isMultilineMode) {
+        setIsMultilineMode(true);
+        setMultilineInput(input);
+      } else {
+        // Add newline at cursor position
+        const textarea = textareaRef.current;
+        if (textarea) {
+          const start = textarea.selectionStart;
+          const end = textarea.selectionEnd;
+          const newValue = input.substring(0, start) + "\n" + input.substring(end);
+          setInput(newValue);
+          // Position cursor after the newline
+          requestAnimationFrame(() => {
+            if (textareaRef.current) {
+              textareaRef.current.setSelectionRange(start + 1, start + 1);
+            }
+          });
+        }
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       if (showCommandPicker && commandSuggestions.length > 0) {
@@ -2411,7 +2467,31 @@ function OpenCodeChatTUI() {
       } else if (showMentionSuggestions && mentionSuggestions.length > 0) {
         handleMentionSelect(mentionSuggestions[selectedMentionIndex]);
       } else {
-        handleSend();
+        // Check if this is a shell command that might be multi-line
+        const parsed = parseCommand(input, commands);
+        if (parsed.type === "shell" && isMultilineMode) {
+          // In multi-line mode, Ctrl+Enter sends, regular Enter adds newline
+          if (e.ctrlKey) {
+            handleSend();
+          } else {
+            // Add newline at cursor position
+            const textarea = textareaRef.current;
+            if (textarea) {
+              const start = textarea.selectionStart;
+              const end = textarea.selectionEnd;
+              const newValue = input.substring(0, start) + "\n" + input.substring(end);
+              setInput(newValue);
+              // Position cursor after the newline
+              requestAnimationFrame(() => {
+                if (textareaRef.current) {
+                  textareaRef.current.setSelectionRange(start + 1, start + 1);
+                }
+              });
+            }
+          }
+        } else {
+          handleSend();
+        }
       }
     }
     if (e.key === "Tab") {
@@ -3349,6 +3429,7 @@ function OpenCodeChatTUI() {
                     className="flex items-center gap-1"
                     title={`SSE: ${sseConnectionState.connected ? "Connected" : "Disconnected"}${sseConnectionState.reconnecting ? " (Reconnecting...)" : ""}${sseConnectionState.error ? ` - ${sseConnectionState.error}` : ""}`}
                   >
+                    return (
                     <div
                       className={`w-2 h-2 rounded-full ${sseConnectionState.connected ? "bg-green-500" : "bg-red-500"} ${sseConnectionState.reconnecting ? "animate-pulse" : ""}`}
                     />
@@ -4468,90 +4549,133 @@ function OpenCodeChatTUI() {
                       </View>
                     </div>
                   )}
-                  {messages.map((message) => (
-                    <div
-                      key={message.clientId ?? message.id}
-                      className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}
-                    >
-                      <View
-                        box="round"
-                        className={`max-w-full sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl p-2 ${
-                          message.type === "user"
-                            ? message.error
-                              ? "bg-theme-error/10 border-theme-error text-theme-error"
-                              : "bg-theme-primary/20 border-theme-primary text-theme-foreground"
-                            : "bg-theme-background-alt text-theme-foreground"
-                        }`}
+                  {messages.map((message) => {
+                    const hasRenderableParts = Array.isArray(message.parts)
+                      ? message.parts.some((part) => {
+                          if (
+                            !part ||
+                            typeof part !== "object" ||
+                            !("type" in part) ||
+                            typeof part.type !== "string"
+                          ) {
+                            return false;
+                          }
+                          if (!RENDERABLE_PART_TYPES.has(part.type)) {
+                            return false;
+                          }
+                          if (part.type === "text") {
+                            const rawText =
+                              typeof (part as { text?: unknown }).text === "string"
+                                ? ((part as { text?: string }).text ?? "").trim()
+                                : "";
+                            if (!rawText || GENERIC_TOOL_TEXTS.has(rawText)) {
+                              return false;
+                            }
+                          }
+                          return true;
+                        })
+                      : false;
+                    const normalizedContent =
+                      typeof message.content === "string"
+                        ? message.content.trim()
+                        : "";
+                    const hasTextContent =
+                      normalizedContent.length > 0 &&
+                      !GENERIC_TOOL_TEXTS.has(normalizedContent);
+                    const shouldHideUserBubble =
+                      message.type === "user" &&
+                      (message.shellCommand !== undefined ||
+                        (!hasRenderableParts && !hasTextContent));
+
+                    if (shouldHideUserBubble) {
+                      return null;
+                    }
+
+                    return (
+                      <div
+                        key={message.clientId ?? message.id}
+                        className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}
                       >
-                        {message.parts && message.parts.length > 0 ? (
-                          <div className="space-y-2">
-                            {message.parts.map((part, idx) => (
-                              <MessagePart
-                                key={`${message.id}-part-${idx}`}
-                                part={part}
-                                messageRole={message.type}
-                                showDetails={true}
-                              />
-                            ))}
-                            {message.metadata && (
-                              <div className="text-xs opacity-60 mt-1.5 flex gap-3 flex-wrap">
-                                {message.metadata.agent && (
-                                  <span>Agent: {message.metadata.agent}</span>
-                                )}
-                                {message.metadata.tokens && (
+                        <View
+                          box="round"
+                          className={`max-w-full sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl p-2 ${
+                            message.type === "user"
+                              ? message.error
+                                ? "bg-theme-error/10 border-theme-error text-theme-error"
+                                : "bg-theme-primary/20 border-theme-primary text-theme-foreground"
+                              : "bg-theme-background-alt text-theme-foreground"
+                          }`}
+                        >
+                          {message.parts && message.parts.length > 0 ? (
+                            <div className="space-y-2">
+                              {message.parts.map((part, idx) => (
+                                <MessagePart
+                                  key={`${message.id}-part-${idx}`}
+                                  part={part}
+                                  messageRole={message.type}
+                                  showDetails={true}
+                                />
+                              ))}
+                              {message.metadata && (
+                                <div className="text-xs opacity-60 mt-1.5 flex gap-3 flex-wrap">
+                                  {message.metadata.agent && (
+                                    <span>Agent: {message.metadata.agent}</span>
+                                  )}
+                                  {message.metadata.tokens && (
+                                    <span>
+                                      Tokens:{" "}
+                                      {message.metadata.tokens.input +
+                                        message.metadata.tokens.output}
+                                      {message.metadata.tokens.reasoning > 0 &&
+                                        ` (+${message.metadata.tokens.reasoning} reasoning)`}
+                                    </span>
+                                  )}
+                                  {message.metadata.cost && (
+                                    <span>
+                                      Cost: ${message.metadata.cost.toFixed(4)}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="space-y-4">
+                              <Pre
+                                size="small"
+                                className="break-words whitespace-pre-wrap overflow-wrap-anywhere"
+                              >
+                                {message.content}
+                              </Pre>
+                              {message.queued && (
+                                <div className="flex items-center gap-2 text-xs text-theme-warning">
+                                  <div className="w-2 h-2 rounded-full bg-theme-warning animate-pulse" />
                                   <span>
-                                    Tokens:{" "}
-                                    {message.metadata.tokens.input +
-                                      message.metadata.tokens.output}
-                                    {message.metadata.tokens.reasoning > 0 &&
-                                      ` (+${message.metadata.tokens.reasoning} reasoning)`}
+                                    Queued (Position: {message.queuePosition})
                                   </span>
-                                )}
-                                {message.metadata.cost && (
-                                  <span>
-                                    Cost: ${message.metadata.cost.toFixed(4)}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="space-y-4">
-                            <Pre
-                              size="small"
-                              className="break-words whitespace-pre-wrap overflow-wrap-anywhere"
-                            >
-                              {message.content}
-                            </Pre>
-                            {message.queued && (
-                              <div className="flex items-center gap-2 text-xs text-theme-warning">
-                                <div className="w-2 h-2 rounded-full bg-theme-warning animate-pulse" />
-                                <span>
-                                  Queued (Position: {message.queuePosition})
-                                </span>
-                                <button
-                                  onClick={() => removeFromQueue(message.id)}
-                                  className="ml-2 px-2 py-0.5 rounded bg-theme-background hover:bg-theme-background-alt border border-theme-border text-theme-foreground"
-                                  title="Cancel queued message"
-                                >
-                                  ✕ Cancel
-                                </button>
-                              </div>
-                            )}
-                            {message.optimistic && !message.queued && (
-                              <div className="text-xs opacity-60">Sending…</div>
-                            )}
-                            {message.error && (
-                              <div className="text-xs text-theme-error">
-                                {message.errorMessage ||
-                                  "Send failed. Please retry."}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </View>
-                    </div>
-                  ))}
+                                  <button
+                                    onClick={() => removeFromQueue(message.id)}
+                                    className="ml-2 px-2 py-0.5 rounded bg-theme-background hover:bg-theme-background-alt border border-theme-border text-theme-foreground"
+                                    title="Cancel queued message"
+                                  >
+                                    ✕ Cancel
+                                  </button>
+                                </div>
+                              )}
+                              {message.optimistic && !message.queued && (
+                                <div className="text-xs opacity-60">Sending…</div>
+                              )}
+                              {message.error && (
+                                <div className="text-xs text-theme-error">
+                                  {message.errorMessage ||
+                                    "Send failed. Please retry."}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </View>
+                      </div>
+                    );
+                  })}
                   {loading && !isStreaming && (
                     <div className="flex justify-start">
                       <View
@@ -4654,11 +4778,19 @@ function OpenCodeChatTUI() {
                         </span>
                       </>
                     )}
-                    {input.startsWith("/") && (
+                    {isSlashCommandInput && (
                       <>
                         <span className="text-theme-muted">•</span>
                         <span className="text-theme-error font-medium">
                           Command Mode
+                        </span>
+                      </>
+                    )}
+                    {isShellInput && (
+                      <>
+                        <span className="text-theme-muted">•</span>
+                        <span className="text-theme-warning font-medium">
+                          Shell Mode
                         </span>
                       </>
                     )}
@@ -4700,6 +4832,19 @@ function OpenCodeChatTUI() {
                         >
                           Clear Queue
                         </button>
+                      </div>
+                    )}
+                    {isShellInput && (
+                      <div className="mb-2 flex flex-wrap items-center gap-2 rounded border border-theme-warning/70 bg-theme-warning/10 px-3 py-2 text-xs text-theme-foreground">
+                        <Badge variant="foreground0" cap="square">
+                          Shell Mode
+                        </Badge>
+                        <span>
+                          Running in{" "}
+                          <code className="font-mono break-all">
+                            {shellDirectoryLabel}
+                          </code>
+                        </span>
                       </div>
                     )}
                     {showCommandPicker && (
@@ -4761,11 +4906,13 @@ function OpenCodeChatTUI() {
                       placeholder={
                         currentSessionBusy && !isMobile
                           ? "Agent running... Press ESC to stop, or type to queue a message"
-                          : "Type your message, Tab to switch agent, / for commands, @ to mention files, Shift+Enter for new line, Enter to send"
+                          : "Type your message, Tab to switch agent, / for commands, ! for shell commands, @ to mention files, Shift+Enter for new line, Enter to send"
                       }
                       rows={2}
                       size="large"
-                      className={`w-full bg-theme-background text-theme-foreground border-theme-primary resize-none ${
+                      className={`w-full bg-theme-background text-theme-foreground resize-none ${
+                        isShellInput ? "border-theme-warning" : "border-theme-primary"
+                      } ${
                         isDraggingOverInput
                           ? "border-2 border-dashed border-theme-primary/80"
                           : ""

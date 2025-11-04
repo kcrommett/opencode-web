@@ -7,6 +7,10 @@ export interface ParsedCommand {
   filePath?: string;
   content?: string;
   matchedCommand?: Command;
+  // New fields for shell enhancements
+  multiline?: boolean;
+  rawInput?: string;
+  segments?: string[];
 }
 
 export function parseCommand(
@@ -37,7 +41,28 @@ export function parseCommand(
 
   if (trimmed.startsWith("!")) {
     const command = trimmed.slice(1);
-    return { type: "shell", command, content: trimmed };
+    
+    // Check for multi-line commands (heredoc syntax or escaped newlines)
+    const hasHeredoc = command.includes("<<") || command.includes("<<-");
+    const hasEscapedNewlines = command.includes("\\\n");
+    const hasMultipleLines = input.includes("\n") && input.trim().split("\n").length > 1;
+    
+    const multiline = hasHeredoc || hasEscapedNewlines || hasMultipleLines;
+    
+    // For multi-line commands, preserve the full input and split into segments
+    if (multiline) {
+      const segments = input.trim().split("\n").map(line => line.trim());
+      return { 
+        type: "shell", 
+        command: command, // Full command including newlines
+        content: input.trim(), // Preserve original whitespace for multi-line
+        multiline: true,
+        rawInput: input,
+        segments
+      };
+    }
+    
+    return { type: "shell", command: command.trim(), content: trimmed };
   }
 
   if (trimmed.includes("@")) {
