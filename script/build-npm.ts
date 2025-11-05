@@ -63,29 +63,27 @@ console.log("Creating standalone server.ts...");
 const serverTsContent = await Bun.file("server.ts").text();
 const configContent = await Bun.file("src/lib/opencode-config.ts").text();
 
-// Extract the functions from opencode-config.ts
-const normalizeBaseUrlMatch = configContent.match(
-  /export function normalizeBaseUrl[\s\S]*?^}/m,
-);
-const resolveServerUrlFromEnvMatch = configContent.match(
-  /function resolveServerUrlFromEnv[\s\S]*?^}/m,
-);
-const getOpencodeServerUrlMatch = configContent.match(
-  /export function getOpencodeServerUrl[\s\S]*?^}/m,
-);
+const CONFIG_IMPORT_REGEX =
+  /import\s+\{[^}]*\}\s+from\s+"\.\/src\/lib\/opencode-config\.js";\s*/;
 
-if (
-  !normalizeBaseUrlMatch ||
-  !resolveServerUrlFromEnvMatch ||
-  !getOpencodeServerUrlMatch
-) {
-  throw new Error("Failed to extract config functions");
+if (!CONFIG_IMPORT_REGEX.test(serverTsContent)) {
+  throw new Error(
+    "Failed to inline config helpers: import statement not found in server.ts",
+  );
 }
 
-// Create standalone server.ts with inlined functions
+const stripExports = (source: string) =>
+  source
+    .replace(/\r\n/g, "\n")
+    .replace(/^export\s+(?=(interface|function|const|type|class|enum))/gm, "")
+    .trim();
+
+const inlinedConfigHelpers = stripExports(configContent);
+
+// Create standalone server.ts with inlined helpers to avoid missing source files.
 const standaloneServerTs = serverTsContent.replace(
-  /import \{ getOpencodeServerUrl \} from "\.\/src\/lib\/opencode-config\.js";/,
-  `// Inlined config helpers\n${normalizeBaseUrlMatch[0].replace("export ", "")}\n\n${resolveServerUrlFromEnvMatch[0]}\n\n${getOpencodeServerUrlMatch[0].replace("export ", "")}`,
+  CONFIG_IMPORT_REGEX,
+  `// Inlined config helpers from src/lib/opencode-config.ts\n${inlinedConfigHelpers}\n\n`,
 );
 
 await Bun.write("packages/opencode-web/server.ts", standaloneServerTs);
