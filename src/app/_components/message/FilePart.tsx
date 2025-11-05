@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { Part } from "@/types/opencode";
 import { Badge, Button } from "../ui";
 import { formatFileSize } from "@/lib/image-utils";
@@ -11,10 +11,9 @@ interface FilePartProps {
 }
 
 export function FilePart({ part }: FilePartProps) {
+  // Hooks must be called before any conditional returns
   const { currentSessionDiffs } = useOpenCode();
   const [viewMode, setViewMode] = useState<"content" | "diff">("content");
-  
-  if (part.type !== "file") return null;
 
   const rawPath = "path" in part ? part.path : undefined;
   const pathString = rawPath ? String(rawPath) : undefined;
@@ -59,20 +58,97 @@ export function FilePart({ part }: FilePartProps) {
 
   const imageSource = isImage ? resolvedContent ?? remoteUrl : undefined;
 
-  // Find matching diff for this file
-  const matchingDiff = currentSessionDiffs.find((d) => {
-    // Match by exact path or by filename
+  const normalizeDiffPathValue = (input?: string | null) => {
+    if (typeof input !== "string") return undefined;
+    return input.replace(/^a\//, "").replace(/^b\//, "");
+  };
+
+  // Find matching diff for this file (must be before early return)
+  const matchingDiff = useMemo(() => {
+    if (part.type !== "file") return undefined;
+    if (!currentSessionDiffs.length) return undefined;
     const fileName = displayName.split("/").pop();
-    const diffFileName = d.file.split("/").pop();
-    return d.file === displayName || d.file === pathString || diffFileName === fileName;
-  });
+    return currentSessionDiffs.find((diff) => {
+      const candidates = [
+        normalizeDiffPathValue(diff.path),
+        normalizeDiffPathValue(diff.file),
+        normalizeDiffPathValue(diff.oldPath),
+        normalizeDiffPathValue(diff.newPath),
+      ].filter(Boolean) as string[];
+
+      return candidates.some((candidate) => {
+        const candidateName = candidate.split("/").pop();
+        return (
+          candidate === displayName ||
+          (pathString && candidate === pathString) ||
+          (!!fileName && candidateName === fileName)
+        );
+      });
+    });
+  }, [currentSessionDiffs, displayName, pathString]);
 
   const hasDiff = !!matchingDiff;
 
-  // Generate unified diff if in diff mode and diff exists
-  const unifiedDiff = hasDiff && viewMode === "diff" && matchingDiff
-    ? generateUnifiedDiff(matchingDiff.file, matchingDiff.before, matchingDiff.after)
-    : null;
+  const diffDisplayPath = normalizeDiffPathValue(
+    matchingDiff?.path ??
+      matchingDiff?.file ??
+      matchingDiff?.newPath ??
+      matchingDiff?.oldPath,
+  ) ?? displayName ?? pathString ?? undefined;
+
+  const resolvedDiffText = useMemo(() => {
+    if (part.type !== "file" || !matchingDiff) return null;
+    const fallbackPath = diffDisplayPath ?? displayName ?? pathString ?? "file";
+
+    if (matchingDiff.diff && matchingDiff.diff.trim().length > 0) {
+      return matchingDiff.diff;
+    }
+
+    if (matchingDiff.hunks && matchingDiff.hunks.length > 0) {
+      const oldPath = normalizeDiffPathValue(matchingDiff.oldPath) ?? fallbackPath;
+      const newPath =
+        normalizeDiffPathValue(matchingDiff.path) ??
+        normalizeDiffPathValue(matchingDiff.newPath) ??
+        fallbackPath;
+
+      const header = [
+        `diff --git a/${oldPath} b/${newPath}`,
+        `--- a/${oldPath}`,
+        `+++ b/${newPath}`,
+      ];
+
+      const body = matchingDiff.hunks.flatMap((hunk) => [
+        `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`,
+        ...hunk.lines.map((line) => {
+          const symbol =
+            line.type === "add"
+              ? "+"
+              : line.type === "remove" || line.type === "delete"
+                ? "-"
+                : " ";
+          return `${symbol}${line.content}`;
+        }),
+      ]);
+
+      return [...header, ...body].join("\n");
+    }
+
+    if (
+      typeof matchingDiff.before === "string" &&
+      typeof matchingDiff.after === "string"
+    ) {
+      return generateUnifiedDiff(
+        fallbackPath,
+        matchingDiff.before,
+        matchingDiff.after,
+      );
+    }
+
+    return null;
+  }, [matchingDiff, diffDisplayPath, displayName, pathString, part.type]);
+
+  // Early return after all hooks
+  if (part.type !== "file") return null;
 
   return (
     <div className="mb-2 space-y-2 rounded-md border border-theme-border bg-theme-background-alt p-3 max-w-full min-w-0">
@@ -138,10 +214,20 @@ export function FilePart({ part }: FilePartProps) {
           )}
         </div>
       </div>
-      {viewMode === "diff" && unifiedDiff ? (
-        <div className="overflow-hidden rounded border border-theme-border bg-theme-background max-w-full">
-          <PrettyDiff diffText={unifiedDiff} />
-        </div>
+      {viewMode === "diff" && matchingDiff ? (
+        matchingDiff.binary ? (
+          <div className="overflow-hidden rounded border border-theme-border bg-theme-background max-w-full p-3 text-xs opacity-70">
+            Binary changes detected; diff preview unavailable.
+          </div>
+        ) : resolvedDiffText ? (
+          <div className="overflow-hidden rounded border border-theme-border bg-theme-background max-w-full">
+            <PrettyDiff diffText={resolvedDiffText} />
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded border border-theme-border bg-theme-background max-w-full p-3 text-xs opacity-70">
+            No diff details available for this file.
+          </div>
+        )
       ) : imageSource ? (
         <div className="overflow-hidden rounded border border-theme-border bg-theme-background max-w-full">
           <img

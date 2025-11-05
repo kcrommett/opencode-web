@@ -54,6 +54,9 @@ providersData: ReturnType<typeof useOpenCode>["providersData"];
   openSessions: ReturnType<typeof useOpenCode>["openSessions"];
   openThemes: ReturnType<typeof useOpenCode>["openThemes"];
   openModels: ReturnType<typeof useOpenCode>["openModels"];
+  publishTuiEvent: ReturnType<typeof useOpenCode>["publishTuiEvent"];
+  getNextTuiControlRequest: ReturnType<typeof useOpenCode>["getNextTuiControlRequest"];
+  respondToTuiControl: ReturnType<typeof useOpenCode>["respondToTuiControl"];
   showToast: ReturnType<typeof useOpenCode>["showToast"];
   showHelp: ReturnType<typeof useOpenCode>["showHelp"];
   setShowHelp: ReturnType<typeof useOpenCode>["setShowHelp"];
@@ -73,6 +76,7 @@ providersData: ReturnType<typeof useOpenCode>["providersData"];
   unrevertSession: ReturnType<typeof useOpenCode>["unrevertSession"];
   shareSession: ReturnType<typeof useOpenCode>["shareSession"];
   unshareSession: ReturnType<typeof useOpenCode>["unshareSession"];
+  forkSession: ReturnType<typeof useOpenCode>["forkSession"];
   initSession: ReturnType<typeof useOpenCode>["initSession"];
   summarizeSession: ReturnType<typeof useOpenCode>["summarizeSession"];
   abortSession: ReturnType<typeof useOpenCode>["abortSession"];
@@ -83,6 +87,7 @@ providersData: ReturnType<typeof useOpenCode>["providersData"];
   setCurrentPermission: ReturnType<typeof useOpenCode>["setCurrentPermission"];
   shouldBlurEditor: ReturnType<typeof useOpenCode>["shouldBlurEditor"];
   setShouldBlurEditor: ReturnType<typeof useOpenCode>["setShouldBlurEditor"];
+  respondToPermission: ReturnType<typeof useOpenCode>["respondToPermission"];
   currentSessionTodos: ReturnType<typeof useOpenCode>["currentSessionTodos"];
   setCurrentSessionTodos: ReturnType<typeof useOpenCode>["setCurrentSessionTodos"];
   executeSlashCommand: ReturnType<typeof useOpenCode>["executeSlashCommand"];
@@ -104,6 +109,10 @@ providersData: ReturnType<typeof useOpenCode>["providersData"];
   refreshMcpStatus: ReturnType<typeof useOpenCode>["refreshMcpStatus"];
   refreshGitStatus: ReturnType<typeof useOpenCode>["refreshGitStatus"];
   refreshStatusAll: ReturnType<typeof useOpenCode>["refreshStatusAll"];
+  refreshLspStatus: ReturnType<typeof useOpenCode>["refreshLspStatus"];
+  refreshFormatterStatus: ReturnType<typeof useOpenCode>["refreshFormatterStatus"];
+  currentSessionDiffs: ReturnType<typeof useOpenCode>["currentSessionDiffs"];
+  getSessionDiff: ReturnType<typeof useOpenCode>["getSessionDiff"];
 }
 
 const OpenCodeContext = createContext<OpenCodeContextType | undefined>(
