@@ -113,6 +113,7 @@ interface Message {
     model?: string;
     agent?: string;
   };
+  shellCommand?: string;
   toolData?: {
     command?: string;
     output?: string;
@@ -1136,6 +1137,24 @@ export function useOpenCode() {
             const content =
               (textPart && "text" in textPart ? textPart.text : "") || "";
 
+            const infoRecord = msg.info ?? {};
+            const modeValue =
+              typeof (infoRecord as { mode?: string }).mode === "string"
+                ? ((infoRecord as { mode?: string }).mode as string)
+                : undefined;
+            const normalizedMode = modeValue?.toLowerCase();
+            const commandValue =
+              typeof (infoRecord as { command?: string }).command === "string"
+                ? ((infoRecord as { command?: string }).command as string)
+                : undefined;
+            const trimmedCommand = commandValue?.trim();
+            const isShellUserMessage =
+              infoRecord?.role === "user" &&
+              ((normalizedMode?.includes("shell") ?? false) ||
+                Boolean(trimmedCommand));
+            const shellCommand =
+              isShellUserMessage && trimmedCommand ? commandValue : undefined;
+
             const errorInfo = (msg.info as { error?: unknown })?.error;
             const errorMessage =
               typeof (errorInfo as { message?: string })?.message === "string"
@@ -1170,6 +1189,7 @@ export function useOpenCode() {
               optimistic: false,
               error: Boolean(errorInfo),
               errorMessage,
+              shellCommand,
             };
           },
         );
@@ -1532,9 +1552,32 @@ export function useOpenCode() {
           }
 
           setMessages((prevMessages) => {
-            const existingIndex = prevMessages.findIndex(
-              (m) => m.id === messageInfo.id,
-            );
+            const serverRole: Message["type"] =
+              messageInfo.role === "user" ? "user" : "assistant";
+            const serverMode = (messageInfo as { mode?: string }).mode;
+            const normalizedMode =
+              typeof serverMode === "string" ? serverMode.toLowerCase() : undefined;
+            const isShellMode = normalizedMode?.includes("shell") ?? false;
+            const serverCommand = (messageInfo as { command?: string }).command;
+            const normalizedServerCommand =
+              typeof serverCommand === "string" ? serverCommand.trim() : undefined;
+            const rawServerCommand =
+              typeof serverCommand === "string" ? serverCommand : undefined;
+
+            const matchesShellCommand = (message: Message) => {
+              if (!isShellMode || !normalizedServerCommand || message.type !== "user") {
+                return false;
+              }
+              const normalizedShellFlag = message.shellCommand?.trim();
+              if (normalizedShellFlag) {
+                return normalizedShellFlag === normalizedServerCommand;
+              }
+              const normalizedContent = message.content.startsWith("$ ")
+                ? message.content.slice(2).trim()
+                : message.content.trim();
+              return normalizedContent === normalizedServerCommand;
+            };
+
             const errorInfo = (
               messageInfo as {
                 error?: { data?: { message?: string }; message?: string };
@@ -1547,41 +1590,23 @@ export function useOpenCode() {
                   ? errorInfo.message
                   : undefined;
 
-            if (existingIndex >= 0) {
-              const updated = [...prevMessages];
-              updated[existingIndex] = {
-                ...updated[existingIndex],
-                reverted:
-                  messageInfo.reverted ?? updated[existingIndex].reverted,
-                metadata: messageInfo.tokens
-                  ? {
-                      tokens: messageInfo.tokens,
-                      cost: messageInfo.cost,
-                      model: messageInfo.modelID,
-                      agent: messageInfo.mode,
-                    }
-                  : updated[existingIndex].metadata,
-                optimistic: false,
-                error: Boolean(errorInfo),
-                errorMessage,
-              };
-
-              debugLog("[SSE] Updated message metadata:", messageInfo.id);
-              seenMessageIdsRef.current.add(messageInfo.id);
-              return updated;
-            }
-
             const optimisticIndex = prevMessages.findIndex(
-              (m) =>
-                m.optimistic &&
-                m.type === (messageInfo.role === "user" ? "user" : "assistant"),
+              (m) => m.optimistic && (m.type === serverRole || matchesShellCommand(m)),
             );
 
             if (optimisticIndex >= 0) {
               const updated = [...prevMessages];
+              const optimisticMessage = updated[optimisticIndex];
+              const shouldForceUserType = matchesShellCommand(optimisticMessage);
+              const resolvedShellCommand =
+                isShellMode && rawServerCommand
+                  ? rawServerCommand
+                  : optimisticMessage.shellCommand;
+
               updated[optimisticIndex] = {
-                ...updated[optimisticIndex],
+                ...optimisticMessage,
                 id: messageInfo.id,
+                type: shouldForceUserType ? "user" : serverRole,
                 timestamp: new Date(messageInfo.time?.created || Date.now()),
                 reverted: messageInfo.reverted || false,
                 metadata: messageInfo.tokens
@@ -1591,17 +1616,68 @@ export function useOpenCode() {
                       model: messageInfo.modelID,
                       agent: messageInfo.mode,
                     }
-                  : updated[optimisticIndex].metadata,
+                  : optimisticMessage.metadata,
                 optimistic: false,
                 error: Boolean(errorInfo),
                 errorMessage,
+                shellCommand: shouldForceUserType ? resolvedShellCommand : optimisticMessage.shellCommand,
               };
+
+              const duplicateIndex = updated.findIndex(
+                (msg, idx) =>
+                  idx !== optimisticIndex &&
+                  msg.id === messageInfo.id &&
+                  !msg.optimistic &&
+                  msg.type === "assistant" &&
+                  msg.content === "" &&
+                  (!msg.parts || msg.parts.length === 0),
+              );
+              if (duplicateIndex >= 0) {
+                updated.splice(duplicateIndex, 1);
+              }
 
               seenMessageIdsRef.current.add(messageInfo.id);
               debugLog(
                 "[SSE] Matched optimistic message with server ID:",
                 messageInfo.id,
               );
+              return updated;
+            }
+
+            const existingIndex = prevMessages.findIndex(
+              (m) => m.id === messageInfo.id,
+            );
+
+            if (existingIndex >= 0) {
+              const updated = [...prevMessages];
+              const existingMessage = updated[existingIndex];
+              const shouldForceUserType = matchesShellCommand(existingMessage);
+              const resolvedShellCommand =
+                isShellMode && rawServerCommand
+                  ? rawServerCommand
+                  : existingMessage.shellCommand;
+
+              updated[existingIndex] = {
+                ...existingMessage,
+                type: shouldForceUserType ? "user" : serverRole,
+                reverted:
+                  messageInfo.reverted ?? existingMessage.reverted,
+                metadata: messageInfo.tokens
+                  ? {
+                      tokens: messageInfo.tokens,
+                      cost: messageInfo.cost,
+                      model: messageInfo.modelID,
+                      agent: messageInfo.mode,
+                    }
+                  : existingMessage.metadata,
+                optimistic: false,
+                error: Boolean(errorInfo),
+                errorMessage,
+                shellCommand: shouldForceUserType ? resolvedShellCommand : existingMessage.shellCommand,
+              };
+
+              debugLog("[SSE] Updated message metadata:", messageInfo.id);
+              seenMessageIdsRef.current.add(messageInfo.id);
               return updated;
             }
 
@@ -1618,7 +1694,7 @@ export function useOpenCode() {
             const newMessage: Message = {
               id: messageInfo.id,
               clientId: generateClientId(),
-              type: messageInfo.role === "user" ? "user" : "assistant",
+              type: serverRole,
               content: "",
               parts: [],
               timestamp: new Date(messageInfo.time?.created || Date.now()),
@@ -1634,6 +1710,10 @@ export function useOpenCode() {
               optimistic: false,
               error: Boolean(errorInfo),
               errorMessage,
+              shellCommand:
+                serverRole === "user" && isShellMode && rawServerCommand
+                  ? rawServerCommand
+                  : undefined,
             };
 
             const newMessages = [...prevMessages, newMessage];
@@ -2704,8 +2784,9 @@ export function useOpenCode() {
     }
   }, [currentPath, currentProject]);
 
-  const loadSessions = useCallback(async () => {
-    if (!currentProject || loadedSessionsRef.current) return;
+  const loadSessions = useCallback(async (options?: { force?: boolean }) => {
+    const force = options?.force ?? false;
+    if (!currentProject || (loadedSessionsRef.current && !force)) return;
     try {
       const response = await openCodeService.getSessions(
         currentProject.worktree,
@@ -2730,6 +2811,7 @@ export function useOpenCode() {
       debugLog(
         "[LoadSessions] Loaded sessions from API:",
         sessionsData.length,
+        force ? "(forced refresh)" : "",
       );
       debugLog("[LoadSessions] Current session state:", currentSession);
       debugLog("[LoadSessions] Messages count:", messages.length);
@@ -2760,6 +2842,7 @@ export function useOpenCode() {
       }
     } catch (error) {
       console.error("Failed to load sessions:", error);
+      throw error;
     }
   }, [currentProject, currentSession, loadMessages, messages.length]);
 
@@ -3493,13 +3576,32 @@ export function useOpenCode() {
 
   const runShell = useCallback(
     async (sessionId: string, command: string, args: string[] = []) => {
+      const sessionDirectory = sessions.find(
+        (sessionEntry) => sessionEntry.id === sessionId,
+      )?.directory;
+      const targetDirectory = currentProject?.worktree ?? sessionDirectory;
+
+      const fallbackAgent =
+        agents.find((agent) => agent.mode === "primary") ?? agents[0];
+      const resolvedAgentId =
+        currentAgent?.id ||
+        currentAgent?.name ||
+        fallbackAgent?.id ||
+        fallbackAgent?.name;
+
+      if (!resolvedAgentId) {
+        console.error("No agent available to run shell command");
+        throw new Error("No agent available to run shell command.");
+      }
+
       markSessionRunning(sessionId);
       try {
         const response = await openCodeService.runShell(
           sessionId,
           command,
           args,
-          currentProject?.worktree,
+          targetDirectory,
+          resolvedAgentId,
         );
         return response;
       } catch (error) {
@@ -3508,7 +3610,14 @@ export function useOpenCode() {
         throw error;
       }
     },
-    [currentProject?.worktree, markSessionRunning, markSessionIdle],
+    [
+      agents,
+      currentAgent,
+      currentProject?.worktree,
+      sessions,
+      markSessionRunning,
+      markSessionIdle,
+    ],
   );
 
   const revertMessage = useCallback(

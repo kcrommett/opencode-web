@@ -479,11 +479,56 @@ export function normalizeToolPart(part: Part): ToolPartDetail {
   const error = status === "error" ? extractError(part) : undefined;
   const diff = extractDiffMetadata(part);
 
+  const rawState = (part as { state?: unknown }).state;
+  const stateRecord =
+    rawState && typeof rawState === "object"
+      ? (rawState as Record<string, unknown>)
+      : undefined;
+
+  const rawMetadata =
+    stateRecord && "metadata" in stateRecord
+      ? (stateRecord["metadata"] as unknown)
+      : undefined;
+  const metadata =
+    rawMetadata && typeof rawMetadata === "object"
+      ? (rawMetadata as Record<string, unknown>)
+      : undefined;
+
+  const normalizedInput =
+    (part as { input?: unknown }).input ??
+    (stateRecord ? stateRecord["input"] : undefined);
+
+  const metadataOutputCandidates = () => {
+    if (!metadata) return undefined;
+    const outputValue = metadata["output"];
+    if (typeof outputValue === "string" && outputValue.length > 0) {
+      return outputValue;
+    }
+    const stdoutValue = metadata["stdout"];
+    if (typeof stdoutValue === "string" && stdoutValue.length > 0) {
+      return stdoutValue;
+    }
+    if (Array.isArray(stdoutValue)) {
+      return stdoutValue.join("\n");
+    }
+    const resultValue = metadata["result"];
+    if (typeof resultValue === "string") {
+      return resultValue;
+    }
+    return undefined;
+  };
+
+  const normalizedOutput =
+    (part as { output?: unknown }).output ??
+    (stateRecord ? stateRecord["output"] : undefined) ??
+    metadataOutputCandidates();
+
   return {
     tool: extractToolName(part),
     status,
-    input: (part as { input?: unknown }).input,
-    output: (part as { output?: unknown }).output,
+    input: normalizedInput,
+    output: normalizedOutput,
+    metadata,
     error,
     state:
       Object.keys(timings).length > 0

@@ -75,8 +75,8 @@ export function FilePart({ part }: FilePartProps) {
     : null;
 
   return (
-    <div className="mb-2 space-y-2 rounded-md border border-theme-border bg-theme-background-alt p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className="mb-2 space-y-2 rounded-md border border-theme-border bg-theme-background-alt p-3 max-w-full min-w-0">
+      <div className="flex flex-wrap items-center justify-between gap-2 min-w-0">
         <div className="flex items-center gap-2">
           <span className="font-mono text-[11px] uppercase tracking-wide opacity-70">
             FILE
@@ -139,11 +139,11 @@ export function FilePart({ part }: FilePartProps) {
         </div>
       </div>
       {viewMode === "diff" && unifiedDiff ? (
-        <div className="overflow-hidden rounded border border-theme-border bg-theme-background">
+        <div className="overflow-hidden rounded border border-theme-border bg-theme-background max-w-full">
           <PrettyDiff diffText={unifiedDiff} />
         </div>
       ) : imageSource ? (
-        <div className="overflow-hidden rounded border border-theme-border bg-theme-background">
+        <div className="overflow-hidden rounded border border-theme-border bg-theme-background max-w-full">
           <img
             src={imageSource}
             alt={displayName}

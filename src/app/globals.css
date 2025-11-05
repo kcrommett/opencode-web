@@ -116,6 +116,23 @@ body {
   height: 100dvh;
 }
 
+/* Button reset utility
+   ------------------------------------------------------------
+   WebTUI styles apply a default height of 3lh to all <button>
+   elements (see @webtui/css button.css). For textual/link-style
+   buttons used in compact status bars, this produces excessive
+   vertical height. The utility class below resets those metrics
+   so the element shrinks to its content height.
+*/
+.button-reset {
+  background: none !important;
+  border: none !important;
+  padding: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  line-height: 1.25 !important;
+}
+
 /* WebTUI Border Enhancements */
 [is-="view"][data-box="square"],
 [is-="view"][data-box="round"],
@@ -561,15 +578,14 @@ button[box-="double"][variant-="foreground0"] {
 
 /* WebTUI Scrollbar Styles */
 .scrollbar {
-  scrollbar-width: auto;
+  scrollbar-width: thin;
   scrollbar-color: var(--theme-backgroundAccent) var(--theme-backgroundAlt);
   -webkit-overflow-scrolling: touch;
-  scrollbar-gutter: stable both-edges;
 }
 
 .scrollbar::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
+  width: 8px;
+  height: 8px;
 }
 
 .scrollbar::-webkit-scrollbar-track {
@@ -600,6 +616,28 @@ button[box-="double"][variant-="foreground0"] {
   .scrollbar {
     scrollbar-width: none;
   }
+}
+
+/* Hidden scrollbar - maintains scroll functionality without visible scrollbar */
+.scrollbar-hidden {
+  scrollbar-width: none; /* Firefox */
+  -webkit-overflow-scrolling: touch;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
+}
+
+.scrollbar-hidden::-webkit-scrollbar-track {
+  display: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar-thumb {
+  display: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar-corner {
+  display: none;
 }
 
 /* Syntax Highlighting with Line Numbers */
@@ -767,6 +805,24 @@ button[box-="double"][variant-="foreground0"] {
     min-height: 44px;
     min-width: 44px;
   }
+
+  /* 
+   * Text Truncation Pattern for Flex Containers
+   * 
+   * To enable ellipsis truncation inside flex layouts:
+   * 1. Parent flex container: `flex` with appropriate direction
+   * 2. Child text element: `min-w-0 truncate`
+   * 
+   * Example:
+   *   <div class="flex items-center gap-2">
+   *     <span class="min-w-0 truncate">Long text that will truncate...</span>
+   *   </div>
+   * 
+   * The `min-w-0` allows the flex child to shrink below its content size.
+   * The `truncate` applies `overflow-hidden text-ellipsis whitespace-nowrap`.
+   * 
+   * For multi-line truncation, use `line-clamp-{n}` instead of `truncate`.
+   */
 }
 
 /* Mobile viewport optimizations */
@@ -815,19 +871,6 @@ textarea::placeholder {
 }
 
 /* Semantic Component Classes */
-
-/* Connection Status Indicator */
-.connection-indicator {
-  @apply w-2 h-2 rounded-full;
-}
-
-.connection-indicator.connected {
-  background-color: rgb(34, 197, 94);
-}
-
-.connection-indicator.disconnected {
-  background-color: var(--theme-error);
-}
 
 /* Message Container Backgrounds */
 .message-user {

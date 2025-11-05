@@ -29,6 +29,7 @@ export interface ToolPartDetail {
   status: "pending" | "running" | "completed" | "error";
   input?: unknown;
   output?: unknown;
+  metadata?: Record<string, unknown>;
   error?: {
     message?: string;
     stack?: string;
@@ -167,7 +168,7 @@ export interface ImageAttachment {
   origin: "paste" | "drop";
 }
 
-export type McpServerStatus = "connected" | "failed" | "disabled";
+export type McpServerStatus = "connected" | "failed";
 
 export interface McpStatusResponse {
   [serverName: string]: McpServerStatus;

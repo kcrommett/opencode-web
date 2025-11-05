@@ -97,8 +97,7 @@ export const ProjectPicker: React.FC<ProjectPickerProps> = ({
   return (
     <Dialog open onClose={onClose}>
       <View
-        box="square"
-        className="rounded border overflow-hidden shadow-2xl max-w-md w-full max-h-[80vh] overflow-y-auto scrollbar"
+        className="overflow-hidden shadow-2xl max-w-md w-full max-h-[80vh] overflow-y-auto scrollbar"
         style={{
           backgroundColor: "var(--theme-background)",
           borderColor: "var(--theme-primary)",
@@ -168,11 +167,6 @@ export const ProjectPicker: React.FC<ProjectPickerProps> = ({
                       </div>
                       <div className="text-xs opacity-70 mt-1">
                         {project.createdAt?.toLocaleDateString() || "Unknown"}
-                        {project.vcs && (
-                          <span className="ml-2">
-                            • VCS: {project.vcs}
-                          </span>
-                        )}
                       </div>
                     </div>
                     <div className="flex gap-1 flex-shrink-0">

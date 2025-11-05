@@ -57,8 +57,8 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
             </div>
           )}
 
-          <div className="px-4 py-3 flex justify-between items-center border-b border-[var(--theme-border)]">
-            <h2 className="text-lg font-bold">{title}</h2>
+          <div className="px-4 py-3 flex justify-between items-center border-b border-[var(--theme-border)] min-w-0 gap-3">
+            <h2 className="text-lg font-bold min-w-0 truncate" title={title}>{title}</h2>
              <Button
                variant="background2"
                box="round"

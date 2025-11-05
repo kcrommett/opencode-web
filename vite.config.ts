@@ -28,8 +28,21 @@ export default defineConfig(({ mode }) => {
   // Handle reverse proxy base path
   const basePath = env.VITE_BASE_PATH || "";
 
+  const transformerEnv =
+    env.OPENCODE_WEB_CSS_TRANSFORMER || env.VITE_CSS_TRANSFORMER;
+  const normalizedTransformer = transformerEnv?.toLowerCase();
+  const cssTransformer =
+    normalizedTransformer === "postcss"
+      ? "postcss"
+      : normalizedTransformer === "lightningcss"
+        ? "lightningcss"
+        : "postcss";
+
   return {
     base: basePath,
+    css: {
+      transformer: cssTransformer,
+    },
     server: {
       port: Number(env.PORT) || 3000,
       allowedHosts,
@@ -74,9 +87,9 @@ export default defineConfig(({ mode }) => {
         ],
         injectRegister: "auto",
         manifest: {
-          name: "opencode web",
-          short_name: "opencode",
-          description: "A web-based interface for OpenCode projects",
+          name: "oc web",
+          short_name: "oc web",
+          description: "OC Web - A web-based interface for OpenCode projects",
           theme_color: "#1e1e2e",
           background_color: "#1e1e2e",
           display: "fullscreen",

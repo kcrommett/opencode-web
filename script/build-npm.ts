@@ -146,9 +146,9 @@ const verifySync = async () => {
 await verifySync();
 
 // Create README for the package
-const readme = `# OpenCode Web
+const readme = `# OC Web
 
-OpenCode Web is a self-hosted web interface for OpenCode AI assistant.
+OC Web is a self-hosted web interface for OpenCode AI assistant.
 
 ## Installation
 

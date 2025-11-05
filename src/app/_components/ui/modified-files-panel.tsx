@@ -3,7 +3,6 @@ import { useOpenCodeContext } from "@/contexts/OpenCodeContext";
 import { Badge } from "./badge";
 import { StatusBadge } from "./status-badge";
 import { Button } from "./button";
-import { Separator } from "./separator";
 
 interface ModifiedFilesPanelProps {
   onFileClick?: (filePath: string) => void;
@@ -109,8 +108,8 @@ export const ModifiedFilesPanel: React.FC<ModifiedFilesPanelProps> = ({ onFileCl
   };
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="p-4 space-y-3">
+      <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-medium">Modified Files</h3>
         <Button
           variant="foreground1"
