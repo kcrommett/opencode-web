@@ -23,11 +23,11 @@ export function PatchPart({ part }: PatchPartProps) {
   };
 
   return (
-    <div className="border border-theme-border rounded-md overflow-hidden bg-theme-background-alt mb-2">
+    <div className="border border-theme-border rounded-md overflow-hidden bg-theme-background-alt mb-2 max-w-full">
       <div
         role="button"
         tabIndex={0}
-        className="flex w-full items-center justify-between p-3 text-left hover:bg-theme-background transition-colors cursor-pointer"
+        className="flex w-full min-w-0 items-center justify-between p-3 text-left hover:bg-theme-background transition-colors cursor-pointer"
         onClick={toggle}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {

@@ -628,6 +628,28 @@ function OpenCodeChatTUI() {
   const [isResizing, setIsResizing] = useState(false);
   const [isRightResizing, setIsRightResizing] = useState(false);
   const isMobile = useIsMobile();
+  
+  // Track viewport width for chat column calculations
+  const [viewportWidth, setViewportWidth] = useState(() => {
+    if (typeof window !== "undefined") {
+      return window.innerWidth;
+    }
+    return 1280; // fallback for SSR
+  });
+
+  // Calculate available width for chat column
+  const availableChatWidth = useMemo(() => {
+    if (isMobile) {
+      // On mobile, full width minus padding
+      return Math.max(320, viewportWidth - 32);
+    }
+    
+    const leftSidebarUsed = isLeftSidebarOpen ? sidebarWidth : 0;
+    const rightSidebarUsed = isStatusSidebarOpen ? rightSidebarWidth : 0;
+    const gutters = 32; // padding and gaps
+    
+    return Math.max(320, viewportWidth - leftSidebarUsed - rightSidebarUsed - gutters);
+  }, [viewportWidth, sidebarWidth, rightSidebarWidth, isLeftSidebarOpen, isStatusSidebarOpen, isMobile]);
 
   const selectedFileName = selectedFile?.split("/").pop() ?? null;
   const fileTextContent = fileContent?.text ?? null;
@@ -1528,7 +1550,12 @@ function OpenCodeChatTUI() {
 
     const handleMouseMove = (e: MouseEvent) => {
       const newWidth = e.clientX;
-      if (newWidth >= 200 && newWidth <= 600) {
+      const minChatWidth = 320;
+      const gutters = 32;
+      const rightUsed = isStatusSidebarOpen ? rightSidebarWidth : 0;
+      const maxAllowedLeftWidth = window.innerWidth - minChatWidth - rightUsed - gutters;
+      
+      if (newWidth >= 200 && newWidth <= 600 && newWidth <= maxAllowedLeftWidth) {
         setSidebarWidth(newWidth);
         localStorage.setItem("opencode-sidebar-width", newWidth.toString());
       }
@@ -1545,14 +1572,19 @@ function OpenCodeChatTUI() {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isResizing]);
+  }, [isResizing, rightSidebarWidth, isStatusSidebarOpen]);
 
   useEffect(() => {
     if (!isRightResizing) return;
 
     const handleMouseMove = (e: MouseEvent) => {
       const newWidth = window.innerWidth - e.clientX;
-      if (newWidth >= 200 && newWidth <= 600) {
+      const minChatWidth = 320;
+      const gutters = 32;
+      const leftUsed = isLeftSidebarOpen ? sidebarWidth : 0;
+      const maxAllowedRightWidth = window.innerWidth - minChatWidth - leftUsed - gutters;
+      
+      if (newWidth >= 200 && newWidth <= 600 && newWidth <= maxAllowedRightWidth) {
         setRightSidebarWidth(newWidth);
         if (typeof window !== "undefined") {
           localStorage.setItem("opencode-right-sidebar-width", newWidth.toString());
@@ -1571,7 +1603,19 @@ function OpenCodeChatTUI() {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isRightResizing]);
+  }, [isRightResizing, sidebarWidth, isLeftSidebarOpen]);
+
+  // Update viewport width on resize
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    
+    const handleResize = () => {
+      setViewportWidth(window.innerWidth);
+    };
+    
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => {
     if (
@@ -4379,10 +4423,11 @@ function OpenCodeChatTUI() {
         {/* Main Editor Area */}
         <View
           box="square"
-          className="flex-1 min-w-0 flex flex-col gap-0 bg-theme-background"
+          className="flex-1 min-w-0 flex flex-col gap-0 bg-theme-background overflow-hidden"
           style={{
             filter: shouldBlurEditor ? "blur(4px)" : undefined,
             pointerEvents: shouldBlurEditor ? "none" : undefined,
+            maxWidth: isMobile ? undefined : `${availableChatWidth}px`,
           }}
         >
           {/* Header */}
@@ -4424,8 +4469,8 @@ function OpenCodeChatTUI() {
               data-dialog-anchor="chat"
             >
               {/* Chat Messages */}
-              <div className="flex-1 overflow-y-auto scrollbar p-2 pb-4 space-y-2 min-h-0 flex flex-col">
-                <div className="max-w-none lg:mx-auto lg:max-w-6xl xl:max-w-7xl space-y-2 flex-1 flex flex-col">
+              <div className="flex-1 overflow-y-auto scrollbar p-2 pb-4 space-y-2 min-h-0 flex flex-col overflow-hidden">
+                <div className="max-w-full space-y-2 flex-1 flex flex-col min-w-0">
                   {messages.length === 0 && !loading && (
                     <div className="flex items-center justify-center flex-1">
                       <View
@@ -4538,11 +4583,11 @@ function OpenCodeChatTUI() {
                     return (
                       <div
                         key={message.clientId ?? message.id}
-                        className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}
+                        className={`flex w-full min-w-0 ${message.type === "user" ? "justify-end" : "justify-start"}`}
                       >
                         <View
                           box="round"
-                          className={`max-w-full sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl p-2 ${
+                          className={`max-w-full min-w-0 p-2 ${
                             message.type === "user"
                               ? message.error
                                 ? "bg-theme-error/10 border-theme-error text-theme-error"
