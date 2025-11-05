@@ -3,7 +3,7 @@
  */
 
 import path from "node:path";
-import { getOpencodeServerUrl } from "./src/lib/opencode-config.js";
+import { getOpencodeServerUrl, resolveWebConfig } from "./src/lib/opencode-config.js";
 
 const argv = process.argv.slice(2);
 for (let i = 0; i < argv.length; i++) {
@@ -14,6 +14,7 @@ for (let i = 0; i < argv.length; i++) {
     !process.env.OPENCODE_SERVER_URL
   ) {
     process.env.OPENCODE_SERVER_URL = argv[i + 1];
+    // Maintain legacy var for backward compatibility
     process.env.VITE_OPENCODE_SERVER_URL = argv[i + 1];
     i++;
   }
@@ -25,7 +26,9 @@ if (!process.env.NODE_ENV) {
 }
 const IS_PRODUCTION = NODE_ENV === "production";
 
-const SERVER_PORT = Number(process.env.PORT ?? 3000);
+const webConfig = resolveWebConfig();
+const SERVER_PORT = webConfig.webPort;
+const SERVER_HOST = webConfig.webHost;
 const CLIENT_DIRECTORY = path.resolve(process.cwd(), "dist/client");
 const SERVER_ASSETS_DIRECTORY = path.resolve(
   process.cwd(),
@@ -50,10 +53,9 @@ async function initializeServer() {
     process.exit(1);
   }
 
-  const serverHost = process.env.HOST || "localhost";
   const server = Bun.serve({
     port: SERVER_PORT,
-    hostname: serverHost,
+    hostname: SERVER_HOST,
     idleTimeout: 0, // Disable idle timeout for SSE connections
     fetch: async (req: Request) => {
       try {
@@ -88,12 +90,12 @@ async function initializeServer() {
           const serverUrl = getOpencodeServerUrl();
           if (!serverUrl || serverUrl === "http://localhost:4096") {
             console.warn(
-              "[SSE Proxy] Warning: OpenCode server URL is missing or defaults to localhost. Please set VITE_OPENCODE_SERVER_URL environment variable.",
+              "[SSE Proxy] Warning: OpenCode server URL is missing or defaults to localhost. Please set OPENCODE_SERVER_URL environment variable.",
             );
             return new Response(
               JSON.stringify({
                 error:
-                  "OpenCode server URL not configured. Set VITE_OPENCODE_SERVER_URL to the correct server address.",
+                  "OpenCode server URL not configured. Set OPENCODE_SERVER_URL to the correct server address.",
               }),
               {
                 status: 500,
@@ -219,11 +221,11 @@ async function initializeServer() {
     },
   });
 
-  const displayHost = serverHost === "0.0.0.0" ? "0.0.0.0" : serverHost;
+  const displayHost = SERVER_HOST === "0.0.0.0" ? "0.0.0.0" : SERVER_HOST;
   console.log(
     `Server listening on http://${displayHost}:${String(server.port)}`,
   );
-  if (serverHost === "0.0.0.0") {
+  if (SERVER_HOST === "0.0.0.0") {
     console.log("Listening on all network interfaces");
   }
 }

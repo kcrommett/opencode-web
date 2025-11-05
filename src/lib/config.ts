@@ -1,6 +1,10 @@
 import type { OpencodeConfig, Agent } from "@/types/opencode";
 
 const serverUrl = (() => {
+  // Prioritize canonical OPENCODE_SERVER_URL, fall back to legacy VITE_OPENCODE_SERVER_URL
+  if (typeof process !== "undefined" && process.env?.OPENCODE_SERVER_URL) {
+    return process.env.OPENCODE_SERVER_URL;
+  }
   if (
     typeof import.meta !== "undefined" &&
     import.meta.env &&

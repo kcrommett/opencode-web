@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Environment Variable Simplification** (#80)
+  - Consolidated configuration to three canonical environment variables:
+    - `OPENCODE_SERVER_URL` (replaces `VITE_OPENCODE_SERVER_URL`)
+    - `OPENCODE_WEB_HOST` (replaces `HOST`)
+    - `OPENCODE_WEB_PORT` (replaces `PORT`)
+  - Implemented centralized configuration resolver with backward compatibility
+  - Legacy variables (`PORT`, `HOST`, `VITE_OPENCODE_SERVER_URL`, `OPENCODE_SERVER_PORT`, `OPENCODE_SERVER_HOSTNAME`) still supported but deprecated
+  - Added deprecation warnings in development mode for legacy variable usage
+  - Updated all documentation (README, .env.example) to reflect canonical variables
+  - Added migration guide with clear mapping from old to new variable names
+  - Configuration precedence: CLI flags → Canonical env vars → Legacy env vars → Defaults
+
 ### Fixed
 - Chat window overflow when right sidebar is resized (#123)
   - Chat messages now properly wrap and reflow when sidebar widths change
