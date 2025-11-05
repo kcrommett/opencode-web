@@ -23,6 +23,7 @@ interface BadgeProps {
     | "slant-top"
     | "slant-bottom";
   className?: string;
+  title?: string;
 }
 
 export const Badge: React.FC<BadgeProps> = ({
@@ -30,6 +31,7 @@ export const Badge: React.FC<BadgeProps> = ({
   variant,
   cap = "square", // Default to square caps per webtui
   className = "",
+  title,
 }) => {
   const badgeProps: Record<string, string> = {};
 
@@ -42,7 +44,7 @@ export const Badge: React.FC<BadgeProps> = ({
   }
 
   return (
-    <span is-="badge" className={className} {...badgeProps}>
+    <span is-="badge" className={className} title={title} {...badgeProps}>
       {children}
     </span>
   );

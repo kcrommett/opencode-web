@@ -15,7 +15,7 @@ const devError = (...args: unknown[]) => {
 };
 
 const isMcpStatus = (value: unknown): value is McpServerStatus =>
-  value === "connected" || value === "failed" || value === "disabled";
+  value === "connected" || value === "failed";
 
 const extractMcpStatus = (value: unknown): McpServerStatus | null => {
   if (isMcpStatus(value)) return value;
@@ -308,10 +308,11 @@ export const openCodeService = {
     command: string,
     args?: string[],
     directory?: string,
+    agent?: string,
   ) {
     try {
       const response = await serverFns.runCommand({
-        data: { sessionId, command, args, directory },
+        data: { sessionId, command, args, directory, agent },
       });
       return { data: response };
     } catch (error) {

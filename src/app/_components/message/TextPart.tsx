@@ -4,6 +4,11 @@ import { MarkdownRenderer, hasMarkdownSyntax } from "@/lib/markdown";
 import { useOpenCodeContext } from "@/contexts/OpenCodeContext";
 import { getFeatureFlags } from "@/lib/config";
 
+export const GENERIC_TOOL_TEXTS = new Set([
+  "The following tool was executed by the user",
+  "The following tool was executed",
+]);
+
 interface TextPartProps {
   part: Part;
 }
@@ -15,6 +20,10 @@ export function TextPart({ part }: TextPartProps) {
   if (part.type !== "text") return null;
 
   const text = "text" in part ? part.text || "" : "";
+  const trimmedText = text.trim();
+  if (GENERIC_TOOL_TEXTS.has(trimmedText)) {
+    return null;
+  }
 
   // If markdown is enabled and content has markdown syntax, render with markdown
   if (features.enableMarkdown && hasMarkdownSyntax(text)) {

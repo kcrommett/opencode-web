@@ -1,6 +1,6 @@
-# OpenCode Web Agent Guidelines
+# OC Web Agent Guidelines
 
-These guidelines ensure consistency across the OpenCode Web project. Follow web development best practices and maintain clean, maintainable code.
+These guidelines ensure consistency across the OC Web project. Follow web development best practices and maintain clean, maintainable code.
 
 ## Build/Test Commands
 

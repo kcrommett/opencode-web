@@ -197,6 +197,27 @@ The TUI processes 18 different SSE event types, each with specific handling logi
 - **Properties**: `{ path: string, serverID: string }`
 - **TUI Handling**: No specific UI updates currently
 
+### 19. `shell.command.started` (Web Interface Enhancement)
+
+- **Type**: `EventListResponseEventShellCommandStarted`
+- **Purpose**: Notifies when a shell command starts execution
+- **Properties**: `{ sessionID: string, commandID: string, command: string, workingDirectory: string }`
+- **Web Handling**: Shows running indicator, updates command status badge
+
+### 20. `shell.command.updated` (Web Interface Enhancement)
+
+- **Type**: `EventListResponseEventShellCommandUpdated`
+- **Purpose**: Streams shell command output updates
+- **Properties**: `{ sessionID: string, commandID: string, stdout?: string, stderr?: string, status: "running|completed|error" }`
+- **Web Handling**: Updates command output in real-time, handles ANSI color codes
+
+### 21. `shell.command.finished` (Web Interface Enhancement)
+
+- **Type**: `EventListResponseEventShellCommandFinished`
+- **Purpose**: Notifies when a shell command completes
+- **Properties**: `{ sessionID: string, commandID: string, exitCode: number, duration: number, status: "completed|error" }`
+- **Web Handling**: Updates status badge, stores command in history, shows exit code
+
 ## Event Processing Flow
 
 1. **Connection**: TUI connects to `/event` endpoint

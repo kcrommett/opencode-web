@@ -1,23 +1,22 @@
 # MCP Server Status Display
 
-This document explains how to display MCP server connection status in the OpenCode Web UI.
+This document explains how to display MCP server connection status in the OC Web UI.
 
 ## Overview
 
-The MCP Status feature allows you to view the status of connected MCP (Model Context Protocol) servers in your OpenCode Web interface. It fetches server status from the `/mcp` API endpoint and displays them with visual status badges.
+The MCP Status feature allows you to view the status of connected MCP (Model Context Protocol) servers in your OC Web interface. It fetches server status from the `/mcp` API endpoint and displays them with visual status badges.
 
 ## API Endpoint
 
 The backend OpenCode server provides:
 - **Endpoint**: `GET /mcp`
-- **Returns**: `Record<string, "connected" | "failed" | "disabled">`
+- **Returns**: `Record<string, "connected" | "failed">`
 
 Example response:
 ```json
 {
   "filesystem": "connected",
   "github": "connected",
-  "slack": "disabled",
   "custom-tool": "failed"
 }
 ```
@@ -62,7 +61,7 @@ async getMcpStatus() {
 ### 4. Type Definitions (`src/types/opencode.ts`)
 
 ```typescript
-export type McpServerStatus = "connected" | "failed" | "disabled";
+export type McpServerStatus = "connected" | "failed";
 
 export interface McpStatusResponse {
   [serverName: string]: McpServerStatus;
@@ -184,7 +183,6 @@ Example CSS:
 The component automatically assigns colors based on status:
 
 - **connected** → Green (success)
-- **disabled** → Yellow/Orange (warning)
 - **failed** → Red (error)
 
 ## Props Reference
@@ -201,7 +199,7 @@ The component automatically assigns colors based on status:
 
 ## Example Integration Points
 
-Here are suggested places to add MCP status in the OpenCode Web UI:
+Here are suggested places to add MCP status in the OC Web UI:
 
 1. **Desktop Header** (line ~3483 in `src/app/index.tsx`)
    - Add next to session/project info
@@ -224,7 +222,7 @@ You can test the component with mock data:
 const mockMcpStatus = {
   "filesystem": "connected",
   "github": "connected",
-  "custom-server": "disabled"
+  "custom-server": "failed"
 };
 
 <McpStatus mcpStatus={mockMcpStatus} />
@@ -232,7 +230,7 @@ const mockMcpStatus = {
 
 ## Notes
 
-- The component handles three states: loading, error, and success
+- The component handles two server states: connected and failed
 - If no MCP servers are configured, it displays "None configured"
 - The status automatically refreshes if you implement polling
 - Uses the existing `StatusBadge` component for consistent styling

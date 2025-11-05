@@ -3,8 +3,7 @@ import type { McpServerStatus } from "@/types/opencode";
 
 const STATUS_PRIORITY: Record<McpServerStatus, number> = {
   connected: 0,
-  disabled: 1,
-  failed: 2,
+  failed: 1,
 };
 
 interface McpStatusProps {
@@ -53,8 +52,6 @@ export const McpStatus: React.FC<McpStatusProps> = ({
     switch (status) {
       case "connected":
         return "bg-green-500";
-      case "disabled":
-        return "bg-yellow-400";
       case "failed":
         return "bg-red-500";
       default:
