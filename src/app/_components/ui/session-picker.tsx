@@ -222,8 +222,7 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
   return (
     <Dialog open onClose={onClose}>
       <View
-        box="square"
-        className="rounded border overflow-hidden shadow-2xl max-w-md w-full max-h-[80vh] overflow-y-auto scrollbar"
+        className="overflow-hidden shadow-2xl max-w-md w-full max-h-[80vh] overflow-y-auto scrollbar"
         style={{
           backgroundColor: "var(--theme-background)",
           borderColor: "var(--theme-primary)",
@@ -261,7 +260,7 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
 
         {/* Search Input */}
         {onSearchChange && (
-          <div className="px-4 pt-3 pb-2">
+          <div className="px-4 pt-0 pb-4">
             <SessionSearchInput
               value={searchQuery}
               onChange={onSearchChange}
@@ -326,7 +325,7 @@ export const SessionPicker: React.FC<SessionPickerProps> = ({
           </>
         )}
 
-        <div className="px-4 py-2 space-y-2 max-h-96 overflow-y-auto scrollbar">
+        <div className="px-4 pt-4 pb-2 space-y-2 max-h-96 overflow-y-auto scrollbar">
           {sessions.length === 0 ? (
             <div className="text-center text-sm py-4 opacity-70">
               {searchQuery ? (

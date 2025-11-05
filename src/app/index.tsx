@@ -392,10 +392,10 @@ function ThemePickerDialog({
 
   return (
     <Dialog open={true} onClose={onClose}>
-      <View
-        box="square"
-        className="p-6 max-w-md w-full max-h-[80vh] overflow-hidden bg-theme-background text-theme-foreground"
-      >
+                  <View
+                    box="round"
+                    className="p-2 mb-2 bg-theme-background-alt"
+                  >
         <h2 className="text-lg font-bold mb-4">Select Theme</h2>
         <Separator className="mb-4" />
 
@@ -3497,7 +3497,6 @@ function OpenCodeChatTUI() {
                       </div>
                     </div>
                   </View>
-                  <Separator className="mb-2" />
                   <div className="flex-1 flex flex-col gap-3">
                     <ProjectSelector
                       projects={sortedProjects}
@@ -3505,22 +3504,7 @@ function OpenCodeChatTUI() {
                       onSelect={handleProjectSwitch}
                       buttonClassName="!py-2 !px-3"
                     />
-                    {currentProject ? (
-                      <div className="text-xs leading-relaxed space-y-1 text-theme-foreground">
-                        <div className="truncate">
-                          Dir: {currentProject.worktree}
-                        </div>
-                        <div className="truncate">
-                          VCS: {currentProject.vcs || "Unknown"}
-                        </div>
-                        {currentProjectLastTouched && (
-                          <div>
-                            Updated:{" "}
-                            {currentProjectLastTouched.toLocaleDateString()}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
+                    {currentProject ? null : (
                       <div className="text-xs text-theme-muted">
                         {sortedProjects.length > 0
                           ? "Choose a project from the menu above."
@@ -3530,10 +3514,8 @@ function OpenCodeChatTUI() {
                   </div>
                 </div>
 
-                <Separator className="my-3" />
-
                 {/* Sessions Section */}
-                <div className="flex flex-col flex-1 min-h-0">
+                <div className="flex flex-col flex-1 min-h-0 mt-2">
                   <View
                     box="square"
                     className="p-2 mb-2 bg-theme-background-alt"
@@ -3586,7 +3568,6 @@ function OpenCodeChatTUI() {
                       </div>
                     </div>
                   </View>
-                  <Separator className="mb-2" />
                   {!currentProject ? (
                     <div className="flex-1 flex items-center justify-center text-sm text-theme-muted">
                       Select a project or use New Project to view sessions
@@ -3594,7 +3575,7 @@ function OpenCodeChatTUI() {
                   ) : (
                     <>
                       {/* Sidebar Search Input */}
-                      <div className="mb-2">
+                      <div className="mt-2">
                         <SessionSearchInput
                           ref={workspaceSessionSearchInputRef}
                           value={sessionSearchQuery}
@@ -3812,7 +3793,7 @@ function OpenCodeChatTUI() {
                         >
                           <span className="text-theme-muted">/</span>
                           <Button
-                            box="square"
+                    box="round"
                             size="small"
                             onClick={() => void handleDirectoryOpen(fullPath)}
                             className="!py-1 !px-2 text-xs"
@@ -4013,7 +3994,7 @@ function OpenCodeChatTUI() {
             <div className="h-full flex flex-col gap-4 overflow-hidden">
               {/* Projects Section */}
               <div className="flex flex-col flex-shrink-0">
-                <div className="flex items-center justify-between mb-2 gap-2">
+                <div className="flex items-center justify-between mb-2 gap-2 p-2 bg-theme-background-alt rounded">
                   <h3 className="text-sm font-medium">Projects</h3>
                   <div className="flex gap-2 flex-shrink-0">
                     <Button
@@ -4042,7 +4023,6 @@ function OpenCodeChatTUI() {
                     </Button>
                   </div>
                 </div>
-                <Separator className="mb-2" />
                 <div className="flex flex-col gap-3">
                   <ProjectSelector
                     projects={sortedProjects}
@@ -4053,22 +4033,7 @@ function OpenCodeChatTUI() {
                     }}
                     buttonClassName="!py-2 !px-3"
                   />
-                  {currentProject ? (
-                    <div className="text-xs leading-relaxed space-y-1 text-theme-foreground">
-                      <div className="truncate">
-                        Dir: {currentProject.worktree}
-                      </div>
-                      <div className="truncate">
-                        VCS: {currentProject.vcs || "Unknown"}
-                      </div>
-                      {currentProjectLastTouched && (
-                        <div>
-                          Updated:{" "}
-                          {currentProjectLastTouched.toLocaleDateString()}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
+                  {currentProject ? null : (
                     <div className="text-xs text-theme-muted">
                       {sortedProjects.length > 0
                         ? "Choose a project from the menu above."
@@ -4078,11 +4043,9 @@ function OpenCodeChatTUI() {
                 </div>
               </div>
 
-              <Separator className="my-3" />
-
               {/* Sessions Section */}
-              <div className="flex flex-col flex-1 min-h-0">
-                <div className="flex justify-between items-center mb-2 gap-2">
+              <div className="flex flex-col flex-1 min-h-0 mt-2">
+                <div className="flex justify-between items-center mb-2 gap-2 p-2 bg-theme-background-alt rounded">
                   <h3 className="text-sm font-medium">Sessions</h3>
                   <div className="flex gap-2">
                     <Button
@@ -4109,11 +4072,10 @@ function OpenCodeChatTUI() {
                     </Button>
                   </div>
                 </div>
-                <Separator className="mb-2" />
                 
                 {/* Mobile Search Input */}
                 {currentProject && (
-                  <div className="mb-2">
+                  <div className="mt-2">
                     <SessionSearchInput
                       value={sessionSearchQuery}
                       onChange={setSessionSearchQuery}
@@ -4951,7 +4913,7 @@ function OpenCodeChatTUI() {
                     <div className="relative w-full">
                       <Button
                         variant="foreground0"
-                        box="square"
+                    box="round"
                         size="large"
                         onClick={handleAbort}
                         disabled={abortInFlight}
