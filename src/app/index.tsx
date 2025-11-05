@@ -751,6 +751,7 @@ function OpenCodeChatTUI() {
     setCurrentPermission,
     shouldBlurEditor,
     setShouldBlurEditor,
+    respondToPermission,
     currentSessionTodos,
     config,
     commands,
@@ -5874,9 +5875,9 @@ function OpenCodeChatTUI() {
             setCurrentPermission(null);
             setShouldBlurEditor(false);
           }}
-          onRespond={async (response: boolean) => {
+          onRespond={async (response) => {
             if (currentPermission?.id && currentSession?.id) {
-              await openCodeService.respondToPermission(
+              await respondToPermission(
                 currentSession.id,
                 currentPermission.id,
                 response,

@@ -4,7 +4,21 @@ import {
   OpencodeEvent,
   SSEConnectionState,
 } from "./opencode-events";
-import type { Agent, Part, McpStatusResponse, McpServerStatus } from "../types/opencode";
+import type {
+  Agent,
+  Part,
+  McpStatusResponse,
+  McpServerStatus,
+  Todo,
+  PermissionResponse,
+  SessionDiffResponse,
+  SessionForkResponse,
+  TuiEvent,
+  TuiControlRequest,
+  TuiControlResponse,
+  LspStatus,
+  FormatterStatus,
+} from "../types/opencode";
 
 const isDevMode = process.env.NODE_ENV !== "production";
 const devLog = (...args: unknown[]) => {
@@ -13,6 +27,28 @@ const devLog = (...args: unknown[]) => {
 const devError = (...args: unknown[]) => {
   if (isDevMode) console.error(...args);
 };
+
+type LogLevel = "info" | "error" | "debug" | "warn";
+
+interface SendMessageOptions {
+  providerID?: string;
+  modelID?: string;
+  directory?: string;
+  agent?: Agent;
+  parts?: Part[];
+  messageID?: string;
+  noReply?: boolean;
+  system?: string;
+  tools?: Record<string, unknown>;
+}
+
+interface RunCommandOptions {
+  args?: string[];
+  directory?: string;
+  agent?: string;
+  arguments?: unknown;
+  messageID?: string;
+}
 
 const isMcpStatus = (value: unknown): value is McpServerStatus =>
   value === "connected" || value === "failed";
@@ -57,11 +93,30 @@ export const openCodeService = {
 
   async log(
     message: string,
-    level: "info" | "error" | "debug" | "warn" = "info",
+    {
+      level = "info",
+      service = "opencode-web",
+      extra,
+      directory,
+    }: {
+      level?: LogLevel;
+      service?: string;
+      extra?: Record<string, unknown>;
+      directory?: string;
+    } = {},
   ) {
-    if (process.env.NODE_ENV !== "production")
-      console.log(`[${level.toUpperCase()}] ${message}`);
-    return { data: true, error: null };
+    if (isDevMode) {
+      console.log(`[${level.toUpperCase()}][${service}] ${message}`, extra ?? "");
+    }
+
+    try {
+      const response = await serverFns.logEvent({
+        data: { service, level, message, extra, directory },
+      });
+      return { data: response, error: null };
+    } catch (error) {
+      return { data: null, error: handleOpencodeError(error) };
+    }
   },
 
   async listProjects(directory?: string) {
@@ -128,15 +183,35 @@ export const openCodeService = {
   async sendMessage(
     sessionId: string,
     content: string,
-    providerID = "anthropic",
-    modelID = "claude-3-5-sonnet-20241022",
-    directory?: string,
-    agent?: Agent,
-    parts?: Part[],
+    options: SendMessageOptions = {},
   ) {
+    const {
+      providerID = "anthropic",
+      modelID = "claude-3-5-sonnet-20241022",
+      directory,
+      agent,
+      parts,
+      messageID,
+      noReply,
+      system,
+      tools,
+    } = options;
+
     try {
       const response = await serverFns.sendMessage({
-        data: { sessionId, content, providerID, modelID, directory, agent, parts },
+        data: {
+          sessionId,
+          content,
+          providerID,
+          modelID,
+          directory,
+          agent,
+          parts,
+          messageID,
+          noReply,
+          system,
+          tools,
+        },
       });
       return { data: response, error: null };
     } catch (error) {
@@ -149,6 +224,17 @@ export const openCodeService = {
       data: { sessionId, directory },
     });
     return { data: response };
+  },
+
+  async getSessionTodos(sessionId: string, directory?: string) {
+    try {
+      const response = await serverFns.getSessionTodos({
+        data: { sessionId, directory },
+      });
+      return { data: response as Todo[], error: null };
+    } catch (error) {
+      return { data: null, error: handleOpencodeError(error) };
+    }
   },
 
   async getSessions(directory?: string) {
@@ -256,6 +342,26 @@ export const openCodeService = {
     }
   },
 
+  async forkSession(
+    sessionId: string,
+    options: { messageID?: string; title?: string } = {},
+    directory?: string,
+  ) {
+    try {
+      const response = await serverFns.forkSession({
+        data: {
+          sessionId,
+          messageID: options.messageID,
+          title: options.title,
+          directory,
+        },
+      });
+      return { data: response, error: null };
+    } catch (error) {
+      return { data: null, error: handleOpencodeError(error) };
+    }
+  },
+
   async summarizeSession(
     sessionId: string,
     providerID: string,
@@ -290,12 +396,22 @@ export const openCodeService = {
   async sendCommand(
     sessionId: string,
     command: string,
-    args?: string[],
-    directory?: string,
+    options: RunCommandOptions = {},
   ) {
+    const { args, directory, agent, arguments: structuredArgs, messageID } =
+      options;
+
     try {
       const response = await serverFns.runCommand({
-        data: { sessionId, command, args, directory },
+        data: {
+          sessionId,
+          command,
+          args,
+          directory,
+          agent,
+          arguments: structuredArgs,
+          messageID,
+        },
       });
       return { data: response };
     } catch (error) {
@@ -306,13 +422,21 @@ export const openCodeService = {
   async runShell(
     sessionId: string,
     command: string,
-    args?: string[],
-    directory?: string,
-    agent?: string,
+    options: RunCommandOptions = {},
   ) {
+    const { args, directory, agent, arguments: structuredArgs, messageID } =
+      options;
     try {
       const response = await serverFns.runCommand({
-        data: { sessionId, command, args, directory, agent },
+        data: {
+          sessionId,
+          command,
+          args,
+          directory,
+          agent,
+          arguments: structuredArgs,
+          messageID,
+        },
       });
       return { data: response };
     } catch (error) {
@@ -324,10 +448,11 @@ export const openCodeService = {
     sessionId: string,
     messageID: string,
     directory?: string,
+    partID?: string,
   ) {
     try {
       const response = await serverFns.revertMessage({
-        data: { sessionId, messageID, directory },
+        data: { sessionId, messageID, directory, partID },
       });
       return { data: response };
     } catch (error) {
@@ -346,19 +471,10 @@ export const openCodeService = {
     }
   },
 
-  async searchText(pattern: string) {
+  async searchText(pattern: string, directory?: string) {
     try {
-      const response = await serverFns.findInFiles({ data: { pattern } });
-      return { data: response };
-    } catch (error) {
-      throw error;
-    }
-  },
-
-  async findFiles(query: string, directory?: string) {
-    try {
-      const response = await serverFns.findFiles({
-        data: { query, directory },
+      const response = await serverFns.findInFiles({
+        data: { pattern, directory },
       });
       return { data: response };
     } catch (error) {
@@ -366,9 +482,22 @@ export const openCodeService = {
     }
   },
 
-  async findSymbols(query: string) {
+  async findFiles(query: string, directory?: string, dirs?: boolean) {
     try {
-      const response = await serverFns.findSymbols({ data: { query } });
+      const response = await serverFns.findFiles({
+        data: { query, directory, dirs },
+      });
+      return { data: response };
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async findSymbols(query: string, directory?: string) {
+    try {
+      const response = await serverFns.findSymbols({
+        data: { query, directory },
+      });
       return { data: response };
     } catch (error) {
       throw error;
@@ -406,6 +535,24 @@ export const openCodeService = {
     }
   },
 
+  async getSessionDiff(
+    sessionId: string,
+    options: { directory?: string; messageID?: string } = {},
+  ) {
+    try {
+      const response = await serverFns.getSessionDiff({
+        data: {
+          sessionId,
+          directory: options.directory,
+          messageID: options.messageID,
+        },
+      });
+      return { data: response as SessionDiffResponse, error: null };
+    } catch (error) {
+      return { data: null, error: handleOpencodeError(error) };
+    }
+  },
+
   async appendPrompt(text: string) {
     try {
       const response = await serverFns.appendPrompt({ data: { text } });
@@ -415,33 +562,81 @@ export const openCodeService = {
     }
   },
 
-  async openHelp() {
+  async openHelp(directory?: string) {
     try {
-      return { data: true };
+      const response = await serverFns.openTuiHelp({
+        data: directory ? { directory } : {},
+      });
+      return { data: response };
     } catch (error) {
       throw error;
     }
   },
 
-  async openSessions() {
+  async openSessions(directory?: string) {
     try {
-      return { data: true };
+      const response = await serverFns.openTuiSessions({
+        data: directory ? { directory } : {},
+      });
+      return { data: response };
     } catch (error) {
       throw error;
     }
   },
 
-  async openThemes() {
+  async openThemes(directory?: string) {
     try {
-      return { data: true };
+      const response = await serverFns.openTuiThemes({
+        data: directory ? { directory } : {},
+      });
+      return { data: response };
     } catch (error) {
       throw error;
     }
   },
 
-  async openModels() {
+  async openModels(directory?: string) {
     try {
-      return { data: true };
+      const response = await serverFns.openTuiModels({
+        data: directory ? { directory } : {},
+      });
+      return { data: response };
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async publishTuiEvent(event: TuiEvent, directory?: string) {
+    try {
+      const response = await serverFns.publishTuiEvent({
+        data: { event, directory },
+      });
+      return { data: response };
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async getNextTuiControlRequest(directory?: string) {
+    try {
+      const response = await serverFns.getNextTuiControlRequest({
+        data: directory ? { directory } : {},
+      });
+      return { data: response as TuiControlRequest | null };
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async respondToTuiControl(
+    tuiResponse: TuiControlResponse,
+    directory?: string,
+  ) {
+    try {
+      const response = await serverFns.respondToTuiControl({
+        data: { response: tuiResponse, directory },
+      });
+      return { data: response };
     } catch (error) {
       throw error;
     }
@@ -615,7 +810,7 @@ export const openCodeService = {
   async respondToPermission(
     sessionId: string,
     permissionId: string,
-    permissionResponse: boolean,
+    permissionResponse: PermissionResponse,
     directory?: string,
   ) {
     try {
@@ -662,6 +857,28 @@ export const openCodeService = {
       return { data: normalized };
     } catch (error) {
       devError("Error in getMcpStatus:", error);
+      throw error;
+    }
+  },
+
+  async getLspStatus(directory?: string) {
+    try {
+      const response = await serverFns.getLspStatus({
+        data: directory ? { directory } : {},
+      });
+      return { data: response as LspStatus[] };
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async getFormatterStatus(directory?: string) {
+    try {
+      const response = await serverFns.getFormatterStatus({
+        data: directory ? { directory } : {},
+      });
+      return { data: response as FormatterStatus[] };
+    } catch (error) {
       throw error;
     }
   },
