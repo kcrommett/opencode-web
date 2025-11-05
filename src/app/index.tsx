@@ -618,7 +618,15 @@ function OpenCodeChatTUI() {
     }
     return true;
   });
+  const [rightSidebarWidth, setRightSidebarWidth] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("opencode-right-sidebar-width");
+      return stored ? parseInt(stored, 10) : 320;
+    }
+    return 320;
+  });
   const [isResizing, setIsResizing] = useState(false);
+  const [isRightResizing, setIsRightResizing] = useState(false);
   const isMobile = useIsMobile();
 
   const selectedFileName = selectedFile?.split("/").pop() ?? null;
@@ -1510,6 +1518,11 @@ function OpenCodeChatTUI() {
     setIsResizing(true);
   };
 
+  const handleRightResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsRightResizing(true);
+  };
+
   useEffect(() => {
     if (!isResizing) return;
 
@@ -1533,6 +1546,32 @@ function OpenCodeChatTUI() {
       document.removeEventListener("mouseup", handleMouseUp);
     };
   }, [isResizing]);
+
+  useEffect(() => {
+    if (!isRightResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = window.innerWidth - e.clientX;
+      if (newWidth >= 200 && newWidth <= 600) {
+        setRightSidebarWidth(newWidth);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("opencode-right-sidebar-width", newWidth.toString());
+        }
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsRightResizing(false);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isRightResizing]);
 
   useEffect(() => {
     if (
@@ -5133,10 +5172,19 @@ function OpenCodeChatTUI() {
         {isStatusSidebarOpen && (
           <View
             box="square"
-            className="hidden md:flex flex-col bg-theme-background-alt border-l border-theme-border"
-            style={{ width: "320px" }}
+            className="hidden md:flex flex-col p-4 bg-theme-background-alt relative"
+            style={{ width: `${rightSidebarWidth}px` }}
           >
-            <div className="flex items-center justify-between px-4 py-2">
+            <div
+              className="absolute top-0 left-0 w-1 h-full cursor-col-resize hover:bg-theme-primary transition-colors z-10"
+              onMouseDown={handleRightResizeStart}
+              style={{
+                backgroundColor: isRightResizing
+                  ? "var(--theme-primary)"
+                  : "transparent",
+              }}
+            />
+            <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-medium">Info</h3>
               <Button
                 variant="foreground1"
@@ -5147,14 +5195,10 @@ function OpenCodeChatTUI() {
                 Refresh
               </Button>
             </div>
-            <Separator />
-            <div className="flex-1 overflow-y-auto space-y-3 px-4 py-3">
+            <div className="flex-1 overflow-y-auto space-y-2">
               <SessionContextPanel />
-              <Separator />
               <McpStatusPanel />
-              <Separator />
               <ModifiedFilesPanel onFileClick={handleFileSelect} />
-              <Separator />
               <LspStatusPanel />
             </div>
           </View>
