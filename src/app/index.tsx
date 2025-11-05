@@ -3466,8 +3466,7 @@ function OpenCodeChatTUI() {
                 {/* Projects Section */}
                 <div className="flex flex-col flex-shrink-0">
                   <View
-                    box="square"
-                    className="p-2 mb-2 bg-theme-background-alt"
+                    className="p-1 mb-1 bg-theme-background-alt"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <h3 className="text-sm font-medium">Projects</h3>
@@ -3517,8 +3516,7 @@ function OpenCodeChatTUI() {
                 {/* Sessions Section */}
                 <div className="flex flex-col flex-1 min-h-0 mt-2">
                   <View
-                    box="square"
-                    className="p-2 mb-2 bg-theme-background-alt"
+                    className="p-1 mb-1 bg-theme-background-alt"
                   >
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-1">
@@ -3575,7 +3573,7 @@ function OpenCodeChatTUI() {
                   ) : (
                     <>
                       {/* Sidebar Search Input */}
-                      <div className="mt-2">
+                      <div className="mt-2 mb-2">
                         <SessionSearchInput
                           ref={workspaceSessionSearchInputRef}
                           value={sessionSearchQuery}
@@ -3994,7 +3992,7 @@ function OpenCodeChatTUI() {
             <div className="h-full flex flex-col gap-4 overflow-hidden">
               {/* Projects Section */}
               <div className="flex flex-col flex-shrink-0">
-                <div className="flex items-center justify-between mb-2 gap-2 p-2 bg-theme-background-alt rounded">
+                <div className="flex items-center justify-between mb-1 gap-2 p-1 bg-theme-background-alt rounded">
                   <h3 className="text-sm font-medium">Projects</h3>
                   <div className="flex gap-2 flex-shrink-0">
                     <Button
@@ -4045,7 +4043,7 @@ function OpenCodeChatTUI() {
 
               {/* Sessions Section */}
               <div className="flex flex-col flex-1 min-h-0 mt-2">
-                <div className="flex justify-between items-center mb-2 gap-2 p-2 bg-theme-background-alt rounded">
+                <div className="flex justify-between items-center mb-1 gap-2 p-1 bg-theme-background-alt rounded">
                   <h3 className="text-sm font-medium">Sessions</h3>
                   <div className="flex gap-2">
                     <Button
@@ -4075,7 +4073,7 @@ function OpenCodeChatTUI() {
                 
                 {/* Mobile Search Input */}
                 {currentProject && (
-                  <div className="mt-2">
+                  <div className="mt-2 mb-2">
                     <SessionSearchInput
                       value={sessionSearchQuery}
                       onChange={setSessionSearchQuery}
