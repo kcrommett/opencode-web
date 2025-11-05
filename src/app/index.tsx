@@ -3453,13 +3453,11 @@ function OpenCodeChatTUI() {
             onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
           />
           <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto scrollbar-hide">
-            <Badge
-              variant="foreground0"
-              cap="square"
-              className="whitespace-nowrap flex-shrink-0 badge-title"
-            >
-              oc web
-            </Badge>
+            <img 
+              src="/ocweb-logo.png" 
+              alt="OC Web" 
+              className="h-8 flex-shrink-0"
+            />
           </div>
           <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
             <SidebarTabs
@@ -4480,14 +4478,14 @@ function OpenCodeChatTUI() {
                       >
                         {currentProject && !currentSession ? (
                           <img
-                            src="/assets/ocweb-logo.png"
+                            src="/ocweb-logo.png"
                             alt="OC Web logo"
                             className="mx-auto mb-4 h-24 w-auto"
                           />
                         ) : (
                           <>
                              <img
-                              src="/assets/ocweb-logo.png"
+                              src="/ocweb-logo.png"
                               alt="OC Web logo"
                               className="mx-auto mb-6 h-16 w-auto"
                             />
@@ -4750,14 +4748,11 @@ function OpenCodeChatTUI() {
                     {currentSessionBusy && (
                       <>
                         <span className="text-theme-muted">•</span>
-                        <Badge
-                          variant="foreground0"
-                          cap="square"
-                          className="flex items-center gap-1 animate-pulse"
-                        >
-                          <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
-                          Agent running {!isMobile && "(ESC to stop)"}
-                        </Badge>
+            <img 
+              src="/ocweb-logo.png" 
+              alt="OC Web" 
+              className="h-6 flex-shrink-0"
+            />
                       </>
                     )}
                     {sessionTokenStats.totalTokens > 0 && isMobile && (
