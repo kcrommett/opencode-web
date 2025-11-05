@@ -3,7 +3,6 @@ import { useOpenCodeContext } from "@/contexts/OpenCodeContext";
 import { Badge } from "./badge";
 import { StatusBadge } from "./status-badge";
 import { Button } from "./button";
-import { Separator } from "./separator";
 
 export const SessionContextPanel: React.FC = () => {
   const { sidebarStatus, currentSession, sseConnectionState, isConnected } = useOpenCodeContext();
@@ -100,7 +99,7 @@ export const SessionContextPanel: React.FC = () => {
 
   return (
     <div className="p-4 space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-medium">Session Context</h3>
         <Button
           variant="foreground1"
@@ -112,8 +111,6 @@ export const SessionContextPanel: React.FC = () => {
           Copy ID
         </Button>
       </div>
-
-      <Separator />
 
       <div className="space-y-3">
         {/* Session ID and Title */}

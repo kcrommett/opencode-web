@@ -1,7 +1,6 @@
 import React, { useMemo } from "react";
 import { useOpenCodeContext } from "@/contexts/OpenCodeContext";
 import { Button } from "./button";
-import { Separator } from "./separator";
 import { McpStatus } from "./mcp-status";
 
 export const McpStatusPanel: React.FC = () => {
@@ -23,8 +22,8 @@ export const McpStatusPanel: React.FC = () => {
   }, [mcpStatus]);
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="p-4 space-y-3">
+      <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-medium">MCP Servers</h3>
         <Button
           variant="foreground1"
@@ -35,8 +34,6 @@ export const McpStatusPanel: React.FC = () => {
           Refresh
         </Button>
       </div>
-
-      <Separator />
 
       <McpStatus
         mcpStatus={mcpStatus}
