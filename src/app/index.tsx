@@ -3424,6 +3424,7 @@ function OpenCodeChatTUI() {
               ]}
               activeTab={activeTab}
               onTabChange={handleTabChange}
+              isOpen={isLeftSidebarOpen}
             />
             <Button
               variant={isStatusSidebarOpen ? "foreground0" : "foreground1"}
@@ -4024,6 +4025,7 @@ function OpenCodeChatTUI() {
               ]}
               activeTab={activeTab}
               onTabChange={handleTabChange}
+              isOpen={true}
             />
           </div>
 
