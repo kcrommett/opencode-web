@@ -531,7 +531,12 @@ export const openCodeService = {
       });
       return { data: response };
     } catch (error) {
-      throw error;
+      // The /file/status endpoint is broken in some OpenCode server versions
+      // Return empty array instead of throwing to prevent app crashes
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[OpenCode Client] /file/status endpoint failed (this is non-critical):', error);
+      }
+      return { data: [] };
     }
   },
 

@@ -912,9 +912,12 @@ export function useOpenCode() {
         }));
       }
     } catch (error) {
+      // Silently fail for now - the /file/status endpoint appears to be broken
+      // in some OpenCode server versions. Just log in dev mode.
       if (isDevEnvironment) {
-        console.error("Failed to refresh git status:", error);
+        console.warn("[Git Status] Failed to fetch git status (this is non-critical):", error);
       }
+      // Keep existing empty state instead of showing error to user
     }
   }, [currentProject?.worktree]);
 
