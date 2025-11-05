@@ -18,8 +18,11 @@ export const Pre: React.FC<PreProps> = ({
     preProps[`data-size`] = size;
   }
 
+  // Ensure proper width constraints and overflow handling
+  const combinedClassName = `max-w-full ${className}`;
+
   return (
-    <pre is-="pre" className={className} {...preProps} {...props}>
+    <pre is-="pre" className={combinedClassName} {...preProps} {...props}>
       {children}
     </pre>
   );

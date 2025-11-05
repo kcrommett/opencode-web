@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Chat window overflow when right sidebar is resized (#123)
+  - Chat messages now properly wrap and reflow when sidebar widths change
+  - Message bubbles, diffs, and file previews respect available width
+  - Sidebar drag handles prevent resizing beyond minimum chat width (320px)
+  - Applied `min-w-0` and `overflow-hidden` to all flex containers
+  - Enhanced `Pre`, `DiffPart`, `FilePart`, and `PatchPart` components with proper width constraints
+
 ### Added
 - Windows `bunx` limitation detection and graceful error handling
   - Automatically detects when running via `bunx` on Windows
