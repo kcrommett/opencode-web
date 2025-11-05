@@ -640,15 +640,15 @@ function OpenCodeChatTUI() {
   // Calculate available width for chat column
   const availableChatWidth = useMemo(() => {
     if (isMobile) {
-      // On mobile, full width minus padding
+      // On mobile, keep a bit of breathing room for page padding
       return Math.max(320, viewportWidth - 32);
     }
-    
+
     const leftSidebarUsed = isLeftSidebarOpen ? sidebarWidth : 0;
     const rightSidebarUsed = isStatusSidebarOpen ? rightSidebarWidth : 0;
-    const gutters = 32; // padding and gaps
-    
-    return Math.max(320, viewportWidth - leftSidebarUsed - rightSidebarUsed - gutters);
+
+    // Fill the remaining desktop width so sidebars stay flush with the edges
+    return Math.max(320, viewportWidth - leftSidebarUsed - rightSidebarUsed);
   }, [viewportWidth, sidebarWidth, rightSidebarWidth, isLeftSidebarOpen, isStatusSidebarOpen, isMobile]);
 
   const selectedFileName = selectedFile?.split("/").pop() ?? null;

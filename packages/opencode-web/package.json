@@ -44,7 +44,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@opencode-ai/sdk": "^1.0.23",
+    "@opencode-ai/sdk": "^1.0.24",
     "@tanstack/react-router": "^1.132.25",
     "@tanstack/react-start": "^1.132.25",
     "@webtui/css": "^0.1.5",
