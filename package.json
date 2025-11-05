@@ -1,6 +1,6 @@
 {
   "name": "opencode-web",
-  "version": "0.4.0",
+  "version": "0.5.7",
   "private": true,
   "type": "module",
   "packageManager": "bun@1.3.0",
@@ -54,5 +54,13 @@
     "vite-plugin-pwa": "^1.0.3",
     "vite-tsconfig-paths": "^5.1.4",
     "workbox-window": "^7.3.0"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-win32-arm64-msvc": "4.52.5",
+    "@rollup/rollup-win32-x64-msvc": "4.52.5",
+    "@tailwindcss/oxide-win32-arm64-msvc": "4.1.16",
+    "@tailwindcss/oxide-win32-x64-msvc": "4.1.16",
+    "lightningcss-win32-arm64-msvc": "1.30.2",
+    "lightningcss-win32-x64-msvc": "1.30.2"
   }
 }

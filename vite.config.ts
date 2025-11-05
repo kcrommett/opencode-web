@@ -28,8 +28,21 @@ export default defineConfig(({ mode }) => {
   // Handle reverse proxy base path
   const basePath = env.VITE_BASE_PATH || "";
 
+  const transformerEnv =
+    env.OPENCODE_WEB_CSS_TRANSFORMER || env.VITE_CSS_TRANSFORMER;
+  const normalizedTransformer = transformerEnv?.toLowerCase();
+  const cssTransformer =
+    normalizedTransformer === "postcss"
+      ? "postcss"
+      : normalizedTransformer === "lightningcss"
+        ? "lightningcss"
+        : "postcss";
+
   return {
     base: basePath,
+    css: {
+      transformer: cssTransformer,
+    },
     server: {
       port: Number(env.PORT) || 3000,
       allowedHosts,

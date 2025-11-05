@@ -121,10 +121,57 @@ Because the browser only ever talks to `/api/events` on the same origin, we avoi
 
 | Symptom | Likely Cause | What to Check |
 | --- | --- | --- |
-| `ECONNREFUSED` from `/api/events` | Upstream server isn’t running or URL is wrong | Verify `VITE_OPENCODE_SERVER_URL`/`OPENCODE_SERVER_URL`, ensure CLI-launched server is online |
+| `ECONNREFUSED` from `/api/events` | Upstream server isn't running or URL is wrong | Verify `VITE_OPENCODE_SERVER_URL`/`OPENCODE_SERVER_URL`, ensure CLI-launched server is online |
 | Hydration mismatch where `window.__OPENCODE_CONFIG__` differs | Server and client resolved different URLs | Make sure `getClientOpencodeConfig()` uses the same helper as `getOpencodeServerUrl()` (fixed in this session) |
 | SSE errors right after dev server starts | Vite proxy still pointing at default `http://localhost:4096` | Confirm `.env.local` values are loaded; with recent changes `loadEnv` syncs into `process.env` |
 | 500 with `[SSE Proxy] Warning…` | We intentionally reject when upstream URL is missing | Set `VITE_OPENCODE_SERVER_URL` (and `OPENCODE_SERVER_URL` if runtime override is needed) |
+| **Windows + bunx**: `error: interpreter executable "/bin/sh" not found` | Cannot launch bundled server via bunx on Windows | Use `--external-server http://127.0.0.1:4096` or install locally. See [Windows + bunx Limitation](../README.md#windows--bunx-limitation) |
+
+### Windows-Specific Troubleshooting
+
+When using opencode-web on Windows, the `/api/events` proxy depends on a reachable OpenCode server. Due to Bun's `/bin/sh` limitation, `bunx opencode-web` cannot auto-launch the bundled server.
+
+**Required Setup for Windows + bunx:**
+
+1. **Start an external OpenCode server** in a separate terminal:
+   ```powershell
+   # Ensure OpenCode CLI is installed
+   # Download from: https://github.com/opencode-ai/opencode
+   
+   # Start the server on default port
+   opencode serve --hostname=127.0.0.1 --port=4096
+   ```
+
+2. **Point opencode-web to the external server:**
+   ```powershell
+   bunx opencode-web@latest --external-server http://127.0.0.1:4096
+   ```
+
+3. **Verify the connection:**
+   - The web UI should connect automatically
+   - Check browser DevTools Network tab for `/api/events` requests
+   - Look for SSE events flowing in the Network tab (event stream)
+
+**If SSE proxy still fails on Windows:**
+
+- **Check server URL**: Use `127.0.0.1` instead of `localhost` (Windows networking quirk)
+- **Firewall**: Ensure Windows Firewall allows localhost connections on port 4096
+- **Port conflicts**: If 4096 is in use, start the server on a different port:
+  ```powershell
+  opencode serve --hostname=127.0.0.1 --port=4097
+  bunx opencode-web@latest --external-server http://127.0.0.1:4097
+  ```
+- **Test server health**: Visit `http://127.0.0.1:4096/health` in your browser
+
+**Local Install (Recommended for Windows):**
+
+Installing locally avoids the bunx limitation entirely:
+```powershell
+bun install opencode-web
+bun run opencode-web
+```
+
+With a local install, the bundled server launches automatically on Windows.
 
 ## Environment Variable Recipes
 

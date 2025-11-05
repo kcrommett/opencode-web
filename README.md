@@ -54,7 +54,13 @@ opencode-web
 curl -sSL https://raw.githubusercontent.com/kcrommett/opencode-web/main/install.sh | bash
 ```
 
-Once started, open **http://localhost:3000** in your browser. The CLI launches a local OpenCode Server through the OpenCode SDK by default and wires its URL into the web client automatically. Use the command-line flags to connect to an existing server or adjust the listening host/port without touching environment variables.
+Once started, open **http://localhost:3000** in your browser. The CLI launches a local OpenCode Server by default and wires its URL into the web client automatically. Use the command-line flags to connect to an existing server or adjust the listening host/port without touching environment variables.
+
+**Platform Notes:**
+- On **Windows**, opencode-web uses your locally installed `opencode` CLI from PATH. 
+  - ⚠️ **`bunx` limitation**: Cannot auto-launch the bundled server due to Bun's `/bin/sh` issue. Use `--external-server` or install locally. [See details](#windows--bunx-limitation)
+  - ✅ **Local install**: Works perfectly with automatic server launch
+- On **macOS/Linux**, opencode-web uses the bundled OpenCode SDK server (no additional installation required).
 
 > **⚠️ Security Warning**: This application runs without authentication by default. Do not expose it directly to the internet without proper security measures. For secure remote access, consider using Cloudflare Access with Cloudflare Tunnel to add authentication and protect your instance.
 
@@ -192,6 +198,131 @@ Progressive Web App hooks keep the client a tap away with full-screen, app-like 
    - Proxies `/api/events` to your OpenCode server for SSE streaming
 
 Set `PORT`, `OPENCODE_SERVER_URL`, `VITE_OPENCODE_SERVER_URL`, or `NODE_ENV` to customize runtime behavior. The server URL is resolved at runtime using the precedence order.
+
+### Windows Build Troubleshooting
+
+If you encounter `Cannot find module` errors when building on Windows (e.g., `@rollup/rollup-win32-x64-msvc` or `@tailwindcss/oxide-win32-x64-msvc`):
+
+1. **Clear node_modules and reinstall:**
+   ```bash
+   rm -rf node_modules
+   bun install
+   ```
+   
+   These errors occur when lockfiles created on Linux/macOS omit Windows-specific platform binaries. The project now explicitly includes Windows binaries in `optionalDependencies` to prevent this issue ([npm/cli#4828](https://github.com/npm/cli/issues/4828)).
+
+2. **If the error persists after reinstalling**, ensure you're using the latest version of the repository with updated lockfiles that include:
+   - `@rollup/rollup-win32-x64-msvc` (64-bit Intel/AMD)
+   - `@rollup/rollup-win32-arm64-msvc` (64-bit ARM, e.g., Surface devices)
+   - `@tailwindcss/oxide-win32-x64-msvc` (64-bit Intel/AMD)
+   - `@tailwindcss/oxide-win32-arm64-msvc` (64-bit ARM, e.g., Surface devices)
+
+### Windows + bunx Limitation
+
+> ⚠️ **Important**: `bunx opencode-web` on Windows cannot automatically launch the bundled OpenCode Server due to a Bun runtime limitation with `/bin/sh` remapping. You must either use an external server or install locally.
+
+#### The Issue
+
+When running `bunx opencode-web@latest` on Windows, the bundled OpenCode Server fails to start with:
+```
+error: interpreter executable "/bin/sh" not found in %PATH%
+[ERROR] Failed to start OpenCode Server.
+```
+
+This happens because:
+- `bunx` creates temporary installations that don't properly install the Windows OpenCode binary
+- Bun's current Windows implementation cannot find `/bin/sh` when spawning the bundled server process
+- The bundled server requires the `opencode` CLI, which fails under these conditions
+
+#### Recommended Workarounds
+
+**Option 1: Use an External OpenCode Server** (Easiest for `bunx`)
+
+First, start an OpenCode server separately:
+```powershell
+# Install OpenCode CLI globally if you haven't already
+# Download from: https://github.com/opencode-ai/opencode
+
+# Start the server
+opencode serve --hostname=127.0.0.1 --port=4096
+```
+
+Then run opencode-web pointing to it:
+```powershell
+bunx opencode-web@latest --external-server http://127.0.0.1:4096
+```
+
+**Option 2: Install Locally** (Recommended for regular use)
+
+Install the package locally so Windows binaries are properly resolved:
+
+```powershell
+# Create a directory and install
+mkdir my-opencode-web
+cd my-opencode-web
+bun install opencode-web
+
+# IMPORTANT: Run the binary directly on Windows
+bun run packages/opencode-web/bin/opencode-web.js
+```
+
+Or install globally:
+```powershell
+bun add -g opencode-web
+# Then run the binary directly
+opencode-web
+```
+
+**⚠️ Important Note for Windows**: When installing locally, you must run the binary directly (`bun run packages/opencode-web/bin/opencode-web.js`) rather than using the npm script (`bun run opencode-web`). The npm script may still encounter the same `/bin/sh` limitation. Running the binary directly ensures proper Windows binary resolution.
+
+**Option 3: Build from Source** (For contributors or advanced users)
+
+```powershell
+git clone https://github.com/sst/opencode-web
+cd opencode-web
+bun install
+bun run build
+bun run packages/opencode-web/bin/opencode-web.js
+```
+
+#### Other Platforms
+
+This limitation only affects **Windows users running via `bunx`**:
+- ✅ **macOS/Linux + bunx**: Works perfectly (uses bundled SDK)
+- ✅ **Windows + local install**: Works perfectly (proper binary resolution)
+- ⚠️ **Windows + bunx**: Requires `--external-server` flag
+
+#### Technical Details
+
+The CLI detects `bunx` on Windows and exits early with actionable guidance. If you see the error, it means:
+1. You're on Windows
+2. Running from a `bunx` temporary directory
+3. No `--external-server` flag was provided
+
+For more information about this Bun limitation, see:
+- **Bun issue tracking**: [oven-sh/bun#issues](https://github.com/oven-sh/bun/issues) (to be filed - search for "/bin/sh Windows")
+- **OpenCode upstream**: [sst/opencode#issues](https://github.com/sst/opencode/issues) (to be filed - search for "Windows bunx")
+- **OpenCode Server**: https://github.com/sst/opencode
+
+#### Troubleshooting
+
+If you encounter errors even with `--external-server`:
+
+1. **Verify the server is running**:
+   ```powershell
+   # Test the server URL
+   curl http://127.0.0.1:4096/health
+   ```
+
+2. **Check firewall settings**: Ensure localhost connections are allowed
+
+3. **Try a different port**: If 4096 is in use, start the server on another port:
+   ```powershell
+   opencode serve --hostname=127.0.0.1 --port=4097
+   bunx opencode-web@latest --external-server http://127.0.0.1:4097
+   ```
+
+4. **Use host IP instead of localhost**: Sometimes `127.0.0.1` works better than `localhost` on Windows
 
 ## Project Structure
 

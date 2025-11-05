@@ -15,11 +15,9 @@ export const McpStatusPanel: React.FC = () => {
   const summary = useMemo(() => {
     const entries = Object.values(mcpStatus ?? {});
     const connected = entries.filter((status) => status === "connected").length;
-    const disabled = entries.filter((status) => status === "disabled").length;
     const failed = entries.filter((status) => status === "failed").length;
     return {
       connected,
-      disabled,
       failed,
     };
   }, [mcpStatus]);
@@ -49,7 +47,6 @@ export const McpStatusPanel: React.FC = () => {
 
       <div className="flex items-center justify-center gap-4 text-xs text-theme-muted">
         <span>{summary.connected} connected</span>
-        <span>{summary.disabled} disabled</span>
         <span>{summary.failed} failed</span>
       </div>
     </div>

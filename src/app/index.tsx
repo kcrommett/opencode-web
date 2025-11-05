@@ -21,6 +21,7 @@ import {
   InstallPrompt,
   PWAReloadPrompt,
   Checkbox,
+  Spinner,
 
 } from "@/app/_components/ui";
 import { SidebarTabs } from "@/app/_components/ui/sidebar-tabs";
@@ -38,6 +39,7 @@ import { SessionSearchInput } from "@/app/_components/ui/session-search";
 import { ProjectPicker } from "@/app/_components/ui/project-picker";
 import { PermissionModal } from "@/app/_components/ui/permission-modal";
 import { MessagePart } from "@/app/_components/message";
+import { GENERIC_TOOL_TEXTS } from "@/app/_components/message/TextPart";
 import { ImagePreview } from "@/app/_components/ui/image-preview";
 import { PrettyDiff } from "@/app/_components/message/PrettyDiff";
 import type {
@@ -75,14 +77,30 @@ import { useIsMobile } from "@/lib/breakpoints";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { KeyboardIndicator } from "@/app/_components/ui";
 import "highlight.js/styles/github-dark.css";
+import { getFeatureFlags } from "@/lib/config";
+import { MarkdownRenderer } from "@/lib/markdown";
 
 const MAX_IMAGE_SIZE_MB = 10;
+
+type FileViewMode = "code" | "preview" | "diff";
 
 // Commands that open pickers when executed
 const PICKER_COMMANDS = ["models", "agents", "themes", "sessions"];
 
 // Commands that take no arguments and execute immediately
 const NO_ARG_COMMANDS = ["new", "clear", "undo", "redo", "share", "unshare", "init", "compact", "details", "export", "help"];
+
+const RENDERABLE_PART_TYPES = new Set([
+  "text",
+  "reasoning",
+  "tool",
+  "file",
+  "step-start",
+  "step-finish",
+  "patch",
+  "agent",
+  "snapshot",
+]);
 
 // UUID generator with fallback for environments without crypto.randomUUID
 const generateClientId = (): string => {
@@ -374,10 +392,10 @@ function ThemePickerDialog({
 
   return (
     <Dialog open={true} onClose={onClose}>
-      <View
-        box="square"
-        className="p-6 max-w-md w-full max-h-[80vh] overflow-hidden bg-theme-background text-theme-foreground"
-      >
+                  <View
+                    box="round"
+                    className="p-2 mb-2 bg-theme-background-alt"
+                  >
         <h2 className="text-lg font-bold mb-4">Select Theme</h2>
         <Separator className="mb-4" />
 
@@ -482,10 +500,16 @@ export const Route = createFileRoute("/")({
 
 function OpenCodeChatTUI() {
   const [input, setInput] = useState("");
+  const [isMultilineMode, setIsMultilineMode] = useState(false);
+  const [multilineInput, setMultilineInput] = useState("");
   const [imageAttachments, setImageAttachments] = useState<ImageAttachment[]>([]);
   const [isHandlingImageUpload, setIsHandlingImageUpload] = useState(false);
   const [isDraggingOverInput, setIsDraggingOverInput] = useState(false);
   const [newSessionTitle, setNewSessionTitle] = useState("");
+  // Message history navigation state
+  const [messageHistoryIndex, setMessageHistoryIndex] = useState(-1);
+  const [isNavigatingHistory, setIsNavigatingHistory] = useState(false);
+  const [draftBeforeHistory, setDraftBeforeHistory] = useState("");
   const [showNewProjectForm, setShowNewProjectForm] = useState(false);
   const [newProjectDirectory, setNewProjectDirectory] = useState("");
   const closeNewProjectDialog = () => {
@@ -505,6 +529,7 @@ function OpenCodeChatTUI() {
   const [selectedMobileSessionIds, setSelectedMobileSessionIds] = useState<
     Set<string>
   >(new Set());
+  const [isRefreshingSessions, setIsRefreshingSessions] = useState(false);
   const lastEscTimeRef = useRef<number>(0);
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== "undefined") {
@@ -531,7 +556,7 @@ function OpenCodeChatTUI() {
   });
   const [fileContent, setFileContent] = useState<FileContentData | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [showFileDiff, setShowFileDiff] = useState(false);
+  const [fileViewMode, setFileViewMode] = useState<FileViewMode>("code");
   const [mentionSuggestions, setMentionSuggestions] = useState<
     MentionSuggestion[]
   >([]);
@@ -567,6 +592,7 @@ function OpenCodeChatTUI() {
   const inputRef = useRef<HTMLInputElement>(null);
   const sessionPickerEditControls =
     useRef<SessionPickerEditControls | null>(null);
+  const isHistoryNavigationRef = useRef(false);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("opencode-sidebar-width");
@@ -713,68 +739,38 @@ function OpenCodeChatTUI() {
     sidebarStatus,
   } = useOpenCodeContext();
   const { currentTheme, changeTheme } = useTheme(config?.theme);
+  const featureFlags = useMemo(() => getFeatureFlags(config), [config]);
+  const selectedFileIsMarkdown =
+    !!selectedFile &&
+    (detectLanguage(selectedFile) === "markdown" ||
+      fileContent?.mimeType?.toLowerCase() === "text/markdown");
+  const canPreviewMarkdown =
+    featureFlags.enableMarkdown &&
+    selectedFileIsMarkdown &&
+    !!fileContent?.text;
 
-  // MCP status aggregation for header badge
-  const mcpAggregated = useMemo(() => {
-    const { mcpStatus, mcpStatusLoading, mcpStatusError } = sidebarStatus;
-    
-    // Only show loading state if we don't have existing status data
-    // This prevents flash when refreshing with existing data
-    if (mcpStatusLoading && !mcpStatus) {
-      return {
-        colorClass: 'bg-yellow-500',
-        badgeVariant: 'foreground1' as const,
-        text: 'MCP…',
-        title: 'Loading MCP status...'
-      };
-    }
-    if (mcpStatusError && !mcpStatus) {
-      return {
-        colorClass: 'bg-red-500',
-        badgeVariant: 'foreground0' as const,
-        text: 'MCP Error',
-        title: `MCP status error: ${mcpStatusError}`
-      };
-    }
-    if (!mcpStatus) {
-      return {
-        colorClass: 'bg-gray-400',
-        badgeVariant: 'foreground1' as const,
-        text: 'MCP (0 Connected)',
-        title: 'No MCP servers reported'
-      };
-    }
-    const entries = Object.entries(mcpStatus);
-    let connected = 0;
-    let failed = 0;
-    let disabled = 0;
-    for (const [, value] of entries) {
-      if (value === 'connected') connected++;
-      else if (value === 'failed') failed++;
-      else if (value === 'disabled') disabled++;
-    }
+  const trimmedInput = input.trimStart();
+  const isShellInput = trimmedInput.startsWith("!");
+  const isSlashCommandInput = trimmedInput.startsWith("/");
+  const shellTargetDirectory =
+    currentProject?.worktree ||
+    currentSession?.directory ||
+    sessions.find((sessionItem) => sessionItem.id === currentSession?.id)
+      ?.directory ||
+    "";
+  const shellDirectoryLabel =
+    shellTargetDirectory && shellTargetDirectory.length > 0
+      ? shellTargetDirectory
+      : "session directory";
 
-    let colorClass = 'bg-green-500';
-    let badgeVariant: 'background2' | 'foreground0' | 'foreground1' | 'foreground2' = 'background2';
-    if (failed > 0) {
-      colorClass = 'bg-red-500';
-      badgeVariant = 'foreground0';
-    } else if (connected === 0 && entries.length - disabled > 0) {
-      colorClass = 'bg-yellow-500';
-      badgeVariant = 'foreground1';
-    } else if (disabled > 0 && entries.length === disabled) {
-      // All disabled
-      colorClass = 'bg-gray-400';
-      badgeVariant = 'foreground1';
-    }
 
-    const text = `MCP (${connected} Connected)`;
-    const title = entries.map(([name, status]) => `${name}: ${status}`).join(', ');
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[MCP] Aggregated:', { connected, failed, disabled, text });
-    }
-    return { colorClass, badgeVariant, text, title };
-  }, [sidebarStatus]);
+
+  // Build user message history for ArrowUp/ArrowDown navigation
+  const userMessageHistory = useMemo(() => {
+    return messages
+      .filter((m) => m.type === "user" && m.content?.trim())
+      .map((m) => m.content!.trim());
+  }, [messages]);
 
   // Initialize keyboard shortcuts
   const {
@@ -992,13 +988,7 @@ function OpenCodeChatTUI() {
       registerShortcut({
         key: "w",
         handler: () => {
-          // Toggle Workspace sidebar if already on Workspace tab, otherwise navigate to Workspace
-          if (activeTab === "workspace" && isLeftSidebarOpen) {
-            setIsLeftSidebarOpen(false);
-          } else {
-            setActiveTab("workspace");
-            setIsLeftSidebarOpen(true);
-          }
+          handleTabChange("workspace");
           closeAllModals();
         },
         requiresLeader: true,
@@ -1401,6 +1391,11 @@ function OpenCodeChatTUI() {
     if (hasAttachments) {
       setImageAttachments([]);
     }
+    
+    // Reset history navigation state when sending a message
+    setMessageHistoryIndex(-1);
+    setIsNavigatingHistory(false);
+    setDraftBeforeHistory("");
 
     const messageParts: Part[] = [];
 
@@ -1566,6 +1561,14 @@ function OpenCodeChatTUI() {
     }
   }, [loading, currentSession]);
 
+  // Reset history navigation state when session changes or messages are cleared
+  const messagesEmpty = messages.length === 0;
+  useEffect(() => {
+    setMessageHistoryIndex(-1);
+    setIsNavigatingHistory(false);
+    setDraftBeforeHistory("");
+  }, [currentSession?.id, messagesEmpty]);
+
   const handleShellCommand = async (command: string) => {
     if (!currentSession) {
       const errorMsg = {
@@ -1581,9 +1584,12 @@ function OpenCodeChatTUI() {
     try {
       const userMessage = {
         id: `user-${Date.now()}`,
+        clientId: generateClientId(),
         type: "user" as const,
         content: `$ ${command}`,
         timestamp: new Date(),
+        optimistic: true, // Mark as optimistic so SSE events can match it
+        shellCommand: command,
       };
       setMessages((prev) => [...prev, userMessage]);
 
@@ -2267,6 +2273,19 @@ function OpenCodeChatTUI() {
     setSidebarEditMode(!sidebarEditMode);
   };
 
+  const handleSessionsRefresh = useCallback(async () => {
+    if (!currentProject || isRefreshingSessions) return;
+    setIsRefreshingSessions(true);
+    try {
+      await loadSessions({ force: true });
+    } catch (error) {
+      console.error("Failed to refresh sessions:", error);
+      await showToast("Failed to refresh sessions", "error");
+    } finally {
+      setIsRefreshingSessions(false);
+    }
+  }, [currentProject, isRefreshingSessions, loadSessions, showToast]);
+
   const handleSidebarSessionToggle = (sessionId: string) => {
     setSelectedSidebarSessionIds((prev) => {
       const next = new Set(prev);
@@ -2372,6 +2391,30 @@ function OpenCodeChatTUI() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && e.shiftKey) {
+      e.preventDefault();
+      // Shift+Enter enables multi-line mode for shell commands
+      const parsed = parseCommand(input, commands);
+      if (parsed.type === "shell" && !isMultilineMode) {
+        setIsMultilineMode(true);
+        setMultilineInput(input);
+      } else {
+        // Add newline at cursor position
+        const textarea = textareaRef.current;
+        if (textarea) {
+          const start = textarea.selectionStart;
+          const end = textarea.selectionEnd;
+          const newValue = input.substring(0, start) + "\n" + input.substring(end);
+          setInput(newValue);
+          // Position cursor after the newline
+          requestAnimationFrame(() => {
+            if (textareaRef.current) {
+              textareaRef.current.setSelectionRange(start + 1, start + 1);
+            }
+          });
+        }
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       if (showCommandPicker && commandSuggestions.length > 0) {
@@ -2379,7 +2422,31 @@ function OpenCodeChatTUI() {
       } else if (showMentionSuggestions && mentionSuggestions.length > 0) {
         handleMentionSelect(mentionSuggestions[selectedMentionIndex]);
       } else {
-        handleSend();
+        // Check if this is a shell command that might be multi-line
+        const parsed = parseCommand(input, commands);
+        if (parsed.type === "shell" && isMultilineMode) {
+          // In multi-line mode, Ctrl+Enter sends, regular Enter adds newline
+          if (e.ctrlKey) {
+            handleSend();
+          } else {
+            // Add newline at cursor position
+            const textarea = textareaRef.current;
+            if (textarea) {
+              const start = textarea.selectionStart;
+              const end = textarea.selectionEnd;
+              const newValue = input.substring(0, start) + "\n" + input.substring(end);
+              setInput(newValue);
+              // Position cursor after the newline
+              requestAnimationFrame(() => {
+                if (textareaRef.current) {
+                  textareaRef.current.setSelectionRange(start + 1, start + 1);
+                }
+              });
+            }
+          }
+        } else {
+          handleSend();
+        }
       }
     }
     if (e.key === "Tab") {
@@ -2422,23 +2489,106 @@ function OpenCodeChatTUI() {
     if (e.key === "ArrowDown") {
       if (showCommandPicker) {
         e.preventDefault();
+        // Circular navigation: wrap to first item when reaching the end
         setSelectedCommandIndex((prev) =>
-          prev < commandSuggestions.length - 1 ? prev + 1 : prev,
+          (prev + 1) % commandSuggestions.length
         );
       } else if (showMentionSuggestions) {
         e.preventDefault();
         setSelectedMentionIndex((prev) =>
           prev < mentionSuggestions.length - 1 ? prev + 1 : prev,
         );
+      } else if (
+        isNavigatingHistory &&
+        !e.shiftKey &&
+        !e.ctrlKey &&
+        !e.metaKey
+      ) {
+        // History navigation: ArrowDown moves forward (toward more recent)
+        e.preventDefault();
+        
+        if (messageHistoryIndex > 0) {
+          const newIndex = messageHistoryIndex - 1;
+          setMessageHistoryIndex(newIndex);
+          const historyMessage = userMessageHistory[userMessageHistory.length - 1 - newIndex];
+          
+          // Mark that we're programmatically changing input
+          isHistoryNavigationRef.current = true;
+          setInput(historyMessage);
+          
+          // Place cursor at end of text
+          requestAnimationFrame(() => {
+            if (textareaRef.current) {
+              const len = historyMessage.length;
+              textareaRef.current.setSelectionRange(len, len);
+            }
+            isHistoryNavigationRef.current = false;
+          });
+        } else {
+          // Exit history navigation and restore draft
+          setMessageHistoryIndex(-1);
+          setIsNavigatingHistory(false);
+          
+          // Mark that we're programmatically changing input
+          isHistoryNavigationRef.current = true;
+          setInput(draftBeforeHistory);
+          setDraftBeforeHistory("");
+          
+          // Place cursor at end
+          requestAnimationFrame(() => {
+            if (textareaRef.current) {
+              const len = draftBeforeHistory.length;
+              textareaRef.current.setSelectionRange(len, len);
+            }
+            isHistoryNavigationRef.current = false;
+          });
+        }
       }
     }
     if (e.key === "ArrowUp") {
       if (showCommandPicker) {
         e.preventDefault();
-        setSelectedCommandIndex((prev) => (prev > 0 ? prev - 1 : prev));
+        // Circular navigation: wrap to last item when moving past the beginning
+        setSelectedCommandIndex((prev) => 
+          (prev - 1 + commandSuggestions.length) % commandSuggestions.length
+        );
       } else if (showMentionSuggestions) {
         e.preventDefault();
         setSelectedMentionIndex((prev) => (prev > 0 ? prev - 1 : prev));
+      } else if (
+        !e.shiftKey &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        userMessageHistory.length > 0
+      ) {
+        // History navigation: ArrowUp moves backward into history
+        e.preventDefault();
+        
+        // Save draft before entering history navigation
+        if (!isNavigatingHistory) {
+          setDraftBeforeHistory(input);
+          setIsNavigatingHistory(true);
+        }
+        
+        const newIndex = Math.min(
+          messageHistoryIndex + 1,
+          userMessageHistory.length - 1,
+        );
+        setMessageHistoryIndex(newIndex);
+        const historyMessage = userMessageHistory[userMessageHistory.length - 1 - newIndex];
+        
+        // Mark that we're programmatically changing input
+        isHistoryNavigationRef.current = true;
+        setInput(historyMessage);
+        
+        // Place cursor at end of text
+        requestAnimationFrame(() => {
+          if (textareaRef.current) {
+            const len = historyMessage.length;
+            textareaRef.current.setSelectionRange(len, len);
+          }
+          isHistoryNavigationRef.current = false;
+        });
       }
     }
     if (e.key === "Escape") {
@@ -2523,6 +2673,14 @@ function OpenCodeChatTUI() {
 
   const handleInputChange = async (value: string) => {
     setInput(value);
+    
+    // Reset history navigation if user is actually typing (not programmatic change)
+    if (!isHistoryNavigationRef.current && isNavigatingHistory) {
+      setMessageHistoryIndex(-1);
+      setIsNavigatingHistory(false);
+      setDraftBeforeHistory("");
+    }
+    
     if (value.startsWith("/")) {
       if (process.env.NODE_ENV !== "production") {
         console.log("Commands from context:", commands);
@@ -2570,6 +2728,11 @@ function OpenCodeChatTUI() {
     setImageAttachments((prev) =>
       prev.filter((attachment) => attachment.id !== id),
     );
+    
+    // Reset history navigation when attachments change
+    setMessageHistoryIndex(-1);
+    setIsNavigatingHistory(false);
+    setDraftBeforeHistory("");
   }, []);
 
   const handleImageAttachments = useCallback(
@@ -2630,6 +2793,11 @@ function OpenCodeChatTUI() {
 
         if (validAttachments.length > 0) {
           setImageAttachments((prev) => [...prev, ...validAttachments]);
+          
+          // Reset history navigation when attachments change
+          setMessageHistoryIndex(-1);
+          setIsNavigatingHistory(false);
+          setDraftBeforeHistory("");
         }
       } finally {
         setIsHandlingImageUpload(false);
@@ -2755,7 +2923,7 @@ function OpenCodeChatTUI() {
     setActiveTab("files");
     setIsLeftSidebarOpen(true);
     setIsMobileSidebarOpen(false);
-    setShowFileDiff(false); // Reset diff view when selecting a new file
+    setFileViewMode("code"); // Reset to code view when selecting a new file
 
     try {
       const result = await readFile(filePath);
@@ -2765,7 +2933,7 @@ function OpenCodeChatTUI() {
         setFileError(null);
         // Auto-show diff if file has changes
         if (result.diff) {
-          setShowFileDiff(true);
+          setFileViewMode("diff");
         }
       } else {
         setFileContent(null);
@@ -2968,9 +3136,18 @@ function OpenCodeChatTUI() {
     };
   }, [sessionUsage]);
 
+  const currentSessionLabel =
+    currentSession?.title?.trim() || currentSession?.id?.slice(0, 8);
+
   const handleTabChange = (tab: string) => {
     // If clicking the same tab that's already active, toggle sidebar visibility
     if (tab === activeTab && isLeftSidebarOpen) {
+      if (tab === "workspace") {
+        // Workspace: only toggle sidebar, keep activeTab set to preserve chat
+        setIsLeftSidebarOpen(false);
+        return;
+      }
+      // Other tabs (Files, etc.): toggle sidebar and clear activeTab
       setIsLeftSidebarOpen(false);
       setActiveTab(""); // Clear active tab when hiding sidebar
       return;
@@ -3147,6 +3324,10 @@ function OpenCodeChatTUI() {
     void restoreFilesTab();
   }, [isHydrated, activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    setFileViewMode("code");
+  }, [selectedFile, fileContent?.text]);
+
   if (!isHydrated) {
     return (
       <View
@@ -3195,58 +3376,6 @@ function OpenCodeChatTUI() {
             >
               opencode web
             </Badge>
-            {isConnected !== null && (
-              <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-                <div
-                  className={`connection-indicator ${isConnected ? "connected" : "disconnected"}`}
-                />
-                <Badge
-                  variant={isConnected ? "background2" : "foreground0"}
-                  cap="square"
-                  className="hidden md:inline whitespace-nowrap"
-                >
-                  {isConnected ? "Connected" : "Disconnected"}
-                </Badge>
-                {sseConnectionState && (
-                  <div
-                    className="flex items-center gap-1"
-                    title={`SSE: ${sseConnectionState.connected ? "Connected" : "Disconnected"}${sseConnectionState.reconnecting ? " (Reconnecting...)" : ""}${sseConnectionState.error ? ` - ${sseConnectionState.error}` : ""}`}
-                  >
-                    <div
-                      className={`w-2 h-2 rounded-full ${sseConnectionState.connected ? "bg-green-500" : "bg-red-500"} ${sseConnectionState.reconnecting ? "animate-pulse" : ""}`}
-                    />
-                    <Badge
-                      variant={
-                        sseConnectionState.connected
-                          ? "background2"
-                          : "foreground0"
-                      }
-                      cap="square"
-                      className="hidden lg:inline text-xs whitespace-nowrap"
-                    >
-                      SSE {sseConnectionState.connected ? "Live" : "Off"}
-                      {sseConnectionState.reconnecting && "..."}
-                    </Badge>
-                  </div>
-                )}
-                {/* MCP Status */}
-                <div
-                  className="flex items-center gap-1"
-                  title={mcpAggregated.title}
-                >
-                  <div
-                    className={`w-2 h-2 rounded-full ${mcpAggregated.colorClass}`}
-                  />
-                  <Badge
-                    variant={mcpAggregated.badgeVariant}
-                    cap="square"
-                    className="hidden xl:inline text-xs whitespace-nowrap"
-                  >
-                    {mcpAggregated.text}
-                  </Badge>
-                </div>
-              </div>
-            )}
           </div>
           <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
             <SidebarTabs
@@ -3337,8 +3466,7 @@ function OpenCodeChatTUI() {
                 {/* Projects Section */}
                 <div className="flex flex-col flex-shrink-0">
                   <View
-                    box="square"
-                    className="p-2 mb-2 bg-theme-background-alt"
+                    className="p-1 mb-1 bg-theme-background-alt"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <h3 className="text-sm font-medium">Projects</h3>
@@ -3363,12 +3491,11 @@ function OpenCodeChatTUI() {
                           aria-pressed={showNewProjectForm}
                           title="Create new project"
                         >
-                          New Project
+                          New
                         </Button>
                       </div>
                     </div>
                   </View>
-                  <Separator className="mb-2" />
                   <div className="flex-1 flex flex-col gap-3">
                     <ProjectSelector
                       projects={sortedProjects}
@@ -3376,49 +3503,50 @@ function OpenCodeChatTUI() {
                       onSelect={handleProjectSwitch}
                       buttonClassName="!py-2 !px-3"
                     />
-                    {currentProject ? (
-                      <div className="text-xs leading-relaxed space-y-1 text-theme-foreground">
-                        <div className="truncate">
-                          Dir: {currentProject.worktree}
-                        </div>
-                        <div className="truncate">
-                          VCS: {currentProject.vcs || "Unknown"}
-                        </div>
-                        {currentProjectLastTouched && (
-                          <div>
-                            Updated:{" "}
-                            {currentProjectLastTouched.toLocaleDateString()}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
+                    {currentProject ? null : (
                       <div className="text-xs text-theme-muted">
                         {sortedProjects.length > 0
                           ? "Choose a project from the menu above."
-                          : "No projects yet. Use New Project to add an existing git repository."}
+                          : "No projects yet. Use New to add an existing git repository."}
                       </div>
                     )}
                   </div>
                 </div>
 
-                <Separator className="my-3" />
-
                 {/* Sessions Section */}
-                <div className="flex flex-col flex-1 min-h-0">
+                <div className="flex flex-col flex-1 min-h-0 mt-2">
                   <View
-                    box="square"
-                    className="p-2 mb-2 bg-theme-background-alt"
+                    className="p-1 mb-1 bg-theme-background-alt"
                   >
                     <div className="flex justify-between items-center">
-                      <h3 className="text-sm font-medium">Sessions</h3>
+                      <div className="flex items-center gap-1">
+                        <h3 className="text-sm font-medium">Sessions</h3>
+                        <Button
+                          variant="background2"
+                          box="round"
+                          onClick={handleSessionsRefresh}
+                          size="small"
+                          className="h-7 w-7 p-0 flex items-center justify-center border-none"
+                          disabled={!currentProject || isRefreshingSessions}
+                          aria-label="Refresh sessions"
+                          title="Refresh sessions"
+                        >
+                          {isRefreshingSessions ? (
+                            <Spinner size="small" className="h-3 w-3" />
+                          ) : (
+                            <span aria-hidden="true" className="text-sm">↻</span>
+                          )}
+                          <span className="sr-only">Refresh sessions</span>
+                        </Button>
+                      </div>
                       <div className="flex gap-2">
-                         <Button
-                           variant="foreground1"
-                           box="round"
-                           onClick={handleSidebarEditToggle}
-                           size="small"
-                           disabled={!currentProject}
-                         >
+                        <Button
+                          variant="foreground1"
+                          box="round"
+                          onClick={handleSidebarEditToggle}
+                          size="small"
+                          disabled={!currentProject}
+                        >
                           {sidebarEditMode ? "Done" : "Edit"}
                         </Button>
                         <Button
@@ -3433,12 +3561,11 @@ function OpenCodeChatTUI() {
                           aria-pressed={showNewSessionForm}
                           title="Create new session"
                         >
-                          New Session
+                          New
                         </Button>
                       </div>
                     </div>
                   </View>
-                  <Separator className="mb-2" />
                   {!currentProject ? (
                     <div className="flex-1 flex items-center justify-center text-sm text-theme-muted">
                       Select a project or use New Project to view sessions
@@ -3446,7 +3573,7 @@ function OpenCodeChatTUI() {
                   ) : (
                     <>
                       {/* Sidebar Search Input */}
-                      <div className="mb-2">
+                      <div className="mt-2 mb-2">
                         <SessionSearchInput
                           ref={workspaceSessionSearchInputRef}
                           value={sessionSearchQuery}
@@ -3492,7 +3619,7 @@ function OpenCodeChatTUI() {
                           <Separator className="mb-2" />
                         </>
                       )}
-                      <div className="flex-1 overflow-y-auto scrollbar space-y-2 min-h-0" data-sessions-list>
+                      <div className="flex-1 overflow-y-auto scrollbar-hidden space-y-1 min-h-0" data-sessions-list>
                         {filteredSessions
                           .filter(
                             (session) =>
@@ -3508,7 +3635,7 @@ function OpenCodeChatTUI() {
                             return (
                               <div
                                 key={session.id}
-                                className="p-2 cursor-pointer transition-colors rounded"
+                                className="pl-2 pr-0 py-2 cursor-pointer transition-colors rounded"
                                 style={{
                                   backgroundColor: sidebarEditMode
                                     ? isChecked
@@ -3664,7 +3791,7 @@ function OpenCodeChatTUI() {
                         >
                           <span className="text-theme-muted">/</span>
                           <Button
-                            box="square"
+                    box="round"
                             size="small"
                             onClick={() => void handleDirectoryOpen(fullPath)}
                             className="!py-1 !px-2 text-xs"
@@ -3854,7 +3981,7 @@ function OpenCodeChatTUI() {
               tabs={[
                 { id: "workspace", label: "Workspace" },
                 { id: "files", label: "Files" },
-                { id: "status", label: "Status" },
+                { id: "status", label: "Info" },
               ]}
               activeTab={activeTab}
               onTabChange={handleTabChange}
@@ -3865,7 +3992,7 @@ function OpenCodeChatTUI() {
             <div className="h-full flex flex-col gap-4 overflow-hidden">
               {/* Projects Section */}
               <div className="flex flex-col flex-shrink-0">
-                <div className="flex items-center justify-between mb-2 gap-2">
+                <div className="flex items-center justify-between mb-1 gap-2 p-1 bg-theme-background-alt rounded">
                   <h3 className="text-sm font-medium">Projects</h3>
                   <div className="flex gap-2 flex-shrink-0">
                     <Button
@@ -3894,7 +4021,6 @@ function OpenCodeChatTUI() {
                     </Button>
                   </div>
                 </div>
-                <Separator className="mb-2" />
                 <div className="flex flex-col gap-3">
                   <ProjectSelector
                     projects={sortedProjects}
@@ -3905,22 +4031,7 @@ function OpenCodeChatTUI() {
                     }}
                     buttonClassName="!py-2 !px-3"
                   />
-                  {currentProject ? (
-                    <div className="text-xs leading-relaxed space-y-1 text-theme-foreground">
-                      <div className="truncate">
-                        Dir: {currentProject.worktree}
-                      </div>
-                      <div className="truncate">
-                        VCS: {currentProject.vcs || "Unknown"}
-                      </div>
-                      {currentProjectLastTouched && (
-                        <div>
-                          Updated:{" "}
-                          {currentProjectLastTouched.toLocaleDateString()}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
+                  {currentProject ? null : (
                     <div className="text-xs text-theme-muted">
                       {sortedProjects.length > 0
                         ? "Choose a project from the menu above."
@@ -3930,11 +4041,9 @@ function OpenCodeChatTUI() {
                 </div>
               </div>
 
-              <Separator className="my-3" />
-
               {/* Sessions Section */}
-              <div className="flex flex-col flex-1 min-h-0">
-                <div className="flex justify-between items-center mb-2 gap-2">
+              <div className="flex flex-col flex-1 min-h-0 mt-2">
+                <div className="flex justify-between items-center mb-1 gap-2 p-1 bg-theme-background-alt rounded">
                   <h3 className="text-sm font-medium">Sessions</h3>
                   <div className="flex gap-2">
                     <Button
@@ -3961,11 +4070,10 @@ function OpenCodeChatTUI() {
                     </Button>
                   </div>
                 </div>
-                <Separator className="mb-2" />
                 
                 {/* Mobile Search Input */}
                 {currentProject && (
-                  <div className="mb-2">
+                  <div className="mt-2 mb-2">
                     <SessionSearchInput
                       value={sessionSearchQuery}
                       onChange={setSessionSearchQuery}
@@ -4058,7 +4166,7 @@ function OpenCodeChatTUI() {
                             return (
                               <div
                                 key={session.id}
-                                className={`p-2 cursor-pointer transition-colors rounded ${
+                                className={`pl-2 pr-0 py-2 cursor-pointer transition-colors rounded ${
                                   mobileEditMode ? "flex items-start gap-2" : ""
                                 }`}
                                 style={{
@@ -4237,20 +4345,33 @@ function OpenCodeChatTUI() {
           }}
         >
           {/* Header */}
-          <div className="px-4 py-2 flex justify-between items-center bg-theme-background-alt">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-base font-normal text-theme-foreground">
-                OpenCode Chat Sessions:{" "}
-                {currentSession?.title || currentSession?.id.slice(0, 8)}... .
-                Project: {currentProject?.worktree}
-              </span>
+          <div className="px-2 sm:px-3 py-1 flex items-center bg-theme-background-alt min-w-0 gap-2">
+            <button
+              onClick={() => {
+                closeAllModals();
+                setShowProjectPicker(true);
+              }}
+              className="button-reset min-w-0 flex-1 cursor-pointer hover:opacity-80 transition-opacity"
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                margin: 0,
+                textAlign: "left",
+              }}
+              title={`Project: ${currentProject?.worktree || "No project"}`}
+              aria-label={`Current project: ${currentProject?.worktree || "No project"}. Click to change project.`}
+            >
+              <div className="text-sm font-normal text-theme-foreground-alt truncate">
+                {currentProject?.worktree || "No project"}
+              </div>
               {currentSessionTodos.length > 0 && (
-                <Badge variant="foreground0" cap="square" className="text-xs">
+                <Badge variant="foreground0" cap="square" className="text-xs flex-shrink-0">
                   {currentSessionTodos.length} todo
                   {currentSessionTodos.length === 1 ? "" : "s"} pending
                 </Badge>
               )}
-            </div>
+            </button>
           </div>
 
           <Separator />
@@ -4331,90 +4452,133 @@ function OpenCodeChatTUI() {
                       </View>
                     </div>
                   )}
-                  {messages.map((message) => (
-                    <div
-                      key={message.clientId ?? message.id}
-                      className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}
-                    >
-                      <View
-                        box="round"
-                        className={`max-w-full sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl p-2 ${
-                          message.type === "user"
-                            ? message.error
-                              ? "bg-theme-error/10 border-theme-error text-theme-error"
-                              : "bg-theme-primary/20 border-theme-primary text-theme-foreground"
-                            : "bg-theme-background-alt text-theme-foreground"
-                        }`}
+                  {messages.map((message) => {
+                    const hasRenderableParts = Array.isArray(message.parts)
+                      ? message.parts.some((part) => {
+                          if (
+                            !part ||
+                            typeof part !== "object" ||
+                            !("type" in part) ||
+                            typeof part.type !== "string"
+                          ) {
+                            return false;
+                          }
+                          if (!RENDERABLE_PART_TYPES.has(part.type)) {
+                            return false;
+                          }
+                          if (part.type === "text") {
+                            const rawText =
+                              typeof (part as { text?: unknown }).text === "string"
+                                ? ((part as { text?: string }).text ?? "").trim()
+                                : "";
+                            if (!rawText || GENERIC_TOOL_TEXTS.has(rawText)) {
+                              return false;
+                            }
+                          }
+                          return true;
+                        })
+                      : false;
+                    const normalizedContent =
+                      typeof message.content === "string"
+                        ? message.content.trim()
+                        : "";
+                    const hasTextContent =
+                      normalizedContent.length > 0 &&
+                      !GENERIC_TOOL_TEXTS.has(normalizedContent);
+                    const shouldHideUserBubble =
+                      message.type === "user" &&
+                      (message.shellCommand !== undefined ||
+                        (!hasRenderableParts && !hasTextContent));
+
+                    if (shouldHideUserBubble) {
+                      return null;
+                    }
+
+                    return (
+                      <div
+                        key={message.clientId ?? message.id}
+                        className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}
                       >
-                        {message.parts && message.parts.length > 0 ? (
-                          <div className="space-y-2">
-                            {message.parts.map((part, idx) => (
-                              <MessagePart
-                                key={`${message.id}-part-${idx}`}
-                                part={part}
-                                messageRole={message.type}
-                                showDetails={true}
-                              />
-                            ))}
-                            {message.metadata && (
-                              <div className="text-xs opacity-60 mt-1.5 flex gap-3 flex-wrap">
-                                {message.metadata.agent && (
-                                  <span>Agent: {message.metadata.agent}</span>
-                                )}
-                                {message.metadata.tokens && (
+                        <View
+                          box="round"
+                          className={`max-w-full sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl p-2 ${
+                            message.type === "user"
+                              ? message.error
+                                ? "bg-theme-error/10 border-theme-error text-theme-error"
+                                : "bg-theme-primary/20 border-theme-primary text-theme-foreground"
+                              : "bg-theme-background-alt text-theme-foreground"
+                          }`}
+                        >
+                          {message.parts && message.parts.length > 0 ? (
+                            <div className="space-y-2">
+                              {message.parts.map((part, idx) => (
+                                <MessagePart
+                                  key={`${message.id}-part-${idx}`}
+                                  part={part}
+                                  messageRole={message.type}
+                                  showDetails={true}
+                                />
+                              ))}
+                              {message.metadata && (
+                                <div className="text-xs opacity-60 mt-1.5 flex gap-3 flex-wrap">
+                                  {message.metadata.agent && (
+                                    <span>Agent: {message.metadata.agent}</span>
+                                  )}
+                                  {message.metadata.tokens && (
+                                    <span>
+                                      Tokens:{" "}
+                                      {message.metadata.tokens.input +
+                                        message.metadata.tokens.output}
+                                      {message.metadata.tokens.reasoning > 0 &&
+                                        ` (+${message.metadata.tokens.reasoning} reasoning)`}
+                                    </span>
+                                  )}
+                                  {message.metadata.cost && (
+                                    <span>
+                                      Cost: ${message.metadata.cost.toFixed(4)}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="space-y-4">
+                              <Pre
+                                size="small"
+                                className="break-words whitespace-pre-wrap overflow-wrap-anywhere"
+                              >
+                                {message.content}
+                              </Pre>
+                              {message.queued && (
+                                <div className="flex items-center gap-2 text-xs text-theme-warning">
+                                  <div className="w-2 h-2 rounded-full bg-theme-warning animate-pulse" />
                                   <span>
-                                    Tokens:{" "}
-                                    {message.metadata.tokens.input +
-                                      message.metadata.tokens.output}
-                                    {message.metadata.tokens.reasoning > 0 &&
-                                      ` (+${message.metadata.tokens.reasoning} reasoning)`}
+                                    Queued (Position: {message.queuePosition})
                                   </span>
-                                )}
-                                {message.metadata.cost && (
-                                  <span>
-                                    Cost: ${message.metadata.cost.toFixed(4)}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="space-y-4">
-                            <Pre
-                              size="small"
-                              className="break-words whitespace-pre-wrap overflow-wrap-anywhere"
-                            >
-                              {message.content}
-                            </Pre>
-                            {message.queued && (
-                              <div className="flex items-center gap-2 text-xs text-theme-warning">
-                                <div className="w-2 h-2 rounded-full bg-theme-warning animate-pulse" />
-                                <span>
-                                  Queued (Position: {message.queuePosition})
-                                </span>
-                                <button
-                                  onClick={() => removeFromQueue(message.id)}
-                                  className="ml-2 px-2 py-0.5 rounded bg-theme-background hover:bg-theme-background-alt border border-theme-border text-theme-foreground"
-                                  title="Cancel queued message"
-                                >
-                                  ✕ Cancel
-                                </button>
-                              </div>
-                            )}
-                            {message.optimistic && !message.queued && (
-                              <div className="text-xs opacity-60">Sending…</div>
-                            )}
-                            {message.error && (
-                              <div className="text-xs text-theme-error">
-                                {message.errorMessage ||
-                                  "Send failed. Please retry."}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </View>
-                    </div>
-                  ))}
+                                  <button
+                                    onClick={() => removeFromQueue(message.id)}
+                                    className="ml-2 px-2 py-0.5 rounded bg-theme-background hover:bg-theme-background-alt border border-theme-border text-theme-foreground"
+                                    title="Cancel queued message"
+                                  >
+                                    ✕ Cancel
+                                  </button>
+                                </div>
+                              )}
+                              {message.optimistic && !message.queued && (
+                                <div className="text-xs opacity-60">Sending…</div>
+                              )}
+                              {message.error && (
+                                <div className="text-xs text-theme-error">
+                                  {message.errorMessage ||
+                                    "Send failed. Please retry."}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </View>
+                      </div>
+                    );
+                  })}
                   {loading && !isStreaming && (
                     <div className="flex justify-start">
                       <View
@@ -4450,48 +4614,52 @@ function OpenCodeChatTUI() {
                 className="px-2 sm:px-3 py-2 space-y-2 bg-theme-background-alt"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-sm text-theme-foreground flex-wrap">
-                    <span className="font-medium">Model:</span>
-                    <button
-                      onClick={() => {
-                        closeAllModals();
-                        setShowModelPicker(true);
-                      }}
-                      className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none"
-                      style={{
-                        background: "none",
-                        border: "none",
-                        padding: 0,
-                        margin: 0,
-                        font: "inherit",
-                        color: "inherit",
-                        height: "auto",
-                        lineHeight: "inherit",
-                      }}
-                    >
-                      {selectedModel?.name || "Loading..."}
-                    </button>
-                    <span className="text-theme-muted">•</span>
-                    <span className="font-medium">Session:</span>
-                    <button
-                      onClick={() => {
-                        closeAllModals();
-                        setShowSessionPicker(true);
-                      }}
-                      className="text-theme-primary hover:underline cursor-pointer appearance-none leading-none"
-                      style={{
-                        background: "none",
-                        border: "none",
-                        padding: 0,
-                        margin: 0,
-                        font: "inherit",
-                        color: "inherit",
-                        height: "auto",
-                        lineHeight: "inherit",
-                      }}
-                    >
-                      {currentSession?.title || "No session"}
-                    </button>
+                  <div className="flex items-center gap-4 text-xs text-theme-foreground min-w-0 flex-1">
+                    {/* Model */}
+                    <div className="flex items-center gap-1 min-w-0">
+                      <span className="hidden md:inline font-medium text-theme-foreground">Model:</span>
+                      <button
+                        onClick={() => {
+                          closeAllModals();
+                          setShowModelPicker(true);
+                        }}
+                        className="button-reset text-xs text-theme-primary hover:underline cursor-pointer min-w-0"
+                        style={{
+                          background: "none",
+                          border: "none",
+                          padding: 0,
+                          margin: 0,
+                          textAlign: "left",
+                        }}
+                        title={selectedModel?.name || "Loading..."}
+                        aria-label={`Current model: ${selectedModel?.name || "Loading..."}`}
+                      >
+                        <div className="truncate">{selectedModel?.name || "Loading..."}</div>
+                      </button>
+                    </div>
+
+                    {/* Session */}
+                    <div className="flex items-center gap-1 min-w-0">
+                      <span className="hidden md:inline font-medium text-theme-foreground">Session:</span>
+                      <button
+                        onClick={() => {
+                          closeAllModals();
+                          setShowSessionPicker(true);
+                        }}
+                        className="button-reset text-xs text-theme-primary hover:underline cursor-pointer min-w-0"
+                        style={{
+                          background: "none",
+                          border: "none",
+                          padding: 0,
+                          margin: 0,
+                          textAlign: "left",
+                        }}
+                        title={currentSessionLabel || "No session"}
+                        aria-label={`Current session: ${currentSessionLabel || "No session"}`}
+                      >
+                        <div className="truncate">{currentSessionLabel || "No session"}</div>
+                      </button>
+                    </div>
                     {currentSessionBusy && (
                       <>
                         <span className="text-theme-muted">•</span>
@@ -4505,7 +4673,7 @@ function OpenCodeChatTUI() {
                         </Badge>
                       </>
                     )}
-                    {sessionTokenStats.totalTokens > 0 && (
+                    {sessionTokenStats.totalTokens > 0 && isMobile && (
                       <>
                         <span className="text-theme-muted">•</span>
                         <span className="font-medium">Tokens:</span>
@@ -4517,7 +4685,7 @@ function OpenCodeChatTUI() {
                         </span>
                       </>
                     )}
-                    {input.startsWith("/") && (
+                    {isSlashCommandInput && (
                       <>
                         <span className="text-theme-muted">•</span>
                         <span className="text-theme-error font-medium">
@@ -4525,7 +4693,26 @@ function OpenCodeChatTUI() {
                         </span>
                       </>
                     )}
+                    {isShellInput && (
+                      <>
+                        <span className="text-theme-muted">•</span>
+                        <span className="text-theme-warning font-medium">
+                          Shell Mode
+                        </span>
+                      </>
+                    )}
                   </div>
+                  {!isMobile && sessionTokenStats.totalTokens > 0 && (
+                    <div className="flex items-center gap-2 text-xs text-theme-foreground flex-shrink-0">
+                      <span className="font-medium">Tokens:</span>
+                      <span className="text-theme-foreground">
+                        {sessionTokenStats.totalTokens.toLocaleString()}
+                      </span>
+                      <span className="text-theme-muted">
+                        ({sessionTokenStats.contextPercentage}%)
+                      </span>
+                    </div>
+                  )}
                   <button
                     onClick={() => setShowAgentPicker(true)}
                     className="appearance-none cursor-pointer hover:opacity-80 transition-opacity h-auto"
@@ -4563,6 +4750,19 @@ function OpenCodeChatTUI() {
                         >
                           Clear Queue
                         </button>
+                      </div>
+                    )}
+                    {isShellInput && (
+                      <div className="mb-2 flex flex-wrap items-center gap-2 rounded border border-theme-warning/70 bg-theme-warning/10 px-3 py-2 text-xs text-theme-foreground">
+                        <Badge variant="foreground0" cap="square">
+                          Shell Mode
+                        </Badge>
+                        <span>
+                          Running in{" "}
+                          <code className="font-mono break-all">
+                            {shellDirectoryLabel}
+                          </code>
+                        </span>
                       </div>
                     )}
                     {showCommandPicker && (
@@ -4624,11 +4824,13 @@ function OpenCodeChatTUI() {
                       placeholder={
                         currentSessionBusy && !isMobile
                           ? "Agent running... Press ESC to stop, or type to queue a message"
-                          : "Type your message, Tab to switch agent, / for commands, @ to mention files, Shift+Enter for new line, Enter to send"
+                          : "Type your message, Tab to switch agent, / for commands, ! for shell commands, @ to mention files, Shift+Enter for new line, Enter to send"
                       }
                       rows={2}
                       size="large"
-                      className={`w-full bg-theme-background text-theme-foreground border-theme-primary resize-none ${
+                      className={`w-full bg-theme-background text-theme-foreground resize-none ${
+                        isShellInput ? "border-theme-warning" : "border-theme-primary"
+                      } ${
                         isDraggingOverInput
                           ? "border-2 border-dashed border-theme-primary/80"
                           : ""
@@ -4709,7 +4911,7 @@ function OpenCodeChatTUI() {
                     <div className="relative w-full">
                       <Button
                         variant="foreground0"
-                        box="square"
+                    box="round"
                         size="large"
                         onClick={handleAbort}
                         disabled={abortInFlight}
@@ -4759,12 +4961,30 @@ function OpenCodeChatTUI() {
                     <div className="flex gap-2">
                       {fileContent?.diff && (
                         <Button
-                          variant={showFileDiff ? "foreground1" : "foreground0"}
+                          variant={fileViewMode === "diff" ? "foreground1" : "foreground0"}
                           box="round"
-                          onClick={() => setShowFileDiff(!showFileDiff)}
+                          onClick={() =>
+                            setFileViewMode(fileViewMode === "diff" ? "code" : "diff")
+                          }
                           size="small"
+                          aria-pressed={fileViewMode === "diff"}
                         >
-                          {showFileDiff ? "Show Code" : "Show Diff"}
+                          {fileViewMode === "diff" ? "Show Code" : "Show Diff"}
+                        </Button>
+                      )}
+                      {canPreviewMarkdown && (
+                        <Button
+                          variant={fileViewMode === "preview" ? "foreground1" : "foreground0"}
+                          box="round"
+                          onClick={() =>
+                            setFileViewMode(
+                              fileViewMode === "preview" ? "code" : "preview",
+                            )
+                          }
+                          size="small"
+                          aria-pressed={fileViewMode === "preview"}
+                        >
+                          {fileViewMode === "preview" ? "Show Code" : "Preview"}
                         </Button>
                       )}
                       {hasBinaryDownload && fileContent?.dataUrl && (
@@ -4816,9 +5036,16 @@ function OpenCodeChatTUI() {
                       <div className="text-center text-sm text-red-400 p-4">
                         {fileError}
                       </div>
-                    ) : showFileDiff && fileContent?.diff ? (
+                    ) : fileViewMode === "diff" && fileContent?.diff ? (
                       <div className="h-full overflow-auto scrollbar">
                         <PrettyDiff diffText={fileContent.diff} />
+                      </div>
+                    ) : fileViewMode === "preview" && canPreviewMarkdown ? (
+                      <div className="h-full overflow-auto scrollbar bg-theme-background p-6">
+                        <MarkdownRenderer
+                          content={fileContent?.text ?? ""}
+                          enableImages={featureFlags.enableMarkdownImages}
+                        />
                       </div>
                     ) : selectedFileIsImage ? (
                       <div className="flex items-center justify-center h-full max-w-full bg-theme-backgroundAccent rounded p-4 overflow-auto scrollbar">
@@ -4910,7 +5137,7 @@ function OpenCodeChatTUI() {
             style={{ width: "320px" }}
           >
             <div className="flex items-center justify-between px-4 py-2">
-              <h3 className="text-sm font-medium">Status</h3>
+              <h3 className="text-sm font-medium">Info</h3>
               <Button
                 variant="foreground1"
                 box="round"

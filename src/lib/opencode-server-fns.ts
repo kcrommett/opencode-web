@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import * as httpApi from "./opencode-http-api";
-import type { Agent, Part } from "../types/opencode";
+import type { Agent, Part, McpStatusResponse } from "../types/opencode";
 
 export const getAgents = createServerFn({ method: "GET" }).handler(async () => {
   return httpApi.getAgents();
@@ -136,6 +136,7 @@ export const runCommand = createServerFn({ method: "POST" })
       command: string;
       args?: string[];
       directory?: string;
+      agent?: string;
     }) => data,
   )
   .handler(async ({ data }) => {
@@ -144,6 +145,7 @@ export const runCommand = createServerFn({ method: "POST" })
       data.command,
       data.args,
       data.directory,
+      data.agent,
     );
   });
 
@@ -366,7 +368,7 @@ export const exportSession = createServerFn({ method: "GET" })
   });
 
 export const getMcpStatus = createServerFn({ method: "GET" }).handler(
-  async () => {
+  async (): Promise<McpStatusResponse> => {
     return httpApi.getMcpStatus();
   },
 );
