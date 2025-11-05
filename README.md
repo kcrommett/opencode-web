@@ -13,12 +13,12 @@
 <br>
 (web)
 </p>
-<p align="center">The web interface for OpenCode.</p>
+<p align="center">OC Web - The web interface for OpenCode.</p>
 <p align="center">
   <a href="https://www.npmjs.com/package/opencode-web"><img alt="npm" src="https://img.shields.io/npm/v/opencode-web?style=flat-square" /></a>
   <a href="https://github.com/kcrommett/opencode-web/actions/workflows/release.yml"><img alt="Release" src="https://img.shields.io/github/actions/workflow/status/kcrommett/opencode-web/release.yml?style=flat-square&label=release" /></a>
 </p>
-OpenCode Web is a web-based interface for the OpenCode Server API, providing a browser-based way to interact with OpenCode sessions. Built on TanStack Start, React, and Bun, it offers a complete web experience for managing and monitoring OpenCode workflows.
+OC Web is a web-based interface for the OpenCode Server API, providing a browser-based way to interact with OpenCode sessions. Built on TanStack Start, React, and Bun, it offers a complete web experience for managing and monitoring OpenCode workflows.
 
 ## 🚀 Quick Start
 
@@ -54,42 +54,61 @@ opencode-web
 curl -sSL https://raw.githubusercontent.com/kcrommett/opencode-web/main/install.sh | bash
 ```
 
-Once started, open **http://localhost:3000** in your browser. The CLI launches a local OpenCode Server through the OpenCode SDK by default and wires its URL into the web client automatically. Use the command-line flags to connect to an existing server or adjust the listening host/port without touching environment variables.
+Once started, open **http://localhost:3000** in your browser. The CLI launches a local OpenCode Server by default and wires its URL into the web client automatically. Use the command-line flags to connect to an existing server or adjust the listening host/port without touching environment variables.
+
+**Platform Notes:**
+- On **Windows**, opencode-web uses your locally installed `opencode` CLI from PATH. 
+  - ⚠️ **`bunx` limitation**: Cannot auto-launch the bundled server due to Bun's `/bin/sh` issue. Use `--external-server` or install locally. [See details](#windows--bunx-limitation)
+  - ✅ **Local install**: Works perfectly with automatic server launch
+- On **macOS/Linux**, opencode-web uses the bundled OpenCode SDK server (no additional installation required).
 
 > **⚠️ Security Warning**: This application runs without authentication by default. Do not expose it directly to the internet without proper security measures. For secure remote access, consider using Cloudflare Access with Cloudflare Tunnel to add authentication and protect your instance.
 
 #### Command-line Options
 
 - `--external-server <url>` – connect to an existing OpenCode Server and skip the bundled instance.
-- `--no-bundled-server` – skip launching the bundled server (requires `--external-server` or `VITE_OPENCODE_SERVER_URL`).
+- `--no-bundled-server` – skip launching the bundled server (requires `--external-server` or `OPENCODE_SERVER_URL`).
 - `-p, --port <number>` – port for the web UI (default: 3000).
-- `-H, --host <hostname>` – interface to bind the web UI server to (default: 127.0.0.1). Use `0.0.0.0` for LAN access.
+- `-H, --host <hostname>` – interface to bind the web UI server to (default: localhost). Use `0.0.0.0` for LAN access.
 - `-h, --help` – show the built-in usage help.
 
-#### Environment Variables (optional)
+#### Environment Variables
 
-The OpenCode Server URL is resolved in the following precedence order:
+OpenCode Web uses **three canonical environment variables** for configuration:
 
-1. `OPENCODE_SERVER_URL` (CLI flag or environment variable)
-2. `VITE_OPENCODE_SERVER_URL` (build-time environment variable)
-3. SSR runtime `globalThis.__OPENCODE_SERVER_URL__`
-4. Default: `http://localhost:4096`
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OPENCODE_SERVER_URL` | Full URL to the OpenCode server (scheme + host + port) | `http://localhost:4096` |
+| `OPENCODE_WEB_HOST` | Interface to bind the web server to | `localhost` |
+| `OPENCODE_WEB_PORT` | Port for the web UI server | `3000` |
 
-- `PORT`: Web server port (default: 3000)
-- `HOST`: Web server host/interface (default: 127.0.0.1)
-- `VITE_OPENCODE_SERVER_URL`: Use an existing OpenCode Server instead of the bundled one
-- `OPENCODE_SERVER_URL`: Override the OpenCode Server URL at runtime
+**Configuration precedence** (highest to lowest):
+1. CLI flags (`--port`, `--host`, `--external-server`)
+2. Canonical environment variables (`OPENCODE_*`)
+3. Legacy environment variables (deprecated, see Migration section)
+4. Default values
+
+**Legacy variables** (deprecated, maintained for backward compatibility):
+- `PORT` → use `OPENCODE_WEB_PORT`
+- `HOST` → use `OPENCODE_WEB_HOST`
+- `VITE_OPENCODE_SERVER_URL` → use `OPENCODE_SERVER_URL`
+- `OPENCODE_SERVER_PORT` → configure via `OPENCODE_SERVER_URL`
+- `OPENCODE_SERVER_HOSTNAME` → configure via `OPENCODE_SERVER_URL`
+
+Additional optional variables:
 - `OPENCODE_WEB_DISABLE_BUNDLED_SERVER`: Set to `1`, `true`, `yes`, or `on` to skip launching the bundled server
-- `OPENCODE_SERVER_PORT`: Port for the bundled OpenCode Server (default: 4096)
-- `OPENCODE_SERVER_HOSTNAME`: Hostname for the bundled OpenCode Server (default: 127.0.0.1)
+- `VITE_BASE_PATH`: Base path for reverse proxy deployments
+- `VITE_PWA_ASSETS_URL`: URL prefix for PWA assets when using a CDN
+- `VITE_ALLOWED_HOSTS`: Comma-separated list of allowed hostnames for the dev server
+- `OPENCODE_WEB_CSS_TRANSFORMER`: Choose between `postcss` (default) or `lightningcss`
 
 Example: `opencode-web --external-server http://10.0.0.200:4096 --host 0.0.0.0 -p 8080`
 
   - Runs opencode-web listening on all interfaces at port 8080, connecting to an existing OpenCode Server at `http://10.0.0.200:4096`
 
-Example: `VITE_OPENCODE_SERVER_URL=http://10.0.0.200:4096 bun run dev`
+Example: `OPENCODE_SERVER_URL=http://10.0.0.200:4096 OPENCODE_WEB_PORT=8080 bun run dev`
 
-  - Runs opencode-web in development mode, connecting to an existing OpenCode Server at `http://10.0.0.200:4096`
+  - Runs opencode-web in development mode on port 8080, connecting to an existing OpenCode Server at `http://10.0.0.200:4096`
 
 ## Why a web interface?
 
@@ -164,9 +183,9 @@ Progressive Web App hooks keep the client a tap away with full-screen, app-like 
    bun install
    ```
 2. **Configure environment**  
-   The web app resolves the OpenCode Server URL using the precedence order described above. For local development, set `VITE_OPENCODE_SERVER_URL` in `.env.local` or use the `--external-server` CLI flag:
+   The web app resolves configuration using the canonical environment variables. For local development, set `OPENCODE_SERVER_URL` in `.env.local` or use the `--external-server` CLI flag:
    ```bash
-   VITE_OPENCODE_SERVER_URL=http://localhost:4096
+   OPENCODE_SERVER_URL=http://localhost:4096
    ```
    Or run: `bun run dev --external-server http://localhost:4096`
 3. **Run the dev server**
@@ -191,7 +210,182 @@ Progressive Web App hooks keep the client a tap away with full-screen, app-like 
    - Serves static assets from `dist/client`
    - Proxies `/api/events` to your OpenCode server for SSE streaming
 
-Set `PORT`, `OPENCODE_SERVER_URL`, `VITE_OPENCODE_SERVER_URL`, or `NODE_ENV` to customize runtime behavior. The server URL is resolved at runtime using the precedence order.
+Set `OPENCODE_WEB_PORT`, `OPENCODE_WEB_HOST`, `OPENCODE_SERVER_URL`, or `NODE_ENV` to customize runtime behavior. Configuration is resolved at runtime using the precedence order described in the Environment Variables section.
+
+### Windows Build Troubleshooting
+
+If you encounter `Cannot find module` errors when building on Windows (e.g., `@rollup/rollup-win32-x64-msvc` or `@tailwindcss/oxide-win32-x64-msvc`):
+
+1. **Clear node_modules and reinstall:**
+   ```bash
+   rm -rf node_modules
+   bun install
+   ```
+   
+   These errors occur when lockfiles created on Linux/macOS omit Windows-specific platform binaries. The project now explicitly includes Windows binaries in `optionalDependencies` to prevent this issue ([npm/cli#4828](https://github.com/npm/cli/issues/4828)).
+
+2. **If the error persists after reinstalling**, ensure you're using the latest version of the repository with updated lockfiles that include:
+   - `@rollup/rollup-win32-x64-msvc` (64-bit Intel/AMD)
+   - `@rollup/rollup-win32-arm64-msvc` (64-bit ARM, e.g., Surface devices)
+   - `@tailwindcss/oxide-win32-x64-msvc` (64-bit Intel/AMD)
+   - `@tailwindcss/oxide-win32-arm64-msvc` (64-bit ARM, e.g., Surface devices)
+
+### Windows + bunx Limitation
+
+> ⚠️ **Important**: `bunx opencode-web` on Windows cannot automatically launch the bundled OpenCode Server due to a Bun runtime limitation with `/bin/sh` remapping. You must either use an external server or install locally.
+
+#### The Issue
+
+When running `bunx opencode-web@latest` on Windows, the bundled OpenCode Server fails to start with:
+```
+error: interpreter executable "/bin/sh" not found in %PATH%
+[ERROR] Failed to start OpenCode Server.
+```
+
+This happens because:
+- `bunx` creates temporary installations that don't properly install the Windows OpenCode binary
+- Bun's current Windows implementation cannot find `/bin/sh` when spawning the bundled server process
+- The bundled server requires the `opencode` CLI, which fails under these conditions
+
+#### Recommended Workarounds
+
+**Option 1: Use an External OpenCode Server** (Easiest for `bunx`)
+
+First, start an OpenCode server separately:
+```powershell
+# Install OpenCode CLI globally if you haven't already
+# Download from: https://github.com/opencode-ai/opencode
+
+# Start the server
+opencode serve --hostname=127.0.0.1 --port=4096
+```
+
+Then run opencode-web pointing to it:
+```powershell
+bunx opencode-web@latest --external-server http://127.0.0.1:4096
+```
+
+**Option 2: Install Locally** (Recommended for regular use)
+
+Install the package locally so Windows binaries are properly resolved:
+
+```powershell
+# Create a directory and install
+mkdir my-opencode-web
+cd my-opencode-web
+bun install opencode-web
+
+# IMPORTANT: Run the binary directly on Windows
+bun run packages/opencode-web/bin/opencode-web.js
+```
+
+Or install globally:
+```powershell
+bun add -g opencode-web
+# Then run the binary directly
+opencode-web
+```
+
+**⚠️ Important Note for Windows**: When installing locally, you must run the binary directly (`bun run packages/opencode-web/bin/opencode-web.js`) rather than using the npm script (`bun run opencode-web`). The npm script may still encounter the same `/bin/sh` limitation. Running the binary directly ensures proper Windows binary resolution.
+
+**Option 3: Build from Source** (For contributors or advanced users)
+
+```powershell
+git clone https://github.com/sst/opencode-web
+cd opencode-web
+bun install
+bun run build
+bun run packages/opencode-web/bin/opencode-web.js
+```
+
+#### Other Platforms
+
+This limitation only affects **Windows users running via `bunx`**:
+- ✅ **macOS/Linux + bunx**: Works perfectly (uses bundled SDK)
+- ✅ **Windows + local install**: Works perfectly (proper binary resolution)
+- ⚠️ **Windows + bunx**: Requires `--external-server` flag
+
+#### Technical Details
+
+The CLI detects `bunx` on Windows and exits early with actionable guidance. If you see the error, it means:
+1. You're on Windows
+2. Running from a `bunx` temporary directory
+3. No `--external-server` flag was provided
+
+For more information about this Bun limitation, see:
+- **Bun issue tracking**: [oven-sh/bun#issues](https://github.com/oven-sh/bun/issues) (to be filed - search for "/bin/sh Windows")
+- **OpenCode upstream**: [sst/opencode#issues](https://github.com/sst/opencode/issues) (to be filed - search for "Windows bunx")
+- **OpenCode Server**: https://github.com/sst/opencode
+
+#### Troubleshooting
+
+If you encounter errors even with `--external-server`:
+
+1. **Verify the server is running**:
+   ```powershell
+   # Test the server URL
+   curl http://127.0.0.1:4096/health
+   ```
+
+2. **Check firewall settings**: Ensure localhost connections are allowed
+
+3. **Try a different port**: If 4096 is in use, start the server on another port:
+   ```powershell
+   opencode serve --hostname=127.0.0.1 --port=4097
+   bunx opencode-web@latest --external-server http://127.0.0.1:4097
+   ```
+
+4. **Use host IP instead of localhost**: Sometimes `127.0.0.1` works better than `localhost` on Windows
+
+## Migration Guide: Environment Variables
+
+**If you're upgrading from an earlier version**, OpenCode Web has simplified configuration to three canonical environment variables. Legacy variables are still supported but deprecated.
+
+### Quick Migration
+
+| Old Variable | New Variable | Notes |
+|-------------|--------------|-------|
+| `PORT` | `OPENCODE_WEB_PORT` | Same meaning, new name |
+| `HOST` | `OPENCODE_WEB_HOST` | Same meaning, new name |
+| `VITE_OPENCODE_SERVER_URL` | `OPENCODE_SERVER_URL` | Same meaning, shorter name |
+| `OPENCODE_SERVER_PORT` | `OPENCODE_SERVER_URL` | Now specify full URL (e.g., `http://localhost:4096`) |
+| `OPENCODE_SERVER_HOSTNAME` | `OPENCODE_SERVER_URL` | Now specify full URL (e.g., `http://localhost:4096`) |
+
+### Example Migrations
+
+**Before:**
+```bash
+PORT=3000
+HOST=0.0.0.0
+VITE_OPENCODE_SERVER_URL=http://10.0.0.5:5000
+```
+
+**After:**
+```bash
+OPENCODE_WEB_PORT=3000
+OPENCODE_WEB_HOST=0.0.0.0
+OPENCODE_SERVER_URL=http://10.0.0.5:5000
+```
+
+**Before (bundled server config):**
+```bash
+OPENCODE_SERVER_PORT=5002
+OPENCODE_SERVER_HOSTNAME=192.168.1.100
+```
+
+**After:**
+```bash
+OPENCODE_SERVER_URL=http://192.168.1.100:5002
+```
+
+### Deprecation Warnings
+
+When using legacy variables in development mode, you'll see warnings like:
+```
+[deprecate] PORT is deprecated, prefer OPENCODE_WEB_PORT
+```
+
+These warnings do not appear in production. Update your configuration at your convenience—legacy variables will continue to work during the transition period.
 
 ## Project Structure
 

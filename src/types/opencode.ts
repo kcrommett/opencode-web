@@ -29,6 +29,7 @@ export interface ToolPartDetail {
   status: "pending" | "running" | "completed" | "error";
   input?: unknown;
   output?: unknown;
+  metadata?: Record<string, unknown>;
   error?: {
     message?: string;
     stack?: string;
@@ -59,6 +60,25 @@ export interface SessionTodo {
   status: "pending" | "in_progress" | "completed" | "cancelled";
   priority: "high" | "medium" | "low";
   id: string;
+}
+
+export type Todo = SessionTodo;
+
+export type PermissionResponse = "once" | "always" | "reject";
+
+export interface SessionForkRequest {
+  messageID?: string;
+  title?: string;
+}
+
+export interface SessionForkResponse {
+  id: string;
+  parentID?: string | null;
+  title?: string | null;
+  messageID?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  status?: string;
 }
 
 export interface FileContentData {
@@ -167,7 +187,7 @@ export interface ImageAttachment {
   origin: "paste" | "drop";
 }
 
-export type McpServerStatus = "connected" | "failed" | "disabled";
+export type McpServerStatus = "connected" | "failed";
 
 export interface McpStatusResponse {
   [serverName: string]: McpServerStatus;
@@ -184,6 +204,24 @@ export interface LspDiagnosticsSummary {
   hints: number;
   lastPath?: string;
   updatedAt: Date;
+}
+
+export interface LspStatus {
+  id: string;
+  language?: string;
+  status: "starting" | "running" | "stopped" | "failed" | "unknown";
+  errors?: number;
+  warnings?: number;
+  lastError?: string | null;
+  updatedAt?: string;
+}
+
+export interface FormatterStatus {
+  id: string;
+  language?: string;
+  status: "idle" | "running" | "disabled" | "error";
+  lastRunAt?: string;
+  lastError?: string | null;
 }
 
 /**
@@ -235,7 +273,48 @@ export interface SidebarStatusState {
   mcpStatusError: string | null;
   lspDiagnostics: Record<string, LspDiagnosticsSummary>;
   gitStatus: GitStatus;
+  lspStatus: LspStatus[];
+  formatterStatus: FormatterStatus[];
+  lspStatusError: string | null;
+  formatterStatusError: string | null;
 }
+
+/**
+ * Structured diff data from /session/{id}/diff
+ */
+export interface FileDiffHunkLine {
+  type: "context" | "add" | "remove" | "delete";
+  content: string;
+  oldNumber?: number | null;
+  newNumber?: number | null;
+}
+
+export interface FileDiffHunk {
+  header: string;
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: FileDiffHunkLine[];
+}
+
+export interface FileDiff {
+  path?: string;
+  oldPath?: string | null;
+  newPath?: string | null;
+  status?: "added" | "modified" | "deleted" | "renamed" | string;
+  additions: number;
+  deletions: number;
+  diff?: string;
+  hunks?: FileDiffHunk[];
+  binary?: boolean;
+  language?: string;
+  file?: string;
+  before?: string;
+  after?: string;
+}
+
+export type SessionDiffResponse = FileDiff[];
 
 /**
  * Session diff from summary
@@ -253,4 +332,26 @@ export interface SessionDiff {
  */
 export interface SessionSummary {
   diffs?: SessionDiff[];
+}
+
+export interface TuiEvent {
+  type: string;
+  payload?: Record<string, unknown>;
+  meta?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface TuiControlRequest {
+  id: string;
+  type: string;
+  payload?: Record<string, string | number | boolean | null>;
+  requestedAt?: string;
+  timeoutMs?: number;
+}
+
+export interface TuiControlResponse {
+  requestID: string;
+  response: Record<string, unknown>;
+  respondedAt?: string;
+  [key: string]: unknown;
 }

@@ -1,6 +1,19 @@
 import { createServerFn } from "@tanstack/react-start";
 import * as httpApi from "./opencode-http-api";
-import type { Agent, Part } from "../types/opencode";
+import type {
+  Agent,
+  Part,
+  McpStatusResponse,
+  Todo,
+  PermissionResponse,
+  SessionDiffResponse,
+  SessionForkResponse,
+  TuiEvent,
+  TuiControlRequest,
+  TuiControlResponse,
+  LspStatus,
+  FormatterStatus,
+} from "../types/opencode";
 
 export const getAgents = createServerFn({ method: "GET" }).handler(async () => {
   return httpApi.getAgents();
@@ -68,6 +81,12 @@ export const getMessage = createServerFn({ method: "GET" })
     return httpApi.getMessage(data.sessionId, data.messageId, data.directory);
   });
 
+export const getSessionTodos = createServerFn({ method: "GET" })
+  .inputValidator((data: { sessionId: string; directory?: string }) => data)
+  .handler(async ({ data }): Promise<Todo[]> => {
+    return httpApi.getSessionTodos(data.sessionId, data.directory);
+  });
+
 export const sendMessage = createServerFn({ method: "POST" })
   .inputValidator(
     (data: {
@@ -78,6 +97,10 @@ export const sendMessage = createServerFn({ method: "POST" })
       directory?: string;
       agent?: Agent;
       parts?: Part[];
+      messageID?: string;
+      noReply?: boolean;
+      system?: string;
+      tools?: Record<string, unknown>;
     }) => data,
   )
   .handler(async ({ data }) => {
@@ -89,6 +112,12 @@ export const sendMessage = createServerFn({ method: "POST" })
       data.directory,
       data.agent,
       data.parts,
+      {
+        messageID: data.messageID,
+        noReply: data.noReply,
+        system: data.system,
+        tools: data.tools,
+      },
     );
   });
 
@@ -110,16 +139,38 @@ export const unshareSession = createServerFn({ method: "POST" })
     return httpApi.unshareSession(data.sessionId, data.directory);
   });
 
+export const forkSession = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: {
+      sessionId: string;
+      messageID?: string;
+      title?: string;
+      directory?: string;
+    }) => data,
+  )
+  .handler(async ({ data }) => {
+    return httpApi.forkSession(
+      data.sessionId,
+      { messageID: data.messageID, title: data.title },
+      data.directory,
+    );
+  });
+
 export const revertMessage = createServerFn({ method: "POST" })
   .inputValidator(
-    (data: { sessionId: string; messageID: string; directory?: string }) =>
-      data,
+    (data: {
+      sessionId: string;
+      messageID: string;
+      directory?: string;
+      partID?: string;
+    }) => data,
   )
   .handler(async ({ data }) => {
     return httpApi.revertMessage(
       data.sessionId,
       data.messageID,
       data.directory,
+      data.partID,
     );
   });
 
@@ -136,6 +187,9 @@ export const runCommand = createServerFn({ method: "POST" })
       command: string;
       args?: string[];
       directory?: string;
+      agent?: string;
+      arguments?: unknown;
+      messageID?: string;
     }) => data,
   )
   .handler(async ({ data }) => {
@@ -144,25 +198,29 @@ export const runCommand = createServerFn({ method: "POST" })
       data.command,
       data.args,
       data.directory,
+      data.agent,
+      { arguments: data.arguments, messageID: data.messageID },
     );
   });
 
 export const findFiles = createServerFn({ method: "GET" })
-  .inputValidator((data: { query: string; directory?: string }) => data)
+  .inputValidator(
+    (data: { query: string; directory?: string; dirs?: boolean }) => data,
+  )
   .handler(async ({ data }) => {
-    return httpApi.findFiles(data.query, data.directory);
+    return httpApi.findFiles(data.query, data.directory, data.dirs);
   });
 
 export const findInFiles = createServerFn({ method: "GET" })
-  .inputValidator((data: { pattern: string }) => data)
+  .inputValidator((data: { pattern: string; directory?: string }) => data)
   .handler(async ({ data }) => {
-    return httpApi.findInFiles(data.pattern);
+    return httpApi.findInFiles(data.pattern, data.directory);
   });
 
 export const findSymbols = createServerFn({ method: "GET" })
-  .inputValidator((data: { query: string }) => data)
+  .inputValidator((data: { query: string; directory?: string }) => data)
   .handler(async ({ data }) => {
-    return httpApi.findSymbols(data.query);
+    return httpApi.findSymbols(data.query, data.directory);
   });
 
 export const readFile = createServerFn({ method: "GET" })
@@ -177,12 +235,24 @@ export const getFileStatus = createServerFn({ method: "GET" })
     return httpApi.getFileStatus(data.directory);
   });
 
+export const getSessionDiff = createServerFn({ method: "GET" })
+  .inputValidator(
+    (data: { sessionId: string; directory?: string; messageID?: string }) =>
+      data,
+  )
+  .handler(async ({ data }): Promise<SessionDiffResponse> => {
+    return httpApi.getFileDiff(data.sessionId, {
+      directory: data.directory,
+      messageID: data.messageID,
+    });
+  });
+
 export const respondToPermission = createServerFn({ method: "POST" })
   .inputValidator(
     (data: {
       sessionId: string;
       permissionId: string;
-      response: boolean;
+      response: PermissionResponse;
       directory?: string;
     }) => data,
   )
@@ -279,6 +349,50 @@ export const showToast = createServerFn({ method: "POST" })
     return httpApi.showToast(data.message, data.title, data.variant);
   });
 
+export const openTuiHelp = createServerFn({ method: "POST" })
+  .inputValidator((data?: { directory?: string }) => data ?? {})
+  .handler(async ({ data }) => {
+    return httpApi.openTuiHelp(data.directory);
+  });
+
+export const openTuiSessions = createServerFn({ method: "POST" })
+  .inputValidator((data?: { directory?: string }) => data ?? {})
+  .handler(async ({ data }) => {
+    return httpApi.openTuiSessions(data.directory);
+  });
+
+export const openTuiThemes = createServerFn({ method: "POST" })
+  .inputValidator((data?: { directory?: string }) => data ?? {})
+  .handler(async ({ data }) => {
+    return httpApi.openTuiThemes(data.directory);
+  });
+
+export const openTuiModels = createServerFn({ method: "POST" })
+  .inputValidator((data?: { directory?: string }) => data ?? {})
+  .handler(async ({ data }) => {
+    return httpApi.openTuiModels(data.directory);
+  });
+
+export const publishTuiEvent = createServerFn({ method: "POST" })
+  .inputValidator((data: { event: TuiEvent; directory?: string }) => data)
+  .handler(async ({ data }) => {
+    return httpApi.publishTuiEvent(data.event, data.directory);
+  });
+
+export const getNextTuiControlRequest = createServerFn({ method: "GET" })
+  .inputValidator((data?: { directory?: string }) => data ?? {})
+  .handler(async ({ data }): Promise<TuiControlRequest | null> => {
+    return httpApi.getNextTuiControlRequest(data.directory);
+  });
+
+export const respondToTuiControl = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: { response: TuiControlResponse; directory?: string }) => data,
+  )
+  .handler(async ({ data }) => {
+    return httpApi.respondToTuiControl(data.response, data.directory);
+  });
+
 export const listProjects = createServerFn({ method: "GET" })
   .inputValidator((data?: { directory?: string }) => data ?? {})
   .handler(async ({ data }) => {
@@ -365,8 +479,42 @@ export const exportSession = createServerFn({ method: "GET" })
     };
   });
 
-export const getMcpStatus = createServerFn({ method: "GET" }).handler(
-  async () => {
-    return httpApi.getMcpStatus();
-  },
-);
+export const getLspStatus = createServerFn({ method: "GET" })
+  .inputValidator((data?: { directory?: string }) => data ?? {})
+  .handler(async ({ data }): Promise<LspStatus[]> => {
+    return httpApi.getLspStatus(data.directory);
+  });
+
+export const getFormatterStatus = createServerFn({ method: "GET" })
+  .inputValidator((data?: { directory?: string }) => data ?? {})
+  .handler(async ({ data }): Promise<FormatterStatus[]> => {
+    return httpApi.getFormatterStatus(data.directory);
+  });
+
+export const logEvent = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: {
+      service: string;
+      level: "debug" | "info" | "warn" | "error";
+      message: string;
+      extra?: Record<string, unknown>;
+      directory?: string;
+    }) => data,
+  )
+  .handler(async ({ data }) => {
+    return httpApi.logEvent(
+      {
+        service: data.service,
+        level: data.level,
+        message: data.message,
+        extra: data.extra,
+      },
+      data.directory,
+    );
+  });
+
+export const getMcpStatus = createServerFn({ method: "GET" })
+  .inputValidator((data?: { directory?: string }) => data ?? {})
+  .handler(async ({ data }): Promise<McpStatusResponse> => {
+    return httpApi.getMcpStatus(data.directory);
+  });

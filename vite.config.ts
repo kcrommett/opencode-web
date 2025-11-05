@@ -8,13 +8,21 @@ import { getOpencodeServerUrl } from "./src/lib/opencode-config";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
+  
   // Ensure helpers that read from process.env (like getOpencodeServerUrl)
   // see the same values we loaded via loadEnv when running the bare Vite dev server.
-  if (!process.env.VITE_OPENCODE_SERVER_URL && env.VITE_OPENCODE_SERVER_URL) {
-    process.env.VITE_OPENCODE_SERVER_URL = env.VITE_OPENCODE_SERVER_URL;
-  }
+  // Prioritize canonical env vars (OPENCODE_*) over legacy ones
   if (!process.env.OPENCODE_SERVER_URL && env.OPENCODE_SERVER_URL) {
     process.env.OPENCODE_SERVER_URL = env.OPENCODE_SERVER_URL;
+  }
+  if (!process.env.OPENCODE_SERVER_URL && !process.env.VITE_OPENCODE_SERVER_URL && env.VITE_OPENCODE_SERVER_URL) {
+    process.env.VITE_OPENCODE_SERVER_URL = env.VITE_OPENCODE_SERVER_URL;
+  }
+  if (!process.env.OPENCODE_WEB_PORT && env.OPENCODE_WEB_PORT) {
+    process.env.OPENCODE_WEB_PORT = env.OPENCODE_WEB_PORT;
+  }
+  if (!process.env.OPENCODE_WEB_HOST && env.OPENCODE_WEB_HOST) {
+    process.env.OPENCODE_WEB_HOST = env.OPENCODE_WEB_HOST;
   }
   const isDev = mode === "development";
   // Use relative URLs for PWA assets to work with reverse proxies
@@ -28,10 +36,23 @@ export default defineConfig(({ mode }) => {
   // Handle reverse proxy base path
   const basePath = env.VITE_BASE_PATH || "";
 
+  const transformerEnv =
+    env.OPENCODE_WEB_CSS_TRANSFORMER || env.VITE_CSS_TRANSFORMER;
+  const normalizedTransformer = transformerEnv?.toLowerCase();
+  const cssTransformer =
+    normalizedTransformer === "postcss"
+      ? "postcss"
+      : normalizedTransformer === "lightningcss"
+        ? "lightningcss"
+        : "postcss";
+
   return {
     base: basePath,
+    css: {
+      transformer: cssTransformer,
+    },
     server: {
-      port: Number(env.PORT) || 3000,
+      port: Number(env.OPENCODE_WEB_PORT || env.PORT) || 3000,
       allowedHosts,
       // CLI populates process.env before invoking Vite
       proxy: {
@@ -74,9 +95,9 @@ export default defineConfig(({ mode }) => {
         ],
         injectRegister: "auto",
         manifest: {
-          name: "opencode web",
-          short_name: "opencode",
-          description: "A web-based interface for OpenCode projects",
+          name: "oc web",
+          short_name: "oc web",
+          description: "OC Web - A web-based interface for OpenCode projects",
           theme_color: "#1e1e2e",
           background_color: "#1e1e2e",
           display: "fullscreen",

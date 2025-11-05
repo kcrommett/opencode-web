@@ -3,13 +3,149 @@
  */
 
 import path from "node:path";
-// Inlined config helpers
+
+// Inlined config helpers with canonical env var support
+interface WebConfig {
+  webHost: string;
+  webPort: number;
+  serverUrl: string;
+  metadata: {
+    hostSource: string;
+    portSource: string;
+    serverUrlSource: string;
+    usedLegacy: boolean;
+  };
+}
+
+interface ConfigInput {
+  env?: Record<string, string | undefined>;
+  cliOverrides?: {
+    host?: string;
+    port?: number;
+    serverUrl?: string;
+  };
+}
+
+const DEFAULT_WEB_HOST = "localhost";
+const DEFAULT_WEB_PORT = 3000;
+const DEFAULT_SERVER_URL = "http://localhost:4096";
+
+const isDev = () =>
+  typeof process !== "undefined" &&
+  process.env.NODE_ENV !== "production" &&
+  process.env.NODE_ENV !== "test";
+
+const warnDeprecation = (oldName: string, newName: string) => {
+  if (isDev()) {
+    console.warn(`[deprecate] ${oldName} is deprecated, prefer ${newName}`);
+  }
+};
+
 function normalizeBaseUrl(url: string): string {
   const normalized = url.replace(/\/+$/, "");
   if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) {
     throw new Error(`Invalid URL protocol: ${normalized}`);
   }
   return normalized;
+}
+
+function normalizeServerUrl(url: string | undefined): string {
+  if (!url) return DEFAULT_SERVER_URL;
+  return normalizeBaseUrl(url);
+}
+
+function parsePort(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function resolveWebConfig(input?: ConfigInput): WebConfig {
+  const env = input?.env ?? (typeof process !== "undefined" ? process.env : {});
+  const cli = input?.cliOverrides ?? {};
+
+  let usedLegacy = false;
+
+  // Resolve web host
+  let webHost: string;
+  let hostSource: string;
+  if (cli.host) {
+    webHost = cli.host;
+    hostSource = "cli";
+  } else if (env.OPENCODE_WEB_HOST) {
+    webHost = env.OPENCODE_WEB_HOST;
+    hostSource = "OPENCODE_WEB_HOST";
+  } else if (env.HOST) {
+    webHost = env.HOST;
+    hostSource = "HOST (legacy)";
+    usedLegacy = true;
+    warnDeprecation("HOST", "OPENCODE_WEB_HOST");
+  } else {
+    webHost = DEFAULT_WEB_HOST;
+    hostSource = "default";
+  }
+
+  // Resolve web port
+  let webPort: number;
+  let portSource: string;
+  if (cli.port) {
+    webPort = cli.port;
+    portSource = "cli";
+  } else if (env.OPENCODE_WEB_PORT) {
+    const parsed = parsePort(env.OPENCODE_WEB_PORT);
+    if (parsed) {
+      webPort = parsed;
+      portSource = "OPENCODE_WEB_PORT";
+    } else {
+      webPort = DEFAULT_WEB_PORT;
+      portSource = "default (invalid OPENCODE_WEB_PORT)";
+    }
+  } else if (env.PORT) {
+    const parsed = parsePort(env.PORT);
+    if (parsed) {
+      webPort = parsed;
+      portSource = "PORT (legacy)";
+      usedLegacy = true;
+      warnDeprecation("PORT", "OPENCODE_WEB_PORT");
+    } else {
+      webPort = DEFAULT_WEB_PORT;
+      portSource = "default (invalid PORT)";
+    }
+  } else {
+    webPort = DEFAULT_WEB_PORT;
+    portSource = "default";
+  }
+
+  // Resolve server URL
+  let serverUrl: string;
+  let serverUrlSource: string;
+  if (cli.serverUrl) {
+    serverUrl = normalizeServerUrl(cli.serverUrl);
+    serverUrlSource = "cli";
+  } else if (env.OPENCODE_SERVER_URL) {
+    serverUrl = normalizeServerUrl(env.OPENCODE_SERVER_URL);
+    serverUrlSource = "OPENCODE_SERVER_URL";
+  } else if (env.VITE_OPENCODE_SERVER_URL) {
+    serverUrl = normalizeServerUrl(env.VITE_OPENCODE_SERVER_URL);
+    serverUrlSource = "VITE_OPENCODE_SERVER_URL (legacy)";
+    usedLegacy = true;
+    warnDeprecation("VITE_OPENCODE_SERVER_URL", "OPENCODE_SERVER_URL");
+  } else {
+    serverUrl = DEFAULT_SERVER_URL;
+    serverUrlSource = "default";
+  }
+
+  return {
+    webHost,
+    webPort,
+    serverUrl,
+    metadata: {
+      hostSource,
+      portSource,
+      serverUrlSource,
+      usedLegacy,
+    },
+  };
 }
 
 function resolveServerUrlFromEnv(): string {
@@ -30,7 +166,7 @@ function resolveServerUrlFromEnv(): string {
     processEnv?.VITE_OPENCODE_SERVER_URL ||
     importMetaEnv?.VITE_OPENCODE_SERVER_URL ||
     globalRuntimeUrl ||
-    "http://localhost:4096";
+    DEFAULT_SERVER_URL;
 
   return normalizeBaseUrl(url);
 }
@@ -46,8 +182,6 @@ function getOpencodeServerUrl(): string {
       return normalizeBaseUrl(config.serverUrl);
     }
   }
-
-
 
   return resolveServerUrlFromEnv();
 }
@@ -72,7 +206,9 @@ if (!process.env.NODE_ENV) {
 }
 const IS_PRODUCTION = NODE_ENV === "production";
 
-const SERVER_PORT = Number(process.env.PORT ?? 3000);
+const webConfig = resolveWebConfig();
+const SERVER_PORT = webConfig.webPort;
+const SERVER_HOST = webConfig.webHost;
 const CLIENT_DIRECTORY = path.resolve(process.cwd(), "dist/client");
 const SERVER_ASSETS_DIRECTORY = path.resolve(
   process.cwd(),
@@ -97,10 +233,9 @@ async function initializeServer() {
     process.exit(1);
   }
 
-  const serverHost = process.env.HOST || "localhost";
   const server = Bun.serve({
     port: SERVER_PORT,
-    hostname: serverHost,
+    hostname: SERVER_HOST,
     idleTimeout: 0, // Disable idle timeout for SSE connections
     fetch: async (req: Request) => {
       try {
@@ -135,12 +270,12 @@ async function initializeServer() {
           const serverUrl = getOpencodeServerUrl();
           if (!serverUrl || serverUrl === "http://localhost:4096") {
             console.warn(
-              "[SSE Proxy] Warning: OpenCode server URL is missing or defaults to localhost. Please set VITE_OPENCODE_SERVER_URL environment variable.",
+              "[SSE Proxy] Warning: OpenCode server URL is missing or defaults to localhost. Please set OPENCODE_SERVER_URL environment variable.",
             );
             return new Response(
               JSON.stringify({
                 error:
-                  "OpenCode server URL not configured. Set VITE_OPENCODE_SERVER_URL to the correct server address.",
+                  "OpenCode server URL not configured. Set OPENCODE_SERVER_URL to the correct server address.",
               }),
               {
                 status: 500,
@@ -266,11 +401,11 @@ async function initializeServer() {
     },
   });
 
-  const displayHost = serverHost === "0.0.0.0" ? "0.0.0.0" : serverHost;
+  const displayHost = SERVER_HOST === "0.0.0.0" ? "0.0.0.0" : SERVER_HOST;
   console.log(
     `Server listening on http://${displayHost}:${String(server.port)}`,
   );
-  if (serverHost === "0.0.0.0") {
+  if (SERVER_HOST === "0.0.0.0") {
     console.log("Listening on all network interfaces");
   }
 }

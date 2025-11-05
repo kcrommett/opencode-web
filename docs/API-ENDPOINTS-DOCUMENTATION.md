@@ -6,7 +6,27 @@ This document provides a comprehensive overview of all available API endpoints i
 
 - **API Version**: 0.0.3
 - **Title**: opencode api
-- **Base URL**: http://10.0.2.100:3333
+- **Base URL**: http://10.0.2.100:3333 (default: http://127.0.0.1:4096)
+
+### Windows Configuration Note
+
+When using opencode-web on Windows with `bunx`, you must configure an external OpenCode Server:
+
+**Default host/port when using `--external-server`:**
+- **Host**: `127.0.0.1` (preferred over `localhost` on Windows)
+- **Port**: `4096` (default OpenCode Server port)
+- **Full URL**: `http://127.0.0.1:4096`
+
+**Example:**
+```powershell
+# Start OpenCode Server
+opencode serve --hostname=127.0.0.1 --port=4096
+
+# Connect opencode-web
+bunx opencode-web@latest --external-server http://127.0.0.1:4096
+```
+
+For more details on Windows + bunx limitations, see [Windows + bunx Limitation](../README.md#windows--bunx-limitation).
 
 ## Common Query Parameters
 
@@ -340,9 +360,51 @@ Runs a shell command within a session.
 ```json
 {
   "agent": "string",
-  "command": "string"
+  "command": "string",
+  "args": ["string"],
+  "directory": "string",
+  "multiline": "boolean"
 }
 ```
+
+**Enhanced Response** (for shell command enhancements):
+```json
+{
+  "info": {
+    "id": "string",
+    "exitCode": "number",
+    "duration": "number",
+    "workingDirectory": "string",
+    "command": "string"
+  },
+  "parts": [
+    {
+      "type": "tool",
+      "tool": "shell",
+      "status": "completed|error|running",
+      "input": "string",
+      "output": "string",
+      "error": {
+        "message": "string",
+        "stack": "string"
+      },
+      "state": {
+        "timings": {
+          "duration": "number"
+        }
+      }
+    }
+  ]
+}
+```
+
+**Shell Command Enhancements**:
+- Multi-line command support with preserved formatting
+- ANSI color code rendering in output
+- Command history with metadata (exit codes, timestamps)
+- Real-time status indicators (running, completed, error)
+- Enhanced error handling with stderr separation
+- Keyboard shortcuts for multi-line editing (Shift+Enter)
 
 ### Revert Message
 **POST** `/session/{id}/revert`

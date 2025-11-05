@@ -12,6 +12,7 @@ interface SidebarTabsProps {
   activeTab: string;
   onTabChange: (tabId: string) => void;
   className?: string;
+  isOpen?: boolean;
 }
 
 export const SidebarTabs: React.FC<SidebarTabsProps> = ({
@@ -19,6 +20,7 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
   activeTab,
   onTabChange,
   className = "",
+  isOpen = true,
 }) => {
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const enabledTabs = tabs.filter((tab) => !tab.disabled);
@@ -85,7 +87,7 @@ export const SidebarTabs: React.FC<SidebarTabsProps> = ({
           aria-controls={`sidebar-panel-${tab.id}`}
           tabIndex={activeTab === tab.id && !tab.disabled ? 0 : -1}
           onClick={() => onTabChange(tab.id)}
-          variant={activeTab === tab.id ? "foreground0" : undefined}
+          variant={activeTab === tab.id && isOpen ? "foreground0" : undefined}
           box="square"
           size="small"
           className="capitalize whitespace-nowrap"

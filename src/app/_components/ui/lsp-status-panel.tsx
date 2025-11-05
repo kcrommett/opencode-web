@@ -3,7 +3,6 @@ import { useOpenCodeContext } from "@/contexts/OpenCodeContext";
 import { Badge } from "./badge";
 import { StatusBadge } from "./status-badge";
 import { Button } from "./button";
-import { Separator } from "./separator";
 
 export const LspStatusPanel: React.FC = () => {
   const { sidebarStatus } = useOpenCodeContext();
@@ -15,8 +14,8 @@ export const LspStatusPanel: React.FC = () => {
   
   if (diagnosticEntries.length === 0) {
     return (
-      <div className="p-4 space-y-4">
-        <div className="flex items-center justify-between">
+      <div className="p-4 space-y-3">
+        <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-medium">LSP Diagnostics</h3>
           <Button
             variant="foreground1"
@@ -31,8 +30,7 @@ export const LspStatusPanel: React.FC = () => {
             Refresh
           </Button>
         </div>
-        <Separator />
-        <div className="text-center text-sm text-theme-muted py-8">
+        <div className="text-center text-sm text-theme-muted py-4">
           No diagnostics available
         </div>
       </div>
@@ -73,8 +71,8 @@ export const LspStatusPanel: React.FC = () => {
   };
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="p-4 space-y-3">
+      <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-medium">LSP Diagnostics</h3>
         <Button
           variant="foreground1"
@@ -89,8 +87,6 @@ export const LspStatusPanel: React.FC = () => {
           Refresh
         </Button>
       </div>
-
-      <Separator />
 
       {/* Summary */}
       <div className="space-y-2">
@@ -120,8 +116,6 @@ export const LspStatusPanel: React.FC = () => {
           ))}
         </div>
       </div>
-
-      <Separator />
 
       {/* Server Details */}
       <div className="space-y-3">

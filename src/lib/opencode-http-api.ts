@@ -1,5 +1,19 @@
 import { getOpencodeServerUrl } from "./opencode-config";
-import type { Agent, Part } from "../types/opencode";
+import type {
+  Agent,
+  Part,
+  McpStatusResponse,
+  Todo,
+  SessionForkRequest,
+  SessionForkResponse,
+  PermissionResponse,
+  SessionDiffResponse,
+  TuiEvent,
+  TuiControlRequest,
+  TuiControlResponse,
+  LspStatus,
+  FormatterStatus,
+} from "../types/opencode";
 
 function buildUrl(
   path: string,
@@ -135,6 +149,32 @@ export async function getMessage(
   return response.json();
 }
 
+export async function getSessionTodos(
+  sessionId: string,
+  directory?: string,
+): Promise<Todo[]> {
+  const response = await fetch(
+    buildUrl(
+      `/session/${sessionId}/todo`,
+      directory ? { directory } : undefined,
+    ),
+  );
+
+  if (response.status === 404) {
+    return [];
+  }
+
+  if (!response.ok) {
+    throw new Error(`Failed to get session todos: ${response.statusText}`);
+  }
+
+  try {
+    return (await response.json()) as Todo[];
+  } catch {
+    return [];
+  }
+}
+
 export async function sendMessage(
   sessionId: string,
   content: string,
@@ -143,6 +183,12 @@ export async function sendMessage(
   directory?: string,
   agent?: Agent,
   parts?: Part[],
+  options?: {
+    messageID?: string;
+    noReply?: boolean;
+    system?: string;
+    tools?: Record<string, unknown>;
+  },
 ) {
   const body: Record<string, unknown> = {};
   const providedParts = Array.isArray(parts)
@@ -236,6 +282,18 @@ export async function sendMessage(
   if (agent) {
     body.agent = agent.id || agent.name;
   }
+  if (options?.messageID) {
+    body.messageID = options.messageID;
+  }
+  if (typeof options?.noReply === "boolean") {
+    body.noReply = options.noReply;
+  }
+  if (typeof options?.system === "string" && options.system.length > 0) {
+    body.system = options.system;
+  }
+  if (options?.tools && typeof options.tools === "object") {
+    body.tools = options.tools;
+  }
 
   const url = buildUrl(
     `/session/${sessionId}/message`,
@@ -314,11 +372,44 @@ export async function unshareSession(sessionId: string, directory?: string) {
   return response.json();
 }
 
+export async function forkSession(
+  sessionId: string,
+  body: SessionForkRequest = {},
+  directory?: string,
+): Promise<SessionForkResponse> {
+  const response = await fetch(
+    buildUrl(
+      `/session/${sessionId}/fork`,
+      directory ? { directory } : undefined,
+    ),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body ?? {}),
+    },
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(
+      errorText || response.statusText || "Failed to fork session",
+    );
+  }
+
+  return response.json();
+}
+
 export async function revertMessage(
   sessionId: string,
   messageID: string,
   directory?: string,
+  partID?: string,
 ) {
+  const payload: Record<string, string> = { messageID };
+  if (partID) {
+    payload.partID = partID;
+  }
+
   const response = await fetch(
     buildUrl(
       `/session/${sessionId}/revert`,
@@ -327,7 +418,7 @@ export async function revertMessage(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messageID }),
+      body: JSON.stringify(payload),
     },
   );
   if (!response.ok) {
@@ -357,9 +448,29 @@ export async function runCommand(
   command: string,
   args?: string[],
   directory?: string,
+  agent?: string,
+  options?: {
+    arguments?: unknown;
+    messageID?: string;
+  },
 ) {
   const body: Record<string, unknown> = { command };
-  if (args) body.args = args;
+
+  if (Array.isArray(args)) {
+    body.args = args;
+  }
+
+  if (agent) {
+    body.agent = agent;
+  }
+
+  if (options?.arguments !== undefined) {
+    body.arguments = options.arguments;
+  }
+
+  if (options?.messageID) {
+    body.messageID = options.messageID;
+  }
 
   const response = await fetch(
     buildUrl(
@@ -373,14 +484,48 @@ export async function runCommand(
     },
   );
   if (!response.ok) {
-    throw new Error(`Failed to run command: ${response.statusText}`);
+    let errorMessage = response.statusText;
+    try {
+      const responseText = await response.text();
+      if (responseText) {
+        try {
+          const parsed = JSON.parse(responseText);
+          errorMessage =
+            parsed?.error ||
+            parsed?.message ||
+            parsed?.data?.message ||
+            parsed;
+        } catch {
+          errorMessage = responseText;
+        }
+      }
+    } catch {
+      // Ignore secondary errors and fall back to status text
+    }
+
+    if (typeof errorMessage === "object") {
+      try {
+        errorMessage = JSON.stringify(errorMessage);
+      } catch {
+        errorMessage = "[object Object]";
+      }
+    }
+
+    throw new Error(`Failed to run command: ${errorMessage}`);
   }
   return response.json();
 }
 
-export async function findFiles(query: string, directory?: string) {
+export async function findFiles(
+  query: string,
+  directory?: string,
+  includeDirectories?: boolean,
+) {
   const params: Record<string, string> = { query };
   if (directory) params.directory = directory;
+  if (typeof includeDirectories === "boolean") {
+    params.dirs = String(includeDirectories);
+  }
   const response = await fetch(buildUrl("/find/file", params));
   if (!response.ok) {
     throw new Error(`Failed to find files: ${response.statusText}`);
@@ -388,16 +533,20 @@ export async function findFiles(query: string, directory?: string) {
   return response.json();
 }
 
-export async function findInFiles(pattern: string) {
-  const response = await fetch(buildUrl("/find", { pattern }));
+export async function findInFiles(pattern: string, directory?: string) {
+  const params: Record<string, string> = { pattern };
+  if (directory) params.directory = directory;
+  const response = await fetch(buildUrl("/find", params));
   if (!response.ok) {
     throw new Error(`Failed to find in files: ${response.statusText}`);
   }
   return response.json();
 }
 
-export async function findSymbols(query: string) {
-  const response = await fetch(buildUrl("/find/symbol", { query }));
+export async function findSymbols(query: string, directory?: string) {
+  const params: Record<string, string> = { query };
+  if (directory) params.directory = directory;
+  const response = await fetch(buildUrl("/find/symbol", params));
   if (!response.ok) {
     throw new Error(`Failed to find symbols: ${response.statusText}`);
   }
@@ -428,23 +577,42 @@ export async function getFileStatus(directory?: string) {
   return response.json();
 }
 
-export async function getFileDiff(filePath: string, directory?: string): Promise<{ diff: string; additions: number; deletions: number } | null> {
-  const params = directory ? { directory } : undefined;
-  // Use git diff command to get the diff for this specific file
-  const response = await fetch(buildUrl("/file/status", params));
-  if (!response.ok) {
-    return null;
+export async function getFileDiff(
+  sessionId: string,
+  options?: { directory?: string; messageID?: string },
+): Promise<SessionDiffResponse> {
+  const params: Record<string, string> = {};
+  if (options?.directory) {
+    params.directory = options.directory;
   }
-  
-  // For now, return null - we'll implement this using session diffs or shell execution
-  // This is a placeholder that will be implemented properly
-  return null;
+  if (options?.messageID) {
+    params.messageID = options.messageID;
+  }
+
+  const response = await fetch(buildUrl(`/session/${sessionId}/diff`, params));
+
+  if (response.status === 404) {
+    return [];
+  }
+
+  if (!response.ok) {
+    const errorPayload = await response.text().catch(() => "");
+    const reason = errorPayload || response.statusText || "Unknown diff error";
+    throw new Error(`Failed to fetch session diff: ${reason}`);
+  }
+
+  try {
+    const payload = (await response.json()) as SessionDiffResponse;
+    return Array.isArray(payload) ? payload : [];
+  } catch {
+    return [];
+  }
 }
 
 export async function respondToPermission(
   sessionId: string,
   permissionId: string,
-  permissionResponse: boolean,
+  permissionResponse: PermissionResponse,
   directory?: string,
 ) {
   const response = await fetch(
@@ -544,6 +712,30 @@ export async function summarizeSession(
   return response.ok;
 }
 
+async function postTuiEndpoint(
+  path: string,
+  options?: { directory?: string; body?: Record<string, unknown> },
+) {
+  const response = await fetch(
+    buildUrl(path, options?.directory ? { directory: options.directory } : undefined),
+    {
+      method: "POST",
+      headers: options?.body ? { "Content-Type": "application/json" } : undefined,
+      body: options?.body ? JSON.stringify(options.body) : undefined,
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to call ${path}: ${response.statusText}`);
+  }
+
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    return response.json().catch(() => true);
+  }
+  return true;
+}
+
 export async function appendPrompt(text: string) {
   const response = await fetch(buildUrl("/tui/append-prompt"), {
     method: "POST",
@@ -617,6 +809,77 @@ export async function showToast(
       error: error instanceof Error ? error.message : "Unknown toast error",
     };
   }
+}
+
+export async function openTuiHelp(directory?: string) {
+  return postTuiEndpoint("/tui/open-help", { directory });
+}
+
+export async function openTuiSessions(directory?: string) {
+  return postTuiEndpoint("/tui/open-sessions", { directory });
+}
+
+export async function openTuiThemes(directory?: string) {
+  return postTuiEndpoint("/tui/open-themes", { directory });
+}
+
+export async function openTuiModels(directory?: string) {
+  return postTuiEndpoint("/tui/open-models", { directory });
+}
+
+export async function publishTuiEvent(
+  event: TuiEvent,
+  directory?: string,
+) {
+  return postTuiEndpoint("/tui/publish", { directory, body: event });
+}
+
+export async function getNextTuiControlRequest(
+  directory?: string,
+): Promise<TuiControlRequest | null> {
+  const response = await fetch(
+    buildUrl(
+      "/tui/control/next",
+      directory ? { directory } : undefined,
+    ),
+  );
+
+  if (response.status === 204) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch next TUI control request: ${response.statusText}`);
+  }
+
+  try {
+    return (await response.json()) as TuiControlRequest;
+  } catch {
+    return null;
+  }
+}
+
+export async function respondToTuiControl(
+  payload: TuiControlResponse,
+  directory?: string,
+) {
+  const response = await fetch(
+    buildUrl(
+      "/tui/control/response",
+      directory ? { directory } : undefined,
+    ),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to respond to TUI control: ${response.statusText}`);
+  }
+
+  return response.json().catch(() => true);
 }
 
 export async function listProjects(directory?: string) {
@@ -734,10 +997,56 @@ export async function setAuth(
  * Get MCP (Model Context Protocol) server status
  * @returns MCP server status including connection states
  */
-export async function getMcpStatus() {
-  const response = await fetch(buildUrl("/mcp"));
+export async function getMcpStatus(
+  directory?: string,
+): Promise<McpStatusResponse> {
+  const response = await fetch(
+    buildUrl("/mcp", directory ? { directory } : undefined),
+  );
   if (!response.ok) {
     throw new Error(`Failed to get MCP status: ${response.statusText}`);
   }
   return response.json();
+}
+
+export async function getLspStatus(directory?: string): Promise<LspStatus[]> {
+  const response = await fetch(
+    buildUrl("/lsp", directory ? { directory } : undefined),
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to get LSP status: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+export async function getFormatterStatus(
+  directory?: string,
+): Promise<FormatterStatus[]> {
+  const response = await fetch(
+    buildUrl("/formatter", directory ? { directory } : undefined),
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to get formatter status: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+export async function logEvent(
+  entry: { service: string; level: "debug" | "info" | "warn" | "error"; message: string; extra?: Record<string, unknown> },
+  directory?: string,
+) {
+  const response = await fetch(
+    buildUrl("/log", directory ? { directory } : undefined),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(entry),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to send log entry: ${response.statusText}`);
+  }
+
+  return response.json().catch(() => true);
 }

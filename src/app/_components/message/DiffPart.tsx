@@ -51,7 +51,7 @@ function DiffFileView({ file, isExpanded, onToggle }: DiffFileViewProps) {
     }
 
     return (
-      <div className="font-mono text-xs overflow-x-auto">
+      <div className="font-mono text-xs overflow-x-auto max-w-full">
         {file.hunks.map((hunk, hunkIdx) => (
           <div key={hunkIdx}>
             <div className="bg-theme-background-alt px-3 py-1 opacity-60">
@@ -89,11 +89,11 @@ function DiffFileView({ file, isExpanded, onToggle }: DiffFileViewProps) {
   };
 
   return (
-    <div className="border border-theme-border rounded-md overflow-hidden bg-theme-background-alt">
+    <div className="border border-theme-border rounded-md overflow-hidden bg-theme-background-alt max-w-full">
       <div
         role="button"
         tabIndex={0}
-        className="flex w-full items-center justify-between p-3 text-left hover:bg-theme-background transition-colors gap-3 cursor-pointer"
+        className="flex w-full min-w-0 items-center justify-between p-3 text-left hover:bg-theme-background transition-colors gap-3 cursor-pointer"
         onClick={onToggle}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
@@ -272,11 +272,11 @@ export function DiffPart({ diff, toolName = "edit", hideHeader = false }: DiffPa
   }
 
   return (
-    <div className="border border-theme-border rounded-md overflow-hidden bg-theme-background-alt mb-2">
+    <div className="border border-theme-border rounded-md overflow-hidden bg-theme-background-alt mb-2 max-w-full">
       <div
         role="button"
         tabIndex={0}
-        className="flex w-full items-center justify-between p-3 text-left hover:bg-theme-background transition-colors cursor-pointer"
+        className="flex w-full min-w-0 items-center justify-between p-3 text-left hover:bg-theme-background transition-colors cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {

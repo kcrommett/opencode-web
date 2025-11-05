@@ -7,6 +7,9 @@ import {
   formatDuration,
 } from "@/lib/tool-helpers";
 import { DiffPart } from "./DiffPart";
+import { useIsMobile } from "@/lib/breakpoints";
+
+const SHELL_TOOL_NAMES = new Set(["shell", "bash", "sh", "zsh", "fish"]);
 
 interface ToolPartProps {
   part: Part;
@@ -14,22 +17,73 @@ interface ToolPartProps {
 }
 
 export function ToolPart({ part, showDetails }: ToolPartProps) {
+  const isMobile = useIsMobile();
   const [showInput, setShowInput] = useState(false);
-  const [showOutput, setShowOutput] = useState(true);
+  const [showOutput, setShowOutput] = useState(() => !isMobile);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   if (part.type !== "tool") return null;
 
   const normalized = normalizeToolPart(part);
-  const { tool, status, input, output, error, state, path, diff } = normalized;
+  const { tool, status, input, output, error, state, path, diff, metadata } =
+    normalized;
+
   const resolvedPath =
     typeof path === "string" && path.trim().length > 0 ? path.trim() : undefined;
-  const fileName =
-    resolvedPath?.split(/[\\/]/).filter(Boolean).pop() ?? resolvedPath;
+  const isShellTool =
+    typeof tool === "string" && SHELL_TOOL_NAMES.has(tool.toLowerCase());
+  const shouldShowPath =
+    resolvedPath && !isShellTool ? resolvedPath.trim().length > 0 : false;
+  const fileName = shouldShowPath
+    ? resolvedPath?.split(/[\\/]/).filter(Boolean).pop() ?? resolvedPath
+    : undefined;
+
+  const getString = (value: unknown): string | undefined => {
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+    return undefined;
+  };
+
+  const extractCommandFromInput = (value: unknown): string | undefined => {
+    if (!value) return undefined;
+    if (typeof value === "string") {
+      return value.trim();
+    }
+    if (typeof value === "object" && "command" in (value as Record<string, unknown>)) {
+      return getString((value as Record<string, unknown>).command);
+    }
+    return undefined;
+  };
+
+  const metadataRecord = metadata ?? undefined;
+
+  const commandText =
+    extractCommandFromInput(input) ||
+    (metadataRecord ? getString(metadataRecord["command"]) : undefined) ||
+    (metadataRecord ? getString(metadataRecord["cmd"]) : undefined);
+
+  const workingDirectory =
+    (metadataRecord ? getString(metadataRecord["cwd"]) : undefined) ||
+    (metadataRecord ? getString(metadataRecord["workingDirectory"]) : undefined) ||
+    (metadataRecord ? getString(metadataRecord["directory"]) : undefined);
+
+  const exitCode = metadataRecord
+    ? typeof metadataRecord["exitCode"] === "number"
+      ? (metadataRecord["exitCode"] as number)
+      : typeof metadataRecord["statusCode"] === "number"
+        ? (metadataRecord["statusCode"] as number)
+        : typeof metadataRecord["code"] === "number"
+          ? (metadataRecord["code"] as number)
+          : undefined
+    : undefined;
 
   const statusLabel = TOOL_STATUS_LABELS[status] || status;
+  const headerLabel = commandText ? `$ ${commandText}` : tool;
+  const shouldShowInputSection = showDetails && input !== undefined && !commandText;
 
   const duration = state?.timings?.duration;
+
 
   const getStatusIcon = () => {
     switch (status) {
@@ -68,10 +122,17 @@ export function ToolPart({ part, showDetails }: ToolPartProps) {
   };
 
   const formatPayload = (payload: unknown): string => {
+    if (payload === undefined || payload === null) {
+      return "";
+    }
     if (typeof payload === "string") {
       return payload;
     }
-    return JSON.stringify(payload, null, 2);
+    try {
+      return JSON.stringify(payload, null, 2);
+    } catch {
+      return String(payload);
+    }
   };
 
   return (
@@ -80,13 +141,13 @@ export function ToolPart({ part, showDetails }: ToolPartProps) {
       <div className="flex items-center justify-between p-3 gap-3 flex-wrap">
         <div className="flex items-center gap-2 min-w-0 flex-1">
           {getStatusIcon()}
-          <span className="font-medium text-sm truncate">{tool}</span>
+          <span className="font-medium text-sm truncate">{headerLabel}</span>
           <Badge variant="foreground0" cap="square" className="text-xs shrink-0">
             {statusLabel}
           </Badge>
         </div>
         <div className="flex items-center gap-2 text-xs opacity-70 shrink-0">
-          {resolvedPath && (
+          {shouldShowPath && fileName && (
             <span
               className="font-mono truncate max-w-[200px] sm:max-w-xs"
               title={resolvedPath}
@@ -100,8 +161,33 @@ export function ToolPart({ part, showDetails }: ToolPartProps) {
         </div>
       </div>
 
+      {(workingDirectory || exitCode !== undefined) && (
+        <div className="px-3 py-2 text-xs border-t border-theme-border bg-theme-background-alt/40 space-y-1">
+          {workingDirectory && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="opacity-70">Dir</span>
+              <code className="font-mono break-all text-theme-foreground">
+                {workingDirectory}
+              </code>
+            </div>
+          )}
+          {exitCode !== undefined && (
+            <div className="flex items-center gap-2">
+              <span className="opacity-70">Exit</span>
+              <Badge
+                variant={exitCode === 0 ? "background2" : "foreground0"}
+                cap="square"
+                className="text-xs"
+              >
+                {exitCode}
+              </Badge>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Input Section */}
-      {showDetails && input !== undefined && (
+      {shouldShowInputSection && (
         <div className="border-t border-theme-border">
           <div
             role="button"

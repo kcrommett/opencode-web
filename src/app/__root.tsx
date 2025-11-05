@@ -20,7 +20,7 @@ export const Route = createRootRoute({
         content:
           "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content",
       },
-      { name: "description", content: "A web-based IDE for opencode projects" },
+      { name: "description", content: "OC Web - A web-based interface for OpenCode projects" },
       { name: "mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       {
@@ -46,7 +46,7 @@ export const Route = createRootRoute({
       },
       { rel: "manifest", href: `${pwaAssetsUrl}/manifest.webmanifest` },
     ],
-    title: "opencode web",
+    title: "oc web",
   }),
   component: RootLayout,
   notFoundComponent: () => (
@@ -80,7 +80,7 @@ function RootLayout() {
           name="apple-mobile-web-app-status-bar-style"
           content="black-translucent"
         />
-        <title>opencode web</title>
+        <title>oc web</title>
         <link
           rel="icon"
           type="image/svg+xml"

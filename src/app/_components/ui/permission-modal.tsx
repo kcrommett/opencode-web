@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Dialog } from "./dialog";
 import { Button } from "./button";
+import type { PermissionResponse } from "@/types/opencode";
 
 interface PermissionRequest {
   message?: string;
@@ -11,7 +12,7 @@ interface PermissionModalProps {
   permission: PermissionRequest | null;
   isOpen: boolean;
   onClose: () => void;
-  onRespond: (response: boolean) => Promise<void> | void;
+  onRespond: (response: PermissionResponse) => Promise<void> | void;
 }
 
 export function PermissionModal({
@@ -22,7 +23,7 @@ export function PermissionModal({
 }: PermissionModalProps) {
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleResponse = async (response: boolean) => {
+  const handleResponse = async (response: PermissionResponse) => {
     setIsLoading(true);
     try {
       await onRespond(response);
@@ -58,20 +59,27 @@ export function PermissionModal({
           </div>
         )}
 
-        <div className="flex gap-2 justify-end">
+        <div className="flex gap-2 justify-end flex-wrap">
           <Button
             variant="foreground1"
-            onClick={() => handleResponse(false)}
+            onClick={() => handleResponse("reject")}
             disabled={isLoading}
           >
-            Deny
+            Reject
+          </Button>
+          <Button
+            variant="background2"
+            onClick={() => handleResponse("once")}
+            disabled={isLoading}
+          >
+            Allow Once
           </Button>
           <Button
             variant="success"
-            onClick={() => handleResponse(true)}
+            onClick={() => handleResponse("always")}
             disabled={isLoading}
           >
-            {isLoading ? "Processing..." : "Allow"}
+            {isLoading ? "Processing..." : "Always Allow"}
           </Button>
         </div>
       </div>

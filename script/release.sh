@@ -5,7 +5,7 @@ usage() {
   cat <<'EOF'
 Usage: script/release.sh [--bump patch|minor|major] [--skip-bump] [--no-publish] [--otp CODE] [--tag NAME] [--no-tag] [--dev]
 
-Automates the OpenCode Web release flow:
+Automates the OC Web release flow:
   1. Aligns local package versions with the latest published version on npm
   2. Builds npm artifacts via Bun
   3. Updates lockfiles
