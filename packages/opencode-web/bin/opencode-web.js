@@ -202,12 +202,21 @@ const parsePort = (value) => {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 };
 
-const envPort = parsePort(process.env.PORT);
+// Resolve config with canonical env vars (OPENCODE_WEB_*)
+// Precedence: CLI → Canonical env → Legacy env → Defaults
+const envPort = parsePort(process.env.OPENCODE_WEB_PORT) ?? parsePort(process.env.PORT);
 const port = cliOptions.port ?? envPort ?? DEFAULT_PORT;
-const host = cliOptions.host ?? process.env.HOST ?? DEFAULT_HOST;
 
+const envHost = process.env.OPENCODE_WEB_HOST ?? process.env.HOST;
+const host = cliOptions.host ?? envHost ?? DEFAULT_HOST;
+
+// Set canonical env vars for downstream consumers
+process.env.OPENCODE_WEB_PORT = port.toString();
+process.env.OPENCODE_WEB_HOST = host;
+// Maintain legacy vars for backward compatibility
 process.env.PORT = port.toString();
 process.env.HOST = host;
+
 if (!process.env.NODE_ENV) {
   process.env.NODE_ENV = "production";
 }
@@ -227,7 +236,8 @@ const disableBundledServer =
 
 let externalServerUrl = cliOptions.externalServerUrl;
 if (!externalServerUrl && disableBundledServer) {
-  externalServerUrl = process.env.VITE_OPENCODE_SERVER_URL;
+  // Check canonical var first, then legacy
+  externalServerUrl = process.env.OPENCODE_SERVER_URL ?? process.env.VITE_OPENCODE_SERVER_URL;
 }
 
 if (disableBundledServer && !externalServerUrl) {
@@ -235,14 +245,15 @@ if (disableBundledServer && !externalServerUrl) {
     "[ERROR] Bundled OpenCode Server disabled but no external server URL provided.",
   );
   console.error(
-    "       Use --external-server <url> or set VITE_OPENCODE_SERVER_URL.",
+    "       Use --external-server <url> or set OPENCODE_SERVER_URL.",
   );
   process.exit(1);
 }
 
 if (externalServerUrl) {
-  process.env.VITE_OPENCODE_SERVER_URL = externalServerUrl;
   process.env.OPENCODE_SERVER_URL = externalServerUrl;
+  // Maintain legacy var for backward compatibility
+  process.env.VITE_OPENCODE_SERVER_URL = externalServerUrl;
 }
 
 const shouldStartBundledServer = !disableBundledServer && !externalServerUrl;
@@ -407,6 +418,7 @@ if (shouldStartBundledServer) {
     console.error("✅ Recommended workarounds:");
     console.error("");
     console.error("  1. Use an external OpenCode Server:");
+    console.error("     set OPENCODE_SERVER_URL=http://127.0.0.1:4096");
     console.error("     bunx opencode-web@latest --external-server http://127.0.0.1:4096");
     console.error("");
     console.error("  2. Install locally and run:");
@@ -432,6 +444,7 @@ if (shouldStartBundledServer) {
   }
 
   const serverOptions = {};
+  // Support both canonical and legacy env vars for bundled server config
   const requestedPort = process.env.OPENCODE_SERVER_PORT;
   const requestedHost = process.env.OPENCODE_SERVER_HOSTNAME;
 
@@ -562,6 +575,7 @@ if (shouldStartBundledServer) {
       console.error("     Download from: https://github.com/opencode-ai/opencode");
       console.error("");
       console.error("  2. Use an external OpenCode Server:");
+      console.error("     set OPENCODE_SERVER_URL=http://127.0.0.1:4096");
       console.error("     opencode-web --external-server http://127.0.0.1:4096");
       console.error("");
       console.error("  3. Install locally instead of bunx:");

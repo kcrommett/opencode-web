@@ -67,35 +67,48 @@ Once started, open **http://localhost:3000** in your browser. The CLI launches a
 #### Command-line Options
 
 - `--external-server <url>` – connect to an existing OpenCode Server and skip the bundled instance.
-- `--no-bundled-server` – skip launching the bundled server (requires `--external-server` or `VITE_OPENCODE_SERVER_URL`).
+- `--no-bundled-server` – skip launching the bundled server (requires `--external-server` or `OPENCODE_SERVER_URL`).
 - `-p, --port <number>` – port for the web UI (default: 3000).
-- `-H, --host <hostname>` – interface to bind the web UI server to (default: 127.0.0.1). Use `0.0.0.0` for LAN access.
+- `-H, --host <hostname>` – interface to bind the web UI server to (default: localhost). Use `0.0.0.0` for LAN access.
 - `-h, --help` – show the built-in usage help.
 
-#### Environment Variables (optional)
+#### Environment Variables
 
-The OpenCode Server URL is resolved in the following precedence order:
+OpenCode Web uses **three canonical environment variables** for configuration:
 
-1. `OPENCODE_SERVER_URL` (CLI flag or environment variable)
-2. `VITE_OPENCODE_SERVER_URL` (build-time environment variable)
-3. SSR runtime `globalThis.__OPENCODE_SERVER_URL__`
-4. Default: `http://localhost:4096`
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OPENCODE_SERVER_URL` | Full URL to the OpenCode server (scheme + host + port) | `http://localhost:4096` |
+| `OPENCODE_WEB_HOST` | Interface to bind the web server to | `localhost` |
+| `OPENCODE_WEB_PORT` | Port for the web UI server | `3000` |
 
-- `PORT`: Web server port (default: 3000)
-- `HOST`: Web server host/interface (default: 127.0.0.1)
-- `VITE_OPENCODE_SERVER_URL`: Use an existing OpenCode Server instead of the bundled one
-- `OPENCODE_SERVER_URL`: Override the OpenCode Server URL at runtime
+**Configuration precedence** (highest to lowest):
+1. CLI flags (`--port`, `--host`, `--external-server`)
+2. Canonical environment variables (`OPENCODE_*`)
+3. Legacy environment variables (deprecated, see Migration section)
+4. Default values
+
+**Legacy variables** (deprecated, maintained for backward compatibility):
+- `PORT` → use `OPENCODE_WEB_PORT`
+- `HOST` → use `OPENCODE_WEB_HOST`
+- `VITE_OPENCODE_SERVER_URL` → use `OPENCODE_SERVER_URL`
+- `OPENCODE_SERVER_PORT` → configure via `OPENCODE_SERVER_URL`
+- `OPENCODE_SERVER_HOSTNAME` → configure via `OPENCODE_SERVER_URL`
+
+Additional optional variables:
 - `OPENCODE_WEB_DISABLE_BUNDLED_SERVER`: Set to `1`, `true`, `yes`, or `on` to skip launching the bundled server
-- `OPENCODE_SERVER_PORT`: Port for the bundled OpenCode Server (default: 4096)
-- `OPENCODE_SERVER_HOSTNAME`: Hostname for the bundled OpenCode Server (default: 127.0.0.1)
+- `VITE_BASE_PATH`: Base path for reverse proxy deployments
+- `VITE_PWA_ASSETS_URL`: URL prefix for PWA assets when using a CDN
+- `VITE_ALLOWED_HOSTS`: Comma-separated list of allowed hostnames for the dev server
+- `OPENCODE_WEB_CSS_TRANSFORMER`: Choose between `postcss` (default) or `lightningcss`
 
 Example: `opencode-web --external-server http://10.0.0.200:4096 --host 0.0.0.0 -p 8080`
 
   - Runs opencode-web listening on all interfaces at port 8080, connecting to an existing OpenCode Server at `http://10.0.0.200:4096`
 
-Example: `VITE_OPENCODE_SERVER_URL=http://10.0.0.200:4096 bun run dev`
+Example: `OPENCODE_SERVER_URL=http://10.0.0.200:4096 OPENCODE_WEB_PORT=8080 bun run dev`
 
-  - Runs opencode-web in development mode, connecting to an existing OpenCode Server at `http://10.0.0.200:4096`
+  - Runs opencode-web in development mode on port 8080, connecting to an existing OpenCode Server at `http://10.0.0.200:4096`
 
 ## Why a web interface?
 
@@ -170,9 +183,9 @@ Progressive Web App hooks keep the client a tap away with full-screen, app-like 
    bun install
    ```
 2. **Configure environment**  
-   The web app resolves the OpenCode Server URL using the precedence order described above. For local development, set `VITE_OPENCODE_SERVER_URL` in `.env.local` or use the `--external-server` CLI flag:
+   The web app resolves configuration using the canonical environment variables. For local development, set `OPENCODE_SERVER_URL` in `.env.local` or use the `--external-server` CLI flag:
    ```bash
-   VITE_OPENCODE_SERVER_URL=http://localhost:4096
+   OPENCODE_SERVER_URL=http://localhost:4096
    ```
    Or run: `bun run dev --external-server http://localhost:4096`
 3. **Run the dev server**
@@ -197,7 +210,7 @@ Progressive Web App hooks keep the client a tap away with full-screen, app-like 
    - Serves static assets from `dist/client`
    - Proxies `/api/events` to your OpenCode server for SSE streaming
 
-Set `PORT`, `OPENCODE_SERVER_URL`, `VITE_OPENCODE_SERVER_URL`, or `NODE_ENV` to customize runtime behavior. The server URL is resolved at runtime using the precedence order.
+Set `OPENCODE_WEB_PORT`, `OPENCODE_WEB_HOST`, `OPENCODE_SERVER_URL`, or `NODE_ENV` to customize runtime behavior. Configuration is resolved at runtime using the precedence order described in the Environment Variables section.
 
 ### Windows Build Troubleshooting
 
@@ -323,6 +336,56 @@ If you encounter errors even with `--external-server`:
    ```
 
 4. **Use host IP instead of localhost**: Sometimes `127.0.0.1` works better than `localhost` on Windows
+
+## Migration Guide: Environment Variables
+
+**If you're upgrading from an earlier version**, OpenCode Web has simplified configuration to three canonical environment variables. Legacy variables are still supported but deprecated.
+
+### Quick Migration
+
+| Old Variable | New Variable | Notes |
+|-------------|--------------|-------|
+| `PORT` | `OPENCODE_WEB_PORT` | Same meaning, new name |
+| `HOST` | `OPENCODE_WEB_HOST` | Same meaning, new name |
+| `VITE_OPENCODE_SERVER_URL` | `OPENCODE_SERVER_URL` | Same meaning, shorter name |
+| `OPENCODE_SERVER_PORT` | `OPENCODE_SERVER_URL` | Now specify full URL (e.g., `http://localhost:4096`) |
+| `OPENCODE_SERVER_HOSTNAME` | `OPENCODE_SERVER_URL` | Now specify full URL (e.g., `http://localhost:4096`) |
+
+### Example Migrations
+
+**Before:**
+```bash
+PORT=3000
+HOST=0.0.0.0
+VITE_OPENCODE_SERVER_URL=http://10.0.0.5:5000
+```
+
+**After:**
+```bash
+OPENCODE_WEB_PORT=3000
+OPENCODE_WEB_HOST=0.0.0.0
+OPENCODE_SERVER_URL=http://10.0.0.5:5000
+```
+
+**Before (bundled server config):**
+```bash
+OPENCODE_SERVER_PORT=5002
+OPENCODE_SERVER_HOSTNAME=192.168.1.100
+```
+
+**After:**
+```bash
+OPENCODE_SERVER_URL=http://192.168.1.100:5002
+```
+
+### Deprecation Warnings
+
+When using legacy variables in development mode, you'll see warnings like:
+```
+[deprecate] PORT is deprecated, prefer OPENCODE_WEB_PORT
+```
+
+These warnings do not appear in production. Update your configuration at your convenience—legacy variables will continue to work during the transition period.
 
 ## Project Structure
 
