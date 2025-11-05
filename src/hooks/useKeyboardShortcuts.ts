@@ -9,6 +9,9 @@ const debugLog = (...args: unknown[]) => {
 
 const DOUBLE_ESCAPE_WINDOW = 400;
 
+const normalizeKey = (key: string): string =>
+  key.length === 1 ? key.toLowerCase() : key;
+
 /**
  * Keyboard shortcut state management
  */
@@ -71,10 +74,62 @@ const getFocusedElement = (): HTMLElement | null => {
 };
 
 /**
+ * Determine if a key should be handled based on current state
+ */
+const shouldHandleKey = (
+  key: string,
+  leaderActive: boolean,
+  secondaryShortcutsActive: boolean,
+  activeModal: string | null,
+  trackedKeys: Set<string>,
+): boolean => {
+  // Always handle leader activation key (space)
+  if (key === " ") return true;
+  
+  // Always handle escape for modal/leader management
+  if (key === "Escape") return true;
+  
+  // Handle if leader mode is active
+  if (leaderActive) return true;
+  
+  // Handle if secondary shortcuts are active (modal context)
+  if (secondaryShortcutsActive) return true;
+  
+  // Handle if modal is open (modal-specific shortcuts might exist)
+  if (activeModal) return true;
+  
+  // Otherwise, only handle tracked keys
+  return trackedKeys.has(normalizeKey(key));
+};
+
+/**
  * Global keyboard shortcut manager hook
  * Coordinates all keyboard interactions in the application
  */
 export function useKeyboardShortcuts() {
+  // Performance instrumentation (dev-only)
+  const keyEventCountRef = useRef(0);
+  const keyEventStatsRef = useRef<{
+    total: number;
+    handled: number;
+    ignored: number;
+    lastReset: number;
+    // Timing (ms)
+    handledTime: number;
+    ignoredTime: number;
+    maxHandledTime: number;
+    maxIgnoredTime: number;
+  }>({
+    total: 0,
+    handled: 0,
+    ignored: 0,
+    lastReset: Date.now(),
+    handledTime: 0,
+    ignoredTime: 0,
+    maxHandledTime: 0,
+    maxIgnoredTime: 0,
+  });
+
   const [keyboardState, setKeyboardState] = useState<KeyboardState>({
     leaderActive: false,
     secondaryShortcutsActive: false,
@@ -85,7 +140,11 @@ export function useKeyboardShortcuts() {
     focusStack: [],
   });
 
-  const [shortcuts, setShortcuts] = useState<KeyboardShortcut[]>([]);
+  const shortcutsRef = useRef<Map<string, KeyboardShortcut[]>>(new Map());
+  const shortcutCountRef = useRef(0);
+  const trackedKeysRef = useRef<Set<string>>(
+    new Set([normalizeKey(" "), "Escape"]),
+  );
   const leaderTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const secondaryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const activeModalRef = useRef<string | null>(null);
@@ -221,9 +280,35 @@ export function useKeyboardShortcuts() {
       requiresModal: shortcut.requiresModal,
       requiresFrame: shortcut.requiresFrame,
     });
-    setShortcuts((prev) => [...prev, shortcut]);
+
+    const normalizedKey = normalizeKey(shortcut.key);
+    const existing = shortcutsRef.current.get(normalizedKey);
+    const nextList = existing ? [...existing, shortcut] : [shortcut];
+    shortcutsRef.current.set(normalizedKey, nextList);
+    shortcutCountRef.current += 1;
+
+    if (!trackedKeysRef.current.has(normalizedKey)) {
+      trackedKeysRef.current.add(normalizedKey);
+    }
+
     return () => {
-      setShortcuts((prev) => prev.filter((s) => s !== shortcut));
+      const current = shortcutsRef.current.get(normalizedKey);
+      if (!current) return;
+      const updated = current.filter((entry) => entry !== shortcut);
+      if (updated.length === current.length) return;
+
+      shortcutCountRef.current = Math.max(0, shortcutCountRef.current - 1);
+
+      if (updated.length === 0) {
+        shortcutsRef.current.delete(normalizedKey);
+        const isBaseKey =
+          normalizedKey === normalizeKey(" ") || normalizedKey === "Escape";
+        if (!isBaseKey) {
+          trackedKeysRef.current.delete(normalizedKey);
+        }
+      } else {
+        shortcutsRef.current.set(normalizedKey, updated);
+      }
     };
   }, []);
 
@@ -233,27 +318,72 @@ export function useKeyboardShortcuts() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const key = event.key;
+      // Dev-only timing
+      const measured = isDevEnvironment;
+      const t0 = measured ? performance.now() : 0;
+      let handledEvent = false;
+      let ignoredEvent = false;
+      try {
+      
+      // Early return for repeated keys when leader mode is irrelevant
+      if (event.repeat && !keyboardState.leaderActive && !keyboardState.secondaryShortcutsActive && !keyboardState.activeModal) {
+        keyEventStatsRef.current.total++;
+        keyEventStatsRef.current.ignored++;
+        ignoredEvent = true;
+        return;
+      }
 
-      // Debug logging
-      if (key === " " || key === "n" || key === "e" || key === "s" || key === "p") {
-        debugLog('[Keyboard] Key pressed:', key);
-        debugLog('[Keyboard] State:', {
+      // Check if we should handle this key
+      if (
+        !shouldHandleKey(
+          key,
+          keyboardState.leaderActive,
+          keyboardState.secondaryShortcutsActive,
+          keyboardState.activeModal,
+          trackedKeysRef.current,
+        )
+      ) {
+        keyEventStatsRef.current.total++;
+        keyEventStatsRef.current.ignored++;
+        ignoredEvent = true;
+        return;
+      }
+
+      // Cache DOM query results per event
+      const inputFocused = isInputFocused();
+      const dialogOpen = isDialogOpen();
+      const focusedElement = getFocusedElement();
+      const normalizedKey = normalizeKey(key);
+      const shortcutsForKey = shortcutsRef.current.get(normalizedKey) ?? [];
+
+      // Debug logging (conditional and only for specific keys)
+      if (
+        isDevEnvironment &&
+        (key === " " || key === "Escape" || trackedKeysRef.current.has(normalizedKey))
+      ) {
+        debugLog('[Keyboard] Key pressed:', key, {
+          repeat: event.repeat,
           leaderActive: keyboardState.leaderActive,
           activeModal: keyboardState.activeModal,
           secondaryShortcutsActive: keyboardState.secondaryShortcutsActive,
-          isInputFocused: isInputFocused(),
-          isDialogOpen: isDialogOpen(),
+          inputFocused,
+          dialogOpen,
+          shortcuts: shortcutCountRef.current,
         });
-        debugLog('[Keyboard] Registered shortcuts:', shortcuts.length);
       }
 
       // Handle Space key for leader activation or secondary shortcuts
-      if (key === " " && !isInputFocused()) {
+      if (key === " " && !inputFocused) {
         if (spacePassthroughRef.current) {
+          keyEventStatsRef.current.total++;
+          keyEventStatsRef.current.ignored++;
+          ignoredEvent = true;
           return;
         }
         event.preventDefault();
-        debugLog('[Keyboard] Space pressed - calling activateLeader');
+        keyEventStatsRef.current.total++;
+        keyEventStatsRef.current.handled++;
+        handledEvent = true;
         activateLeader();
         return;
       }
@@ -261,24 +391,30 @@ export function useKeyboardShortcuts() {
       // Handle ESC key
       if (key === "Escape") {
         // If secondary shortcuts are active but no dialog, dismiss them
-        if (keyboardState.secondaryShortcutsActive && !isDialogOpen()) {
+        if (keyboardState.secondaryShortcutsActive && !dialogOpen) {
           event.preventDefault();
+          keyEventStatsRef.current.total++;
+          keyEventStatsRef.current.handled++;
           deactivateSecondaryShortcuts();
           return;
         }
 
-        if (isDialogOpen()) {
+        if (dialogOpen) {
+          keyEventStatsRef.current.total++;
+          keyEventStatsRef.current.ignored++;
+          ignoredEvent = true;
           return;
         }
 
         const now = Date.now();
         const lastEsc = lastEscapeRef.current;
-        const focusedElement = getFocusedElement();
         const isDoubleEscape =
           typeof lastEsc === "number" && now - lastEsc < DOUBLE_ESCAPE_WINDOW;
 
         if (isDoubleEscape) {
           event.preventDefault();
+          keyEventStatsRef.current.total++;
+          keyEventStatsRef.current.handled++;
 
           if (escapeResetTimeoutRef.current) {
             clearTimeout(escapeResetTimeoutRef.current);
@@ -351,63 +487,111 @@ export function useKeyboardShortcuts() {
           escapeResetTimeoutRef.current = null;
         }, DOUBLE_ESCAPE_WINDOW);
 
+        keyEventStatsRef.current.total++;
+        keyEventStatsRef.current.handled++;
+        handledEvent = true;
         return;
       }
 
       // Handle shortcuts when leader is active
       if (keyboardState.leaderActive) {
-        const matchingShortcut = shortcuts.find(
-          (shortcut) =>
-            shortcut.key.toLowerCase() === key.toLowerCase() &&
-            shortcut.requiresLeader
+        const matchingShortcut = shortcutsForKey.find(
+          (shortcut) => shortcut.requiresLeader,
         );
 
         if (matchingShortcut) {
-          debugLog('[Keyboard] Leader shortcut matched:', matchingShortcut.description);
+          if (isDevEnvironment) {
+            debugLog('[Keyboard] Leader shortcut matched:', matchingShortcut.description);
+          }
           event.preventDefault();
+          keyEventStatsRef.current.total++;
+          keyEventStatsRef.current.handled++;
+          handledEvent = true;
           matchingShortcut.handler();
           deactivateLeader();
         } else if (key !== " ") {
-          debugLog('[Keyboard] No leader shortcut found for key:', key);
+          keyEventStatsRef.current.total++;
+          keyEventStatsRef.current.ignored++;
+          ignoredEvent = true;
+          if (isDevEnvironment) {
+            debugLog('[Keyboard] No leader shortcut found for key:', key, {
+              registeredForKey: shortcutsForKey.length,
+            });
+          }
         }
+        return;
       }
 
       // Handle modal-specific shortcuts (when modal is open)
       if (keyboardState.activeModal && !keyboardState.leaderActive) {
-        debugLog('[Keyboard] Checking modal shortcuts for modal:', keyboardState.activeModal);
-        const modalShortcuts = shortcuts.filter(s => s.requiresModal === keyboardState.activeModal);
-        debugLog('[Keyboard] Available modal shortcuts:', modalShortcuts.map(s => `${s.key}:${s.description}`));
-        
-        const matchingModalShortcut = shortcuts.find(
+        const matchingModalShortcut = shortcutsForKey.find(
           (shortcut) =>
-            shortcut.key.toLowerCase() === key.toLowerCase() &&
-            shortcut.requiresModal === keyboardState.activeModal
+            shortcut.requiresModal === keyboardState.activeModal,
         );
 
         if (matchingModalShortcut) {
-          debugLog('[Keyboard] Modal shortcut matched:', matchingModalShortcut.description);
+          if (isDevEnvironment) {
+            debugLog('[Keyboard] Modal shortcut matched:', matchingModalShortcut.description);
+          }
           event.preventDefault();
+          keyEventStatsRef.current.total++;
+          keyEventStatsRef.current.handled++;
           matchingModalShortcut.handler();
           return;
         } else {
-          debugLog('[Keyboard] No modal shortcut found for key:', key);
+          keyEventStatsRef.current.total++;
+          keyEventStatsRef.current.ignored++;
+          ignoredEvent = true;
+          if (isDevEnvironment) {
+            debugLog('[Keyboard] No modal shortcut found for key:', key, {
+              activeModal: keyboardState.activeModal,
+              registeredForKey: shortcutsForKey.length,
+            });
+          }
         }
       }
 
       // Handle secondary actions when frame is selected
       if (keyboardState.selectedFrame && !keyboardState.leaderActive) {
-        const matchingAction = shortcuts.find(
+        const matchingAction = shortcutsForKey.find(
           (shortcut) =>
-            shortcut.key.toLowerCase() === key.toLowerCase() &&
-            shortcut.requiresFrame === keyboardState.selectedFrame
+            shortcut.requiresFrame === keyboardState.selectedFrame,
         );
 
         if (matchingAction) {
           event.preventDefault();
+          keyEventStatsRef.current.total++;
+          keyEventStatsRef.current.handled++;
           matchingAction.handler();
           setKeyboardState((prev) => ({ ...prev, selectedFrame: null }));
+        } else {
+          keyEventStatsRef.current.total++;
+          keyEventStatsRef.current.ignored++;
+          ignoredEvent = true;
+        }
+        return;
+      }
+
+      // If we get here, the key was tracked but no handler found
+      keyEventStatsRef.current.total++;
+      keyEventStatsRef.current.ignored++;
+      ignoredEvent = true;
+    } finally {
+      if (measured) {
+        const dt = performance.now() - t0;
+        if (handledEvent) {
+          keyEventStatsRef.current.handledTime += dt;
+          if (dt > keyEventStatsRef.current.maxHandledTime) {
+            keyEventStatsRef.current.maxHandledTime = dt;
+          }
+        } else if (ignoredEvent) {
+          keyEventStatsRef.current.ignoredTime += dt;
+          if (dt > keyEventStatsRef.current.maxIgnoredTime) {
+            keyEventStatsRef.current.maxIgnoredTime = dt;
+          }
         }
       }
+    }
     };
 
     document.addEventListener("keydown", handleKeyDown, { capture: true });
@@ -431,13 +615,43 @@ export function useKeyboardShortcuts() {
     keyboardState.leaderActive,
     keyboardState.selectedFrame,
     keyboardState.activeModal,
-    keyboardState.lastEscapeTime,
     keyboardState.secondaryShortcutsActive,
-    shortcuts,
     activateLeader,
     deactivateLeader,
     deactivateSecondaryShortcuts,
   ]);
+
+  // Periodic stats logging (dev-only)
+  useEffect(() => {
+    if (!isDevEnvironment) return;
+    
+    const interval = setInterval(() => {
+      const stats = keyEventStatsRef.current;
+      const elapsed = (Date.now() - stats.lastReset) / 1000;
+      if (stats.total > 0) {
+        const handledAvg = stats.handled > 0 ? stats.handledTime / stats.handled : 0;
+        const ignoredAvg = stats.ignored > 0 ? stats.ignoredTime / stats.ignored : 0;
+        debugLog(
+          `⌨️ Keyboard stats (${elapsed.toFixed(1)}s): ` +
+          `${stats.total} events; handled=${stats.handled} (avg ${handledAvg.toFixed(2)}ms, max ${stats.maxHandledTime.toFixed(2)}ms); ` +
+          `ignored=${stats.ignored} (avg ${ignoredAvg.toFixed(2)}ms, max ${stats.maxIgnoredTime.toFixed(2)}ms)`
+        );
+      }
+      // Reset stats
+      keyEventStatsRef.current = {
+        total: 0,
+        handled: 0,
+        ignored: 0,
+        lastReset: Date.now(),
+        handledTime: 0,
+        ignoredTime: 0,
+        maxHandledTime: 0,
+        maxIgnoredTime: 0,
+      };
+    }, 30000); // Log every 30 seconds
+    
+    return () => clearInterval(interval);
+  }, []);
 
   return {
     keyboardState,

@@ -41,6 +41,36 @@ const normalizeProjectRelativePath = (inputPath: string): string | null => {
   return normalized || null;
 };
 
+type SessionSearchState = {
+  query: string;
+  filters: SessionFilters;
+};
+
+const defaultSessionFilters: SessionFilters = {
+  sortBy: "updated",
+  sortOrder: "desc",
+};
+
+const createDefaultSessionSearchState = (): SessionSearchState => ({
+  query: "",
+  filters: { ...defaultSessionFilters },
+});
+
+const areSessionFiltersEqual = (
+  a: SessionFilters,
+  b: SessionFilters,
+): boolean => {
+  if (a === b) return true;
+  const toTimestamp = (value?: Date) => (value ? value.getTime() : null);
+  return (
+    (a.sortBy ?? "updated") === (b.sortBy ?? "updated") &&
+    (a.sortOrder ?? "desc") === (b.sortOrder ?? "desc") &&
+    (a.projectID ?? null) === (b.projectID ?? null) &&
+    toTimestamp(a.dateFrom) === toTimestamp(b.dateFrom) &&
+    toTimestamp(a.dateTo) === toTimestamp(b.dateTo)
+  );
+};
+
 
 
 // UUID generator with fallback for environments without crypto.randomUUID
@@ -145,6 +175,23 @@ interface Model {
   modelID: string;
   name: string;
 }
+
+type OverlayState = {
+  help: boolean;
+  themes: boolean;
+  onboarding: boolean;
+  modelPicker: boolean;
+};
+
+type BooleanUpdater = boolean | ((prev: boolean) => boolean);
+
+const resolveBooleanUpdater = (
+  updater: BooleanUpdater,
+  previous: boolean,
+): boolean =>
+  typeof updater === "function"
+    ? (updater as (prev: boolean) => boolean)(previous)
+    : updater;
 
 const FALLBACK_MODEL: Model = {
   providerID: "opencode",
@@ -287,18 +334,69 @@ interface FileResponse {
 
 
 export function useOpenCode() {
-  debugLog("🔥 useOpenCode hook INITIALIZED");
+  // Performance instrumentation (dev-only)
+  const mountCountRef = useRef(0);
+  const didMountRef = useRef(false);
+  const initializedRef = useRef(false);
+  
+  if (isDevEnvironment) {
+    if (!didMountRef.current) {
+      performance.mark('useOpenCode-start');
+      mountCountRef.current += 1;
+      didMountRef.current = true;
+    }
+    if (!initializedRef.current) {
+      debugLog("🔥 useOpenCode hook INITIALIZED (mount #" + mountCountRef.current + ")");
+      initializedRef.current = true;
+    }
+  }
+  
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [sessions, setSessions] = useState<Session[]>([]);
   
   // Session search state
-  const [sessionSearchQuery, setSessionSearchQuery] = useState<string>('');
-  const [sessionFilters, setSessionFilters] = useState<SessionFilters>({
-    sortBy: 'updated',
-    sortOrder: 'desc',
-  });
+  const [sessionSearchState, setSessionSearchState] = useState<SessionSearchState>(
+    () => createDefaultSessionSearchState(),
+  );
+  const sessionSearchQuery = sessionSearchState.query;
+  const sessionFilters = sessionSearchState.filters;
+  
+
+  const setSessionSearchQuery = useCallback(
+    (next: string | ((prev: string) => string)) => {
+      setSessionSearchState((prev) => {
+        const nextValue =
+          typeof next === "function" ? next(prev.query) : next;
+        if (prev.query === nextValue) {
+          return prev;
+        }
+        return {
+          ...prev,
+          query: nextValue,
+        };
+      });
+    },
+    [],
+  );
+
+  const setSessionFilters = useCallback(
+    (next: SessionFilters | ((prev: SessionFilters) => SessionFilters)) => {
+      setSessionSearchState((prev) => {
+        const nextFilters =
+          typeof next === "function" ? next(prev.filters) : next;
+        if (areSessionFiltersEqual(prev.filters, nextFilters)) {
+          return prev;
+        }
+        return {
+          ...prev,
+          filters: { ...nextFilters },
+        };
+      });
+    },
+    [],
+  );
   
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
@@ -369,10 +467,61 @@ export function useOpenCode() {
   const [providersData, setProvidersData] = useState<ProvidersData | null>(
     null,
   );
-  const [showHelp, setShowHelp] = useState(false);
-  const [showThemes, setShowThemes] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [showModelPicker, setShowModelPicker] = useState(false);
+  const [overlayState, setOverlayState] = useState<OverlayState>(() => ({
+    help: false,
+    themes: false,
+    onboarding: false,
+    modelPicker: false,
+  }));
+  const showHelp = overlayState.help;
+  const showThemes = overlayState.themes;
+  const showOnboarding = overlayState.onboarding;
+  const showModelPicker = overlayState.modelPicker;
+
+  const setOverlayFlag = useCallback(
+    (key: keyof OverlayState, value: BooleanUpdater) => {
+      setOverlayState((prev) => {
+        const resolvedValue = resolveBooleanUpdater(value, prev[key]);
+        if (prev[key] === resolvedValue) {
+          return prev;
+        }
+        return {
+          ...prev,
+          [key]: resolvedValue,
+        };
+      });
+    },
+    [],
+  );
+
+  const setShowHelp = useCallback(
+    (value: BooleanUpdater) => {
+      setOverlayFlag("help", value);
+    },
+    [setOverlayFlag],
+  );
+
+  const setShowThemes = useCallback(
+    (value: BooleanUpdater) => {
+      setOverlayFlag("themes", value);
+    },
+    [setOverlayFlag],
+  );
+
+  const setShowOnboarding = useCallback(
+    (value: BooleanUpdater) => {
+      setOverlayFlag("onboarding", value);
+    },
+    [setOverlayFlag],
+  );
+
+  const setShowModelPicker = useCallback(
+    (value: BooleanUpdater) => {
+      setOverlayFlag("modelPicker", value);
+    },
+    [setOverlayFlag],
+  );
+
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [sseConnectionState, setSseConnectionState] =
     useState<SSEConnectionState | null>(null);
@@ -3552,6 +3701,21 @@ export function useOpenCode() {
     const nextIndex = (currentIndex + 1) % recentModels.length;
     selectModel(recentModels[nextIndex]);
   }, [recentModels, selectedModel, selectModel]);
+
+  // Performance measurement completion (dev-only)
+  useEffect(() => {
+    if (isDevEnvironment && performance.getEntriesByName('useOpenCode-start').length > 0) {
+      performance.mark('useOpenCode-end');
+      performance.measure('useOpenCode-init', 'useOpenCode-start', 'useOpenCode-end');
+      const measure = performance.getEntriesByName('useOpenCode-init')[0];
+      if (measure) {
+        debugLog(`⏱️ useOpenCode initialization took ${measure.duration.toFixed(2)}ms`);
+      }
+      performance.clearMarks('useOpenCode-start');
+      performance.clearMarks('useOpenCode-end');
+      performance.clearMeasures('useOpenCode-init');
+    }
+  }, []);
 
   return {
     currentSession,
