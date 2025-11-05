@@ -1,5 +1,5 @@
 /**
- * Utility functions for handling image attachments in OpenCode Web
+ * Utility functions for handling image attachments in OC Web
  */
 
 // Allowed image MIME types

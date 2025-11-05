@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# OpenCode Web One-Liner Installer
+# OC Web One-Liner Installer
 # Usage: curl -sSL https://raw.githubusercontent.com/kcrommett/opencode-web/main/install.sh | bash
 
 set -e
 
-echo "Installing OpenCode Web..."
+echo "Installing OC Web..."
 
 # Check if bun is available
 if command -v bun &> /dev/null; then

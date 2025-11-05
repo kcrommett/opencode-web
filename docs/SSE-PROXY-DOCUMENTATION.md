@@ -1,6 +1,6 @@
 # SSE Proxy Architecture
 
-This document captures how Server‑Sent Events (SSE) flow through the OpenCode Web stack. It covers URL resolution, dev/prod proxy layers, and the browser client so we can troubleshoot regressions quickly.
+This document captures how Server‑Sent Events (SSE) flow through the OC Web stack. It covers URL resolution, dev/prod proxy layers, and the browser client so we can troubleshoot regressions quickly.
 
 ## High‑Level Flow
 

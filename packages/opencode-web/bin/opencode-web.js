@@ -215,7 +215,7 @@ if (!process.env.NODE_ENV) {
 const { readFileSync } = await import("node:fs");
 const packageJsonPath = join(packageDir, "package.json");
 const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
-console.log(`OpenCode Web v${packageJson.version}`);
+console.log(`OC Web v${packageJson.version}`);
 
 const envDisableBundledServer = isTruthy(
   process.env.OPENCODE_WEB_DISABLE_BUNDLED_SERVER,
@@ -621,7 +621,7 @@ process.on("SIGTERM", () => {
 process.on("exit", cleanup);
 
 const displayHost = host === "0.0.0.0" ? "0.0.0.0" : host;
-console.log(`Starting OpenCode Web server on http://${displayHost}:${port}`);
+console.log(`Starting OC Web server on http://${displayHost}:${port}`);
 if (host === "0.0.0.0") {
   console.log("Listening on all network interfaces");
 }

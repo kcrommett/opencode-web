@@ -5,7 +5,7 @@ import rehypeSanitize from "rehype-sanitize";
 import { highlightCode } from "./highlight";
 
 /**
- * Markdown renderer configuration and utilities for OpenCode Web.
+ * Markdown renderer configuration and utilities for OC Web.
  * Provides GitHub-flavored markdown parsing with sanitization and syntax highlighting.
  */
 

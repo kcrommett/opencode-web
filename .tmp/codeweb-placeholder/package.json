@@ -1,0 +1,19 @@
+{
+  "name": "codeweb",
+  "version": "0.0.1",
+  "description": "CodeWeb - Self-hosted web interface for OpenCode (namespace reservation - full release coming soon)",
+  "private": false,
+  "author": "Kyle Crommett",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kcrommett/opencode-web.git"
+  },
+  "keywords": [
+    "opencode",
+    "codeweb",
+    "web-interface",
+    "self-hosted",
+    "ai-assistant"
+  ]
+}

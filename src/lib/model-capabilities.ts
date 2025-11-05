@@ -1,5 +1,5 @@
 /**
- * Model capabilities detection for OpenCode Web
+ * Model capabilities detection for OC Web
  * Determines which models support image/vision inputs
  */
 

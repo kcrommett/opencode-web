@@ -1,6 +1,6 @@
-# OpenCode Web
+# OC Web
 
-OpenCode Web is a self-hosted web interface for OpenCode AI assistant.
+OC Web is a self-hosted web interface for OpenCode AI assistant.
 
 ## Installation
 
