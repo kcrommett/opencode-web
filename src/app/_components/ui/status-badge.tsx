@@ -12,6 +12,7 @@ interface StatusBadgeProps {
     | "slant-top"
     | "slant-bottom";
   className?: string;
+  title?: string;
 }
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({
@@ -19,6 +20,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   children,
   cap = "round",
   className = "",
+  title,
 }) => {
   const getStatusClass = () => {
     switch (status) {
@@ -36,7 +38,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   };
 
   return (
-    <Badge cap={cap} className={`${getStatusClass()} ${className}`}>
+    <Badge cap={cap} className={`${getStatusClass()} ${className}`} title={title}>
       {children}
     </Badge>
   );
