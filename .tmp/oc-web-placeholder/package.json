@@ -1,0 +1,18 @@
+{
+  "name": "@kcrommett/oc-web",
+  "version": "0.0.1",
+  "description": "OC Web - Self-hosted web interface for OpenCode (namespace reservation - full release coming soon)",
+  "private": false,
+  "author": "Kyle Crommett",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kcrommett/opencode-web.git"
+  },
+  "keywords": [
+    "opencode",
+    "oc-web",
+    "web-interface",
+    "self-hosted"
+  ]
+}

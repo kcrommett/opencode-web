@@ -1,10 +1,10 @@
 # MCP Server Status Display
 
-This document explains how to display MCP server connection status in the OpenCode Web UI.
+This document explains how to display MCP server connection status in the OC Web UI.
 
 ## Overview
 
-The MCP Status feature allows you to view the status of connected MCP (Model Context Protocol) servers in your OpenCode Web interface. It fetches server status from the `/mcp` API endpoint and displays them with visual status badges.
+The MCP Status feature allows you to view the status of connected MCP (Model Context Protocol) servers in your OC Web interface. It fetches server status from the `/mcp` API endpoint and displays them with visual status badges.
 
 ## API Endpoint
 
@@ -199,7 +199,7 @@ The component automatically assigns colors based on status:
 
 ## Example Integration Points
 
-Here are suggested places to add MCP status in the OpenCode Web UI:
+Here are suggested places to add MCP status in the OC Web UI:
 
 1. **Desktop Header** (line ~3483 in `src/app/index.tsx`)
    - Add next to session/project info

@@ -62,7 +62,7 @@ export function InstallPrompt() {
           </svg>
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-[--theme-foreground] mb-1">
-              Install OpenCode Web
+              Install OC Web
             </h3>
             <p className="text-sm text-[--theme-foregroundAlt] mb-3">
               Install this app on your device for a better experience.

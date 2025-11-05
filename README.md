@@ -13,12 +13,12 @@
 <br>
 (web)
 </p>
-<p align="center">The web interface for OpenCode.</p>
+<p align="center">OC Web - The web interface for OpenCode.</p>
 <p align="center">
   <a href="https://www.npmjs.com/package/opencode-web"><img alt="npm" src="https://img.shields.io/npm/v/opencode-web?style=flat-square" /></a>
   <a href="https://github.com/kcrommett/opencode-web/actions/workflows/release.yml"><img alt="Release" src="https://img.shields.io/github/actions/workflow/status/kcrommett/opencode-web/release.yml?style=flat-square&label=release" /></a>
 </p>
-OpenCode Web is a web-based interface for the OpenCode Server API, providing a browser-based way to interact with OpenCode sessions. Built on TanStack Start, React, and Bun, it offers a complete web experience for managing and monitoring OpenCode workflows.
+OC Web is a web-based interface for the OpenCode Server API, providing a browser-based way to interact with OpenCode sessions. Built on TanStack Start, React, and Bun, it offers a complete web experience for managing and monitoring OpenCode workflows.
 
 ## 🚀 Quick Start
 
