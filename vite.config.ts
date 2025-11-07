@@ -56,6 +56,14 @@ export default defineConfig(({ mode }) => {
       allowedHosts,
       // CLI populates process.env before invoking Vite
       proxy: {
+        "/api": {
+          target: getOpencodeServerUrl(),
+          changeOrigin: true,
+          rewrite: (path) => {
+            // Remove /api prefix and forward to opencode server
+            return path.replace(/^\/api/, "");
+          },
+        },
         "/api/events": {
           target: getOpencodeServerUrl(),
           changeOrigin: true,

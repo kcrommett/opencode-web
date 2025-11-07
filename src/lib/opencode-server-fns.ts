@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import * as httpApi from "./opencode-http-api";
+import { OpencodeHttpError } from "./opencode-http-api";
+import { updateConfigFileLocal } from "./config-file";
 import type {
   Agent,
   Part,
@@ -8,6 +10,7 @@ import type {
   PermissionResponse,
   SessionDiffResponse,
   SessionForkResponse,
+  OpencodeConfig,
   TuiEvent,
   TuiControlRequest,
   TuiControlResponse,
@@ -265,9 +268,11 @@ export const respondToPermission = createServerFn({ method: "POST" })
     );
   });
 
-export const getConfig = createServerFn({ method: "GET" }).handler(async () => {
-  return httpApi.getConfig();
-});
+export const getConfig = createServerFn({ method: "GET" })
+  .inputValidator((data?: { directory?: string }) => data ?? {})
+  .handler(async ({ data }) => {
+    return httpApi.getConfig(data.directory);
+  });
 
 export const getSessionChildren = createServerFn({ method: "GET" })
   .inputValidator((data: { sessionId: string; directory?: string }) => data)
@@ -439,10 +444,34 @@ export const getCommands = createServerFn({ method: "GET" })
 
 export const updateConfig = createServerFn({ method: "POST" })
   .inputValidator(
-    (data: { config: Record<string, unknown>; directory?: string }) => data,
+    (data: { 
+      config: Record<string, unknown>; 
+      directory?: string; 
+      scope?: "global" | "project" 
+    }) => data,
   )
   .handler(async ({ data }) => {
-    return httpApi.updateConfig(data.config, data.directory);
+    const resolvedScope = data.scope ?? (data.directory ? "project" : "global");
+    try {
+      const result = await httpApi.updateConfig(data.config, {
+        directory: data.directory,
+        scope: resolvedScope,
+      });
+      return result as any;
+    } catch (error) {
+      if (error instanceof OpencodeHttpError && error.status >= 500) {
+        console.warn(
+          `[config] Remote update failed (${error.message}). Attempting local config file update for ${resolvedScope} scope.`,
+        );
+        const fallback = await updateConfigFileLocal(
+          data.config,
+          resolvedScope,
+          data.directory,
+        );
+        return fallback as any;
+      }
+      throw error;
+    }
   });
 
 export const setAuth = createServerFn({ method: "POST" })

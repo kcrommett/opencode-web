@@ -8,6 +8,7 @@ export { Textarea } from "./textarea";
 export { Pre } from "./pre";
 export { Separator } from "./separator";
 export { Dialog } from "./dialog";
+export { ConfigModal } from "./config-modal";
 export { Spinner } from "./spinner";
 export { View } from "./view";
 export { MobileSidebar } from "./mobile-sidebar";

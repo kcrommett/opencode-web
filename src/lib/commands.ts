@@ -2,7 +2,7 @@ export interface Command {
   name: string;
   description: string;
   args?: string;
-  category: "session" | "model" | "theme" | "file" | "agent" | "other" | "custom";
+  category: "session" | "model" | "theme" | "file" | "agent" | "settings" | "other" | "custom";
   custom?: boolean;
 }
 
@@ -14,6 +14,7 @@ export const COMMANDS: Command[] = [
   { name: "models", description: "Open model picker", category: "model" },
   { name: "agents", description: "Open agent picker", category: "agent" },
   { name: "themes", description: "Open theme picker", category: "theme" },
+  { name: "settings", description: "Open settings/configuration page", category: "settings" },
   { name: "help", description: "Show help dialog", category: "other" },
   { name: "undo", description: "Undo last file changes", category: "file" },
   { name: "redo", description: "Redo last undone changes", category: "file" },

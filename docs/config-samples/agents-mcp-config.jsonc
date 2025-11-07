@@ -1,0 +1,42 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "theme": "opencode",
+  "model": "anthropic/claude-3.5-sonnet",
+  "agent": {
+    "senior-dev": {
+      "model": "anthropic/claude-3.5-sonnet",
+      "description": "Senior developer with deep technical expertise",
+      "prompt": "You are a senior software developer with 15+ years of experience. Provide comprehensive, production-ready solutions.",
+      "temperature": 0.2,
+      "topP": 0.8
+    },
+    "junior-dev": {
+      "model": "anthropic/claude-3-haiku",
+      "description": "Junior developer assistant",
+      "prompt": "You are a helpful junior developer. Provide clear explanations and simple solutions.",
+      "temperature": 0.8,
+      "topP": 0.95
+    }
+  },
+  "mcp": {
+    "filesystem": {
+      "type": "local",
+      "command": ["npx", "@modelcontextprotocol/server-filesystem", "/home/user/projects"],
+      "enabled": true,
+      "timeout": 10000
+    },
+    "github": {
+      "type": "remote",
+      "url": "https://api.github.com/mcp",
+      "headers": {
+        "Authorization": "Bearer {env:GITHUB_TOKEN}"
+      },
+      "enabled": true,
+      "timeout": 5000
+    }
+  },
+  "experimental": {
+    "chatMaxRetries": 5,
+    "disable_paste_summary": true
+  }
+}

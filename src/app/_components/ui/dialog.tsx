@@ -133,6 +133,7 @@ export const Dialog: React.FC<DialogProps> = ({
         is-="dialog"
         role="dialog"
         aria-modal="true"
+        open
         data-dialog-open="true"
         className={`${className} shadow-2xl`}
         {...dialogProps}

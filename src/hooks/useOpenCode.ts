@@ -506,7 +506,14 @@ export function useOpenCode() {
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
 
   const [config, setConfig] = useState<OpencodeConfig | null>(null);
+  const [globalConfig, setGlobalConfig] = useState<OpencodeConfig | null>(null);
+  const [projectConfig, setProjectConfig] = useState<OpencodeConfig | null>(null);
+  const configRef = useRef<OpencodeConfig | null>(null);
+  const globalConfigRef = useRef<OpencodeConfig | null>(null);
+  const projectConfigRef = useRef<OpencodeConfig | null>(null);
   const [configLoading, setConfigLoading] = useState(true);
+  const configRequestIdRef = useRef(0);
+  const lastConfigDirectoryRef = useRef<string | undefined>(undefined);
   const [commands, setCommands] = useState<Command[]>([]);
   const [commandsLoading, setCommandsLoading] = useState(false);
   const [currentPath, setCurrentPath] = useState<string>("");
@@ -530,6 +537,18 @@ export function useOpenCode() {
     Record<string, { running: boolean; lastUpdated: number }>
   >({});
   const [abortInFlight, setAbortInFlight] = useState(false);
+
+  useEffect(() => {
+    configRef.current = config;
+  }, [config]);
+
+  useEffect(() => {
+    globalConfigRef.current = globalConfig;
+  }, [globalConfig]);
+
+  useEffect(() => {
+    projectConfigRef.current = projectConfig;
+  }, [projectConfig]);
 
   useEffect(() => {
     setFileDirectory(".");
@@ -658,6 +677,7 @@ export function useOpenCode() {
 
   const [loadedModels, setLoadedModels] = useState(false);
   const [loadedConfig, setLoadedConfig] = useState(false);
+  const loadedConfigRef = useRef(loadedConfig);
   const [loadedCustomCommands, setLoadedCustomCommands] = useState(false);
   const loadedAgentsRef = useRef(false);
   const loadedProjectsRef = useRef(false);
@@ -670,6 +690,10 @@ export function useOpenCode() {
   useEffect(() => {
     currentSessionRef.current = currentSession;
   }, [currentSession]);
+
+  useEffect(() => {
+    loadedConfigRef.current = loadedConfig;
+  }, [loadedConfig]);
 
   useEffect(() => {
     modelsRef.current = models;
@@ -3452,24 +3476,95 @@ export function useOpenCode() {
   );
 
   // Config and path
-  const loadConfig = useCallback(async ({ force }: { force?: boolean } = {}) => {
-    if (loadedConfig && !force) return config ?? null;
-    try {
-      setConfigLoading(true);
-      const response = await openCodeService.getConfig();
-      const configData = response.data as OpencodeConfig | undefined;
-      setConfig(configData || null);
-      setLoadedConfig(true);
-      return configData || null;
-    } catch (error) {
-      if (process.env.NODE_ENV !== "production") {
-        console.error("Failed to load config:", error);
+  const loadConfig = useCallback(
+    async ({ force }: { force?: boolean } = {}) => {
+      const projectDirectory = currentProject?.worktree?.trim();
+      const fallbackDirectory = currentPath?.trim();
+      const directory =
+        projectDirectory && projectDirectory.length > 0
+          ? projectDirectory
+          : fallbackDirectory && fallbackDirectory.length > 0
+            ? fallbackDirectory
+            : undefined;
+
+      const lastDirectory = lastConfigDirectoryRef.current;
+      const isSameDirectory =
+        (directory && lastDirectory === directory) || (!directory && !lastDirectory);
+
+      const cachedConfig =
+        projectConfigRef.current ??
+        globalConfigRef.current ??
+        configRef.current ??
+        null;
+
+      if (loadedConfigRef.current && !force && isSameDirectory) {
+        return cachedConfig;
       }
-      return null;
-    } finally {
-      setConfigLoading(false);
-    }
-  }, [loadedConfig, config]);
+
+      const requestId = ++configRequestIdRef.current;
+      setConfigLoading(true);
+
+      const fetchScopeConfig = async (
+        scopeDirectory?: string,
+      ): Promise<OpencodeConfig | null> => {
+        try {
+          const response = await openCodeService.getConfig(scopeDirectory);
+          const configData = response.data as OpencodeConfig | undefined;
+          return configData ?? null;
+        } catch (error) {
+          if (process.env.NODE_ENV !== "production") {
+            console.error(
+              `Failed to load ${scopeDirectory ? "project" : "global"} config:`,
+              error,
+            );
+          }
+          return null;
+        }
+      };
+
+      try {
+        const [globalConfigData, projectConfigData] = await Promise.all([
+          fetchScopeConfig(),
+          directory
+            ? fetchScopeConfig(directory)
+            : Promise.resolve<OpencodeConfig | null>(null),
+        ]);
+
+        if (configRequestIdRef.current !== requestId) {
+          return projectConfigData ?? globalConfigData ?? null;
+        }
+
+        lastConfigDirectoryRef.current = directory;
+        globalConfigRef.current = globalConfigData;
+        projectConfigRef.current = projectConfigData;
+        setGlobalConfig(globalConfigData);
+        setProjectConfig(projectConfigData);
+
+        const resolvedConfig = projectConfigData ?? globalConfigData ?? null;
+        configRef.current = resolvedConfig;
+        setConfig(resolvedConfig);
+
+        const hasConfig = Boolean(globalConfigData || projectConfigData);
+        loadedConfigRef.current = hasConfig;
+        setLoadedConfig(hasConfig);
+        return resolvedConfig;
+      } catch (error) {
+        if (process.env.NODE_ENV !== "production") {
+          console.error("Failed to load config:", error);
+        }
+        if (configRequestIdRef.current === requestId) {
+          loadedConfigRef.current = false;
+          setLoadedConfig(false);
+        }
+        return null;
+      } finally {
+        if (configRequestIdRef.current === requestId) {
+          setConfigLoading(false);
+        }
+      }
+    },
+    [currentPath, currentProject?.worktree],
+  );
 
   const loadCommands = useCallback(async () => {
     try {
@@ -3727,10 +3822,13 @@ export function useOpenCode() {
       if (projectIdChanged) {
         debugLog("Project changed, loading sessions for:", currentProject);
         loadedSessionsRef.current = false; // Reset flag when project changes
+        loadedConfigRef.current = false;
+        setLoadedConfig(false); // Reset config flag when project changes
         loadSessions();
+        loadConfig({ force: true }); // Reload config when project changes
       }
     }
-  }, [currentProject, loadSessions]);
+  }, [currentProject, loadSessions, loadConfig]);
 
   // MCP status initial load
   useEffect(() => {
@@ -4109,6 +4207,8 @@ export function useOpenCode() {
     recentModels,
     cycleRecentModels,
     config,
+    globalConfig,
+    projectConfig,
     configLoading,
     loadConfig,
     commands,

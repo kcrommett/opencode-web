@@ -1,0 +1,18 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "theme": "tokyonight",
+  "model": "anthropic/claude-3-haiku",
+  "share": "auto",
+  "permission": {
+    "edit": "allow",
+    "bash": "ask",
+    "webfetch": "deny"
+  },
+  "tools": {
+    "bash": true,
+    "read": true,
+    "write": true,
+    "edit": false,
+    "webfetch": false
+  }
+}

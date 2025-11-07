@@ -90,11 +90,6 @@ export function KeyboardIndicator({ keyboardState, className }: KeyboardIndicato
         { key: "Enter", description: "Select model" },
         { key: "Esc", description: "Close" },
       ],
-      theme: [
-        { key: "↑/↓", description: "Navigate themes" },
-        { key: "Enter", description: "Select theme" },
-        { key: "Esc", description: "Close" },
-      ],
       config: [
         { key: "/", description: "Search config" },
         { key: "Tab", description: "Navigate fields" },
@@ -202,9 +197,6 @@ export function KeyboardIndicator({ keyboardState, className }: KeyboardIndicato
             </div>
             <div className="text-sm opacity-80">
               <kbd className="px-1.5 py-0.5 rounded font-mono text-xs" style={{ backgroundColor: "var(--theme-backgroundAlt)", borderColor: "var(--theme-primary)", borderWidth: "1px" }}>A</kbd> Agents
-            </div>
-            <div className="text-sm opacity-80">
-              <kbd className="px-1.5 py-0.5 rounded font-mono text-xs" style={{ backgroundColor: "var(--theme-backgroundAlt)", borderColor: "var(--theme-primary)", borderWidth: "1px" }}>T</kbd> Themes
             </div>
             <div className="text-sm opacity-80">
               <kbd className="px-1.5 py-0.5 rounded font-mono text-xs" style={{ backgroundColor: "var(--theme-backgroundAlt)", borderColor: "var(--theme-primary)", borderWidth: "1px" }}>C</kbd> Config

@@ -148,9 +148,11 @@ export const openCodeService = {
     }
   },
 
-  async getConfig() {
+  async getConfig(directory?: string) {
     try {
-      const response = await serverFns.getConfig();
+      const response = await serverFns.getConfig({
+        data: directory ? { directory } : {},
+      });
       return { data: response };
     } catch (error) {
       throw error;
@@ -842,10 +844,17 @@ export const openCodeService = {
     }
   },
 
-  async updateConfig(config: Record<string, unknown>, directory?: string) {
+  async updateConfig(
+    config: Record<string, unknown>, 
+    options?: { directory?: string; scope?: "global" | "project" }
+  ) {
     try {
       const response = await serverFns.updateConfig({
-        data: { config, directory },
+        data: { 
+          config, 
+          directory: options?.directory,
+          scope: options?.scope 
+        },
       });
       return { data: response };
     } catch (error) {

@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   useState,
   useMemo,
@@ -22,8 +22,9 @@ import {
   PWAReloadPrompt,
   Checkbox,
   Spinner,
-
+  ConfigModal,
 } from "@/app/_components/ui";
+
 import { SidebarTabs } from "@/app/_components/ui/sidebar-tabs";
 import { SessionContextPanel } from "@/app/_components/ui/session-context-panel";
 import { McpStatusPanel } from "@/app/_components/ui/mcp-status-panel";
@@ -499,6 +500,7 @@ export const Route = createFileRoute("/")({
 });
 
 function OpenCodeChatTUI() {
+  const navigate = useNavigate();
   const [input, setInput] = useState("");
   const [isMultilineMode, setIsMultilineMode] = useState(false);
   const [multilineInput, setMultilineInput] = useState("");
@@ -572,8 +574,6 @@ function OpenCodeChatTUI() {
   const [showDetails, setShowDetails] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
-  const [configData, setConfigData] = useState<string | null>(null);
-  const [configSearchQuery, setConfigSearchQuery] = useState("");
   const [helpSearchQuery, setHelpSearchQuery] = useState("");
   const [deleteDialogState, setDeleteDialogState] = useState<{
     open: boolean;
@@ -586,7 +586,6 @@ function OpenCodeChatTUI() {
   const modelSearchInputRef = useRef<HTMLInputElement>(null);
   const fileSearchInputRef = useRef<HTMLInputElement>(null);
   const workspaceSessionSearchInputRef = useRef<{ focus: () => void }>(null);
-  const configSearchInputRef = useRef<HTMLInputElement>(null);
   const helpSearchInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -719,7 +718,6 @@ function OpenCodeChatTUI() {
     selectModel,
     recentModels,
     openHelp,
-    openThemes,
     showToast,
     isConnected,
     sseConnectionState,
@@ -890,15 +888,6 @@ function OpenCodeChatTUI() {
     }
   }, [showHelp]);
 
-  // Auto-focus Config modal search input when opened
-  useEffect(() => {
-    if (showConfig) {
-      requestAnimationFrame(() => {
-        configSearchInputRef.current?.focus();
-      });
-    }
-  }, [showConfig]);
-
   // Register keyboard shortcuts for frame navigation
   useEffect(() => {
     const unregisterFns: (() => void)[] = [];
@@ -1063,19 +1052,6 @@ function OpenCodeChatTUI() {
         },
         requiresLeader: true,
         description: "Open Agent Picker",
-        category: "navigation",
-      })
-    );
-
-    unregisterFns.push(
-      registerShortcut({
-        key: "t",
-        handler: () => {
-          closeAllModals();
-          setShowThemes(true);
-        },
-        requiresLeader: true,
-        description: "Open Theme Picker",
         category: "navigation",
       })
     );
@@ -1267,35 +1243,6 @@ function OpenCodeChatTUI() {
     showHelp,
     setActiveModal,
   ]);
-
-  useEffect(() => {
-    if (!showConfig) {
-      return;
-    }
-
-    let canceled = false;
-    setConfigData(null);
-
-    (async () => {
-      try {
-        const config = await openCodeService.getConfig();
-        if (!canceled) {
-          setConfigData(JSON.stringify(config, null, 2));
-        }
-      } catch (error) {
-        if (process.env.NODE_ENV !== "production") {
-          console.error("Failed to load config:", error);
-        }
-        if (!canceled) {
-          setConfigData("Unable to load configuration.");
-        }
-      }
-    })();
-
-    return () => {
-      canceled = true;
-    };
-  }, [showConfig]);
 
   // Handle frame navigation and actions
   useEffect(() => {
@@ -1749,6 +1696,11 @@ function OpenCodeChatTUI() {
         setInput("");
         closeAllModals();
         setShowThemes(true);
+        break;
+      case "settings":
+        setInput("");
+        closeAllModals();
+        navigate({ to: "/settings/configuration" });
         break;
       case "sessions":
         setInput("");
@@ -3075,60 +3027,6 @@ function OpenCodeChatTUI() {
     );
   }, [sortedFiles, fileSearchQuery]);
 
-  const filteredConfigData = useMemo(() => {
-    if (!configData || !configSearchQuery.trim()) return configData;
-    
-    try {
-      const parsed = JSON.parse(configData);
-      const query = configSearchQuery.toLowerCase();
-      
-      // Simple jq-like filtering: filter object by keys/values matching query
-      const filterObject = (obj: any, path = ""): any => {
-        if (typeof obj !== "object" || obj === null) {
-          // Check if primitive value matches
-          const strValue = String(obj).toLowerCase();
-          return strValue.includes(query) ? obj : null;
-        }
-        
-        if (Array.isArray(obj)) {
-          const filtered = obj.map((item, idx) => filterObject(item, `${path}[${idx}]`)).filter(item => item !== null);
-          return filtered.length > 0 ? filtered : null;
-        }
-        
-        const result: any = {};
-        let hasMatch = false;
-        
-        for (const [key, value] of Object.entries(obj)) {
-          const currentPath = path ? `${path}.${key}` : key;
-          const keyMatches = key.toLowerCase().includes(query);
-          const pathMatches = currentPath.toLowerCase().includes(query);
-          
-          if (keyMatches || pathMatches) {
-            result[key] = value;
-            hasMatch = true;
-          } else {
-            const filteredValue = filterObject(value, currentPath);
-            if (filteredValue !== null) {
-              result[key] = filteredValue;
-              hasMatch = true;
-            }
-          }
-        }
-        
-        return hasMatch ? result : null;
-      };
-      
-      const filtered = filterObject(parsed);
-      return filtered ? JSON.stringify(filtered, null, 2) : "No matches found";
-    } catch (err) {
-      // If not valid JSON, fall back to simple text search
-      if (configData.toLowerCase().includes(configSearchQuery.toLowerCase())) {
-        return configData;
-      }
-      return "No matches found";
-    }
-  }, [configData, configSearchQuery]);
-
   const helpCommands = useMemo(() => [
     { category: "Session", command: "/new", description: "Start a new session" },
     { category: "Session", command: "/clear", description: "Clear current session" },
@@ -3279,21 +3177,6 @@ function OpenCodeChatTUI() {
       modelSearchInputRef.current.focus();
     }
   }, [showModelPicker]);
-
-  useEffect(() => {
-    if (showConfig) {
-      const handleKeyDown = (e: KeyboardEvent) => {
-        // / to focus config search
-        if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey && document.activeElement !== configSearchInputRef.current) {
-          e.preventDefault();
-          configSearchInputRef.current?.focus();
-        }
-      };
-      
-      document.addEventListener("keydown", handleKeyDown);
-      return () => document.removeEventListener("keydown", handleKeyDown);
-    }
-  }, [showConfig]);
 
   useEffect(() => {
     if (showHelp) {
@@ -3495,22 +3378,15 @@ function OpenCodeChatTUI() {
             Help
           </Button>
           <Button
-            variant={showThemes ? "foreground0" : "foreground1"}
-            box="round"
-            onClick={openThemes}
-            size="small"
-            className="whitespace-nowrap"
-            aria-pressed={showThemes}
-            title={showThemes ? "Close themes" : "Open themes (Space+T)"}
-          >
-            Themes
-          </Button>
-          <Button
             variant={showConfig ? "foreground0" : "foreground1"}
             box="round"
             onClick={() => {
-              closeAllModals();
-              setShowConfig(true);
+              if (showConfig) {
+                setShowConfig(false);
+              } else {
+                closeAllModals();
+                setShowConfig(true);
+              }
             }}
             size="small"
             className="whitespace-nowrap"
@@ -4043,18 +3919,6 @@ function OpenCodeChatTUI() {
               className="flex-1"
             >
               Help
-            </Button>
-            <Button
-              variant="foreground0"
-              box="round"
-              onClick={() => {
-                openThemes();
-                setIsMobileSidebarOpen(false);
-              }}
-              size="small"
-              className="flex-1"
-            >
-              Themes
             </Button>
           </div>
 
@@ -5447,66 +5311,12 @@ function OpenCodeChatTUI() {
         />
       )}
 
-      {/* Config Dialog */}
+      {/* Config Modal */}
       {showConfig && (
-        <Dialog open={showConfig} onClose={() => setShowConfig(false)}>
-          <View
-            box="square"
-            className="p-6 max-w-4xl w-full max-h-[80vh] overflow-hidden flex flex-col bg-theme-background text-theme-foreground"
-          >
-            <h2 className="text-lg font-bold mb-4">OpenCode Configuration</h2>
-            <Separator className="mb-4" />
-            
-            {/* Search Input */}
-            <div className="mb-4">
-              <Input
-                ref={configSearchInputRef}
-                placeholder="Search config (jq-like filter)..."
-                size="small"
-                value={configSearchQuery}
-                onChange={(e) => setConfigSearchQuery(e.target.value)}
-                className="w-full bg-theme-background-alt text-theme-foreground border-theme-primary"
-              />
-              {configSearchQuery && (
-                <div className="text-xs opacity-70 mt-2">
-                  Filtering configuration...
-                </div>
-              )}
-            </div>
-            <Separator className="mb-4" />
-            
-            <div className="flex-1 overflow-y-auto scrollbar mb-4">
-              <Pre className="text-xs bg-theme-background-alt p-4 rounded">
-                {filteredConfigData || "Loading..."}
-              </Pre>
-            </div>
-            <Separator className="mb-4" />
-            <div className="flex justify-between">
-              {configSearchQuery && (
-                <Button
-                  variant="foreground1"
-                  box="round"
-                  onClick={() => setConfigSearchQuery("")}
-                  size="small"
-                >
-                  Clear Filter
-                </Button>
-              )}
-              <div className="flex-1" />
-              <Button
-                variant="background2"
-                box="round"
-                onClick={() => {
-                  setShowConfig(false);
-                  setConfigSearchQuery("");
-                }}
-                size="small"
-              >
-                Close
-              </Button>
-            </div>
-          </View>
-        </Dialog>
+        <ConfigModal
+          isOpen={showConfig}
+          onClose={() => setShowConfig(false)}
+        />
       )}
 
       {/* Onboarding Dialog */}
