@@ -1,0 +1,5 @@
+procs:
+  oc-serve:
+    shell: "opencode serve --hostname 0.0.0.0 --port 3099"
+  oc-web:
+    shell: "bun run dev --external-server=http://10.0.2.100:3099"
