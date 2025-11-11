@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { openCodeService } from "@/lib/opencode-client";
 import { mergeConfigUpdate } from "@/lib/opencode-config-helpers";
-import type { OpencodeConfig, AgentConfig, CommandConfig, ProviderConfig } from "@/types/opencode";
+import type {
+  OpencodeConfig,
+  AgentConfig,
+  CommandConfig,
+  ProviderConfig,
+  ConfigUpdateResponse,
+} from "@/types/opencode";
 
 /**
  * Hook for updating OpenCode configuration.
@@ -25,7 +31,7 @@ export function useConfigUpdate(
     field: K,
     value: OpencodeConfig[K],
     options?: { optimistic?: boolean; scope?: "global" | "project" }
-  ): Promise<boolean> => {
+  ): Promise<ConfigUpdateResponse> => {
     try {
       setUpdating(true);
       
@@ -40,11 +46,14 @@ export function useConfigUpdate(
       // If scope is explicitly provided, use it; otherwise infer from directory presence
       // When no project is selected (directory is undefined), always use global scope
       const scope = options?.scope ?? (directory ? "project" : "global");
+      if (scope === "project" && !directory) {
+        throw new Error("Project directory is required for project-scoped config updates");
+      }
       
       // Send update to server with appropriate scope
       // IMPORTANT: Only pass directory for project-scoped updates
       // For global updates, we must NOT pass directory to ensure it writes to global config
-      await openCodeService.updateConfig(
+      const response = await openCodeService.updateConfig(
         { [field]: value }, 
         { 
           directory: scope === "project" && directory ? directory : undefined,
@@ -55,14 +64,14 @@ export function useConfigUpdate(
       // Always reload config from server after update to ensure consistency
       // This prevents stale config issues when refreshing the page
       await loadConfig({ force: true });
-      return true;
+      return response.data;
     } catch (error) {
       if (process.env.NODE_ENV !== "production") {
         console.error("Failed to update config:", error);
       }
       // Reload config to revert optimistic update on error
       await loadConfig({ force: true });
-      return false;
+      throw error;
     } finally {
       setUpdating(false);
     }
@@ -72,7 +81,7 @@ export function useConfigUpdate(
     agentName: string,
     providerID: string,
     modelID: string,
-  ): Promise<boolean> => {
+  ): Promise<ConfigUpdateResponse> => {
     const newAgentConfig = {
       ...config?.agent,
       [agentName]: {
@@ -87,7 +96,7 @@ export function useConfigUpdate(
     agentName: string,
     agentConfig: Partial<AgentConfig>,
     options?: { scope?: "global" | "project" }
-  ): Promise<boolean> => {
+  ): Promise<ConfigUpdateResponse> => {
     const newAgentConfig = {
       ...config?.agent,
       [agentName]: {
@@ -102,7 +111,7 @@ export function useConfigUpdate(
     agentName: string,
     agentConfig: AgentConfig,
     options?: { scope?: "global" | "project" }
-  ): Promise<boolean> => {
+  ): Promise<ConfigUpdateResponse> => {
     const newAgentConfig = {
       ...config?.agent,
       [agentName]: agentConfig,
@@ -110,7 +119,7 @@ export function useConfigUpdate(
     return updateConfigField("agent", newAgentConfig, options);
   };
 
-  const deleteAgent = async (agentName: string, options?: { scope?: "global" | "project" }): Promise<boolean> => {
+  const deleteAgent = async (agentName: string, options?: { scope?: "global" | "project" }): Promise<ConfigUpdateResponse> => {
     const newAgentConfig = { ...config?.agent };
     delete newAgentConfig[agentName];
     return updateConfigField("agent", newAgentConfig, options);
@@ -120,7 +129,7 @@ export function useConfigUpdate(
     commandName: string,
     commandConfig: Partial<CommandConfig>,
     options?: { scope?: "global" | "project" }
-  ): Promise<boolean> => {
+  ): Promise<ConfigUpdateResponse> => {
     const newCommandConfig = {
       ...config?.command,
       [commandName]: {
@@ -135,7 +144,7 @@ export function useConfigUpdate(
     commandName: string,
     commandConfig: CommandConfig,
     options?: { scope?: "global" | "project" }
-  ): Promise<boolean> => {
+  ): Promise<ConfigUpdateResponse> => {
     const newCommandConfig = {
       ...config?.command,
       [commandName]: commandConfig,
@@ -143,7 +152,7 @@ export function useConfigUpdate(
     return updateConfigField("command", newCommandConfig, options);
   };
 
-  const deleteCommand = async (commandName: string, options?: { scope?: "global" | "project" }): Promise<boolean> => {
+  const deleteCommand = async (commandName: string, options?: { scope?: "global" | "project" }): Promise<ConfigUpdateResponse> => {
     const newCommandConfig = { ...config?.command };
     delete newCommandConfig[commandName];
     return updateConfigField("command", newCommandConfig, options);
@@ -153,7 +162,7 @@ export function useConfigUpdate(
     providerName: string,
     providerConfig: Partial<ProviderConfig>,
     options?: { scope?: "global" | "project" }
-  ): Promise<boolean> => {
+  ): Promise<ConfigUpdateResponse> => {
     const newProviderConfig = {
       ...config?.provider,
       [providerName]: {
@@ -168,7 +177,7 @@ export function useConfigUpdate(
     providerName: string,
     providerConfig: ProviderConfig,
     options?: { scope?: "global" | "project" }
-  ): Promise<boolean> => {
+  ): Promise<ConfigUpdateResponse> => {
     const newProviderConfig = {
       ...config?.provider,
       [providerName]: providerConfig,
@@ -176,7 +185,7 @@ export function useConfigUpdate(
     return updateConfigField("provider", newProviderConfig, options);
   };
 
-  const deleteProvider = async (providerName: string, options?: { scope?: "global" | "project" }): Promise<boolean> => {
+  const deleteProvider = async (providerName: string, options?: { scope?: "global" | "project" }): Promise<ConfigUpdateResponse> => {
     const newProviderConfig = { ...config?.provider };
     delete newProviderConfig[providerName];
     return updateConfigField("provider", newProviderConfig, options);
@@ -186,7 +195,7 @@ export function useConfigUpdate(
     serverName: string,
     serverConfig: any,
     options?: { scope?: "global" | "project" }
-  ): Promise<boolean> => {
+  ): Promise<ConfigUpdateResponse> => {
     const newMcpConfig = {
       ...config?.mcp,
       [serverName]: serverConfig,
@@ -194,7 +203,7 @@ export function useConfigUpdate(
     return updateConfigField("mcp", newMcpConfig, options);
   };
 
-  const deleteMcpServer = async (serverName: string, options?: { scope?: "global" | "project" }): Promise<boolean> => {
+  const deleteMcpServer = async (serverName: string, options?: { scope?: "global" | "project" }): Promise<ConfigUpdateResponse> => {
     const newMcpConfig = { ...config?.mcp };
     delete newMcpConfig[serverName];
     return updateConfigField("mcp", newMcpConfig, options);
@@ -203,7 +212,7 @@ export function useConfigUpdate(
   const updatePermission = async (
     permission: Partial<OpencodeConfig["permission"]>,
     options?: { scope?: "global" | "project" }
-  ): Promise<boolean> => {
+  ): Promise<ConfigUpdateResponse> => {
     const newPermission = {
       ...config?.permission,
       ...permission,
@@ -214,7 +223,7 @@ export function useConfigUpdate(
   const updateTools = async (
     tools: Partial<OpencodeConfig["tools"]>,
     options?: { scope?: "global" | "project" }
-  ): Promise<boolean> => {
+  ): Promise<ConfigUpdateResponse> => {
     const newTools = {
       ...config?.tools,
       ...tools,
@@ -225,7 +234,7 @@ export function useConfigUpdate(
   const updateExperimental = async (
     experimental: Partial<OpencodeConfig["experimental"]>,
     options?: { scope?: "global" | "project" }
-  ): Promise<boolean> => {
+  ): Promise<ConfigUpdateResponse> => {
     const newExperimental = {
       ...config?.experimental,
       ...experimental,
@@ -236,7 +245,7 @@ export function useConfigUpdate(
   const updateKeybinds = async (
     keybinds: Partial<OpencodeConfig["keybinds"]>,
     options?: { scope?: "global" | "project" }
-  ): Promise<boolean> => {
+  ): Promise<ConfigUpdateResponse> => {
     const newKeybinds = {
       ...config?.keybinds,
       ...keybinds,
@@ -247,7 +256,7 @@ export function useConfigUpdate(
   const updateTui = async (
     tui: Partial<OpencodeConfig["tui"]>,
     options?: { scope?: "global" | "project" }
-  ): Promise<boolean> => {
+  ): Promise<ConfigUpdateResponse> => {
     const newTui = {
       ...config?.tui,
       ...tui,

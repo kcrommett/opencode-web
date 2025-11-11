@@ -1,0 +1,13 @@
+procs:
+  oc-serve:
+    shell: "cd ~/repos/worktrees/opencode-fork/feat-config-hot-reload/ && bun dev serve --print-logs --hostname 0.0.0.0 --port 3366"
+  oc-web:
+    shell: "bun run dev"
+  config-file-watcher:
+    shell: "watch -n 0.5 cat ~/.config/opencode/opencode.jsonc | head -n 2"
+  config-api-watcher:
+    shell: "watch -n 0.5 curl -s http://10.0.2.100:3366/config"
+  nvim:
+    shell: "nvim"
+  zsh:
+    shell: "zsh"

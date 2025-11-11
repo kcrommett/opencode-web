@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import * as httpApi from "./opencode-http-api";
 import { OpencodeHttpError } from "./opencode-http-api";
-import { updateConfigFileLocal } from "./config-file";
+import { updateConfigFileLocal, readConfigFromScope } from "./config-file";
 import type {
   Agent,
   Part,
@@ -17,6 +17,10 @@ import type {
   LspStatus,
   FormatterStatus,
 } from "../types/opencode";
+
+const configFallbackScopes = new Set<string>();
+const getScopeKey = (scope: "global" | "project", directory?: string) =>
+  scope === "project" ? `project:${directory ?? ""}` : "global";
 
 export const getAgents = createServerFn({ method: "GET" }).handler(async () => {
   return httpApi.getAgents();
@@ -271,7 +275,29 @@ export const respondToPermission = createServerFn({ method: "POST" })
 export const getConfig = createServerFn({ method: "GET" })
   .inputValidator((data?: { directory?: string }) => data ?? {})
   .handler(async ({ data }) => {
-    return httpApi.getConfig(data.directory);
+    const scope = data.directory ? "project" : "global";
+    const key = getScopeKey(scope, data.directory);
+
+    if (configFallbackScopes.has(key)) {
+      const fallback = await readConfigFromScope(scope, data.directory);
+      return fallback ?? ({} as OpencodeConfig);
+    }
+
+    try {
+      const config = await httpApi.getConfig(data.directory);
+      configFallbackScopes.delete(key);
+      return config;
+    } catch (error) {
+      if (error instanceof OpencodeHttpError && error.status >= 500) {
+        console.warn(
+          `[config] Remote get failed (${error.message}). Reading ${scope} config directly from file.`,
+        );
+        const fallback = await readConfigFromScope(scope, data.directory);
+        configFallbackScopes.add(key);
+        return fallback ?? ({} as OpencodeConfig);
+      }
+      throw error;
+    }
   });
 
 export const getSessionChildren = createServerFn({ method: "GET" })
@@ -452,11 +478,14 @@ export const updateConfig = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const resolvedScope = data.scope ?? (data.directory ? "project" : "global");
+    const scopeKey = getScopeKey(resolvedScope, data.directory);
     try {
       const result = await httpApi.updateConfig(data.config, {
-        directory: data.directory,
+        directory:
+          resolvedScope === "project" ? data.directory : undefined,
         scope: resolvedScope,
       });
+      configFallbackScopes.delete(scopeKey);
       return result as any;
     } catch (error) {
       if (error instanceof OpencodeHttpError && error.status >= 500) {
@@ -468,6 +497,7 @@ export const updateConfig = createServerFn({ method: "POST" })
           resolvedScope,
           data.directory,
         );
+        configFallbackScopes.add(scopeKey);
         return fallback as any;
       }
       throw error;

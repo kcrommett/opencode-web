@@ -6,6 +6,8 @@ interface ConfigurationShellProps {
   unsavedChanges: boolean
   configScope: 'global' | 'project'
   onScopeChange: (scope: 'global' | 'project') => void
+  scopeTargetPath: string
+  scopeUnavailable?: boolean
   children: React.ReactNode
 }
 
@@ -29,6 +31,8 @@ export function ConfigurationShell({
   unsavedChanges,
   configScope,
   onScopeChange,
+  scopeTargetPath,
+  scopeUnavailable,
   children,
 }: ConfigurationShellProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -58,10 +62,10 @@ export function ConfigurationShell({
               className="w-full px-2 py-1.5 text-sm border rounded-md bg-background"
             >
               <option value="global">Global</option>
-              <option value="project">Project</option>
+              <option value="project" disabled={scopeUnavailable}>Project</option>
             </select>
             <p className="text-xs text-muted-foreground">
-              {configScope === 'global' ? '~/.config/opencode/opencode.jsonc' : 'project/opencode.jsonc'}
+              {scopeUnavailable ? 'Select a project to enable project scope' : scopeTargetPath}
             </p>
           </div>
           
@@ -141,10 +145,10 @@ export function ConfigurationShell({
                   className="w-full px-2 py-1.5 text-sm border rounded-md bg-background"
                 >
                   <option value="global">Global</option>
-                  <option value="project">Project</option>
+                  <option value="project" disabled={scopeUnavailable}>Project</option>
                 </select>
                 <p className="text-xs text-muted-foreground">
-                  {configScope === 'global' ? '~/.config/opencode/opencode.jsonc' : 'project/opencode.jsonc'}
+                  {scopeUnavailable ? 'Select a project to enable project scope' : scopeTargetPath}
                 </p>
               </div>
               

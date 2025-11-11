@@ -9,7 +9,13 @@ import type { OpencodeConfig, McpStatusResponse, ProviderConfig } from '@/types/
 
 export function ConfigurationPage() {
   const routeData = useRouteContext({ from: '/settings/configuration' }) as any
-  const { config: contextConfig, loadConfig, currentProject } = useOpenCodeContext()
+  const {
+    config: contextConfig,
+    loadConfig,
+    currentProject,
+    configTargets,
+    registerConfigTarget,
+  } = useOpenCodeContext()
   const configUpdate = useConfigUpdate(contextConfig, loadConfig, currentProject?.worktree)
   const { currentTheme, changeTheme } = useTheme()
   
@@ -18,6 +24,14 @@ export function ConfigurationPage() {
   const [localConfig, setLocalConfig] = useState<OpencodeConfig>(contextConfig || {})
   // Default to global scope for testing
   const [configScope, setConfigScope] = useState<'global' | 'project'>('global')
+  const scopeUnavailable = configScope === 'project' && !currentProject
+
+  const projectTargetPath = currentProject?.worktree
+    ? configTargets.project[currentProject.worktree] ?? `${currentProject.worktree}/opencode.jsonc`
+    : 'Select a project to enable project-scoped configuration'
+
+  const globalTargetPath = configTargets.global ?? '~/.config/opencode/opencode.jsonc'
+  const scopeTargetPath = configScope === 'global' ? globalTargetPath : projectTargetPath
 
   // Sync local state with context data
   useEffect(() => {
@@ -41,7 +55,10 @@ export function ConfigurationPage() {
       // Use the explicitly selected scope from UI
       // Update each field individually using the existing function
       for (const [key, value] of Object.entries(updates)) {
-        await configUpdate.updateConfigField(key as keyof OpencodeConfig, value, { scope: configScope })
+        const result = await configUpdate.updateConfigField(key as keyof OpencodeConfig, value, { scope: configScope })
+        if (result.filepath) {
+          registerConfigTarget(result.scope ?? configScope, result.filepath, currentProject?.worktree)
+        }
       }
       
       // Reload config to ensure we have the latest state
@@ -152,6 +169,8 @@ export function ConfigurationPage() {
       unsavedChanges={unsavedChanges}
       configScope={configScope}
       onScopeChange={setConfigScope}
+      scopeTargetPath={scopeTargetPath}
+      scopeUnavailable={scopeUnavailable}
     >
       <ConfigurationContent
         section={activeSection}

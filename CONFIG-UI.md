@@ -73,6 +73,12 @@ This document tracks the implementation of a comprehensive configuration UI for 
 - **Single Fetch**: Global and project configs are loaded in parallel and cached per-directory to eliminate redundant HTTP calls
 - **Scope Consumers**: `OpenCodeContext` exposes both scopes so the modal (and future screens) can read whichever version they need without recomputing
 
+#### 9. Scope Metadata & Error Feedback (NEW)
+- **Resolved Targets**: UI surfaces the exact `filepath` reported by the `/config` PATCH response or SSE `config.updated` events, so users always see whether they're writing to `~/.config/opencode/opencode.jsonc` or a project-local file.
+- **Live Invalidation**: SSE `config.updated` events now refresh the correct cached scope and update the recorded target paths without forcing full app reloads.
+- **Actionable Errors**: Config saves bubble up server-side error payloads (validation, permission, write issues) into friendly toasts that include the failing path when available.
+- **Diff Logging**: Successful saves log the server-provided `diff` metadata in development builds for quick debugging.
+
 ### 🏗️ Architecture
 
 ```

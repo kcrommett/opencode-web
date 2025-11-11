@@ -5,8 +5,57 @@ import { useConfigUpdate } from '@/hooks/useConfigUpdate'
 import { useTheme } from '@/hooks/useTheme'
 import { useOpenCodeContext } from '@/contexts/OpenCodeContext'
 import { themes } from '@/lib/themes'
-import type { McpStatusResponse, OpencodeConfig } from '@/types/opencode'
+import type { McpStatusResponse, OpencodeConfig, ConfigUpdateResponse } from '@/types/opencode'
 import { openCodeService } from '@/lib/opencode-client'
+
+function extractConfigErrorMessage(error: unknown): { message: string; path?: string } {
+  const fallback =
+    error instanceof Error && typeof error.message === 'string'
+      ? error.message
+      : 'Failed to save configuration'
+
+  const toRecord = (value: unknown): Record<string, unknown> | null => {
+    if (value && typeof value === 'object') return value as Record<string, unknown>
+    return null
+  }
+
+  const root = toRecord(error)
+  const detailSources = [toRecord(root?.details), toRecord(root?.data), root]
+
+  for (const source of detailSources) {
+    if (!source) continue
+    const nested = toRecord(source.data)
+    const issuesMaybe = Array.isArray(source.issues)
+      ? (source.issues as Array<Record<string, unknown>>)
+      : nested && Array.isArray(nested.issues)
+        ? (nested.issues as Array<Record<string, unknown>>)
+        : undefined
+
+    const issueMessage = issuesMaybe?.find((issue) => typeof issue?.message === 'string')
+      ?.message as string | undefined
+
+    const pathCandidate =
+      typeof source.path === 'string'
+        ? source.path
+        : nested && typeof nested.path === 'string'
+          ? nested.path
+          : undefined
+
+    const messageCandidate =
+      (typeof source.message === 'string' && source.message) ||
+      (nested && typeof nested.message === 'string' ? nested.message : undefined) ||
+      issueMessage
+
+    if (messageCandidate || pathCandidate) {
+      return {
+        message: messageCandidate ?? fallback,
+        path: pathCandidate,
+      }
+    }
+  }
+
+  return { message: fallback }
+}
 
 interface ConfigModalProps {
   isOpen: boolean
@@ -21,6 +70,9 @@ export function ConfigModal({ isOpen, onClose }: ConfigModalProps) {
     configLoading: contextConfigLoading,
     loadConfig,
     currentProject,
+    configTargets,
+    registerConfigTarget,
+    showToast,
   } = useOpenCodeContext()
 
   const [configScope, setConfigScope] = useState<'global' | 'project'>('global')
@@ -51,11 +103,13 @@ export function ConfigModal({ isOpen, onClose }: ConfigModalProps) {
     }
   }, [scopeConfig])
   const scopeUnavailable = configScope === 'project' && !currentProject
-  const scopeTargetPath = configScope === 'global'
-    ? '~/.config/opencode/opencode.jsonc'
-    : currentProject?.worktree
-      ? `${currentProject.worktree}/opencode.jsonc`
-      : 'Select a project to enable project-scoped configuration'
+  const projectTargetPath = currentProject?.worktree
+    ? configTargets.project[currentProject.worktree] ?? `${currentProject.worktree}/opencode.jsonc`
+    : 'Select a project to enable project-scoped configuration'
+
+  const globalTargetPath = configTargets.global ?? '~/.config/opencode/opencode.jsonc'
+
+  const scopeTargetPath = configScope === 'global' ? globalTargetPath : projectTargetPath
 
   useEffect(() => {
     if (!currentProject && configScope === 'project') {
@@ -66,15 +120,13 @@ export function ConfigModal({ isOpen, onClose }: ConfigModalProps) {
   useEffect(() => {
     if (isOpen && !hasInitializedScopeRef.current) {
       hasInitializedScopeRef.current = true
-      if (currentProject) {
-        setConfigScope('project')
-      }
+      setConfigScope('global')
     }
 
     if (!isOpen && hasInitializedScopeRef.current) {
       hasInitializedScopeRef.current = false
     }
-  }, [isOpen, currentProject])
+  }, [isOpen])
 
   // Reset unsaved changes when scope changes
   useEffect(() => {
@@ -136,13 +188,22 @@ export function ConfigModal({ isOpen, onClose }: ConfigModalProps) {
 
   const handleSave = async () => {
     if (!hasUnsavedChanges) return
-    
+    if (scopeUnavailable) {
+      await showToast('Select a project before saving project-scoped settings.', 'warning')
+      return
+    }
+
     setIsSaving(true)
     try {
+      const saveResults: ConfigUpdateResponse[] = []
       // Save all unsaved changes
       for (const [field, value] of Object.entries(unsavedChanges)) {
         const configField = field as keyof OpencodeConfig
-        await configUpdate.updateConfigField(configField, value, { scope: configScope })
+        const result = await configUpdate.updateConfigField(configField, value, { scope: configScope })
+        saveResults.push(result)
+        if (result.filepath) {
+          registerConfigTarget(result.scope ?? configScope, result.filepath, currentProject?.worktree)
+        }
       }
       
       // Clear unsaved changes
@@ -151,6 +212,22 @@ export function ConfigModal({ isOpen, onClose }: ConfigModalProps) {
       
       // Force config reload
       await loadConfig({ force: true })
+      if (saveResults.length > 0) {
+        const latest = saveResults[saveResults.length - 1]
+        if (process.env.NODE_ENV !== 'production') {
+          saveResults.forEach((result) => {
+            console.info('[config] Saved config update', {
+              scope: result.scope ?? configScope,
+              filepath: result.filepath,
+              diff: result.diff,
+            })
+          })
+        }
+        await showToast(
+          `Saved ${configScope} config → ${latest.filepath}`,
+          'success',
+        )
+      }
       
       // Refresh MCP status if MCP was changed
       if (unsavedChanges.mcp) {
@@ -161,6 +238,9 @@ export function ConfigModal({ isOpen, onClose }: ConfigModalProps) {
       }
     } catch (error) {
       console.error('Failed to save config:', error)
+      const { message, path } = extractConfigErrorMessage(error)
+      const composedMessage = path ? `${message} (${path})` : message
+      await showToast(composedMessage, 'error')
     } finally {
       setIsSaving(false)
     }
@@ -192,7 +272,7 @@ export function ConfigModal({ isOpen, onClose }: ConfigModalProps) {
                 box="round"
                 size="small"
                 onClick={handleSave}
-                disabled={!hasUnsavedChanges || isSaving}
+                disabled={!hasUnsavedChanges || isSaving || scopeUnavailable}
               >
                 {isSaving ? 'Saving...' : 'Save Changes'}
               </Button>
@@ -219,7 +299,7 @@ export function ConfigModal({ isOpen, onClose }: ConfigModalProps) {
             <option value="global">Global (~/.config/opencode/opencode.jsonc)</option>
             <option
               value="project"
-              disabled={!currentProject}
+              disabled={scopeUnavailable}
             >
               {currentProject
                 ? `Project (${currentProject.worktree}/opencode.jsonc)`

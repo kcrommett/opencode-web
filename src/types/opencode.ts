@@ -267,6 +267,33 @@ export interface TuiConfig {
   [key: string]: unknown;
 }
 
+export interface ConfigDiffSummary {
+  provider?: true;
+  mcp?: true;
+  lsp?: true;
+  watcher?: true;
+  agent?: true;
+  command?: true;
+  formatter?: true;
+  tools?: true;
+  permission?: true;
+  instructions?: true;
+  share?: true;
+  autoshare?: true;
+  model?: true;
+  small_model?: true;
+  disabled_providers?: true;
+  plugin?: true;
+  theme?: true;
+  experimental?: true;
+  keybinds?: true;
+  tui?: true;
+  features?: true;
+  pluginAdded?: string[];
+  pluginRemoved?: string[];
+  changedPaths?: string[];
+}
+
 export interface OpencodeConfig {
   theme?: string;
   model?: string;
@@ -294,6 +321,28 @@ export interface OpencodeConfig {
     [key: string]: unknown;
   };
   [key: string]: unknown;
+}
+
+export interface ConfigUpdateResponse {
+  merged: OpencodeConfig;
+  diff?: ConfigDiffSummary;
+  scope?: "global" | "project";
+  filepath: string;
+}
+
+export interface ConfigUpdatedEventPayload {
+  scope: "global" | "project";
+  directory?: string;
+  filepath?: string;
+  before: OpencodeConfig;
+  after: OpencodeConfig;
+  diff?: ConfigDiffSummary;
+}
+
+export interface ConfigErrorPayload {
+  name?: "ConfigUpdateError" | "ConfigValidationError" | string;
+  message: string;
+  path?: string;
 }
 
 export interface SessionUsageTotals {

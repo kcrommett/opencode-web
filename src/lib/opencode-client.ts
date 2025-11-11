@@ -18,6 +18,7 @@ import type {
   TuiControlResponse,
   LspStatus,
   FormatterStatus,
+  ConfigUpdateResponse,
 } from "../types/opencode";
 
 const isDevMode = process.env.NODE_ENV !== "production";
@@ -845,17 +846,19 @@ export const openCodeService = {
   },
 
   async updateConfig(
-    config: Record<string, unknown>, 
-    options?: { directory?: string; scope?: "global" | "project" }
-  ) {
+    config: Record<string, unknown>,
+    options?: { directory?: string; scope?: "global" | "project" },
+  ): Promise<{ data: ConfigUpdateResponse }> {
     try {
-      const response = await serverFns.updateConfig({
-        data: { 
-          config, 
-          directory: options?.directory,
-          scope: options?.scope 
+      const sanitizedDirectory =
+        options?.scope === "project" ? options?.directory : undefined;
+      const response = (await serverFns.updateConfig({
+        data: {
+          config,
+          directory: sanitizedDirectory,
+          scope: options?.scope,
         },
-      });
+      })) as ConfigUpdateResponse;
       return { data: response };
     } catch (error) {
       throw error;

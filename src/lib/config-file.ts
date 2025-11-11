@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
-import type { OpencodeConfig } from "@/types/opencode";
+import type { OpencodeConfig, ConfigUpdateResponse } from "@/types/opencode";
 import { mergeConfigUpdate } from "./opencode-config-helpers";
 
 const GLOBAL_CONFIG_PATH = path.join(
@@ -41,31 +41,44 @@ async function writeConfigFile(filePath: string, config: OpencodeConfig) {
   await fs.writeFile(filePath, contents, "utf8");
 }
 
-export async function updateConfigFileLocal(
-  updates: Record<string, unknown>,
-  scope: "global" | "project",
-  directory?: string,
-): Promise<OpencodeConfig> {
-  const targetPath = scope === "project"
-    ? directory
-      ? path.join(directory, "opencode.jsonc")
-      : null
-    : GLOBAL_CONFIG_PATH;
-
-  if (!targetPath) {
-    throw new Error("Project directory is required for project-scoped config updates");
-  }
-
-  const currentConfig = await readConfigFile(targetPath);
-  const merged = mergeConfigUpdate(currentConfig, updates as Partial<OpencodeConfig>);
-  await writeConfigFile(targetPath, merged);
-  return merged;
-}
-
 export function resolveConfigPath(scope: "global" | "project", directory?: string) {
   if (scope === "project") {
     if (!directory) throw new Error("Project directory is required for project scope");
     return path.join(directory, "opencode.jsonc");
   }
   return GLOBAL_CONFIG_PATH;
+}
+
+export async function readConfigFromScope(
+  scope: "global" | "project",
+  directory?: string,
+): Promise<OpencodeConfig | null> {
+  try {
+    const filePath = resolveConfigPath(scope, directory);
+    return await readConfigFile(filePath);
+  } catch (error: any) {
+    if (error?.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+}
+
+export async function updateConfigFileLocal(
+  updates: Record<string, unknown>,
+  scope: "global" | "project",
+  directory?: string,
+): Promise<ConfigUpdateResponse> {
+  const filepath = resolveConfigPath(scope, directory);
+  const currentConfig = await readConfigFile(filepath);
+  const merged = mergeConfigUpdate(
+    currentConfig,
+    updates as Partial<OpencodeConfig>,
+  );
+  await writeConfigFile(filepath, merged);
+  return {
+    merged,
+    scope,
+    filepath,
+  };
 }

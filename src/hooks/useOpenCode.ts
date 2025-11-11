@@ -211,6 +211,11 @@ interface Model {
   name: string;
 }
 
+interface ConfigTargetsState {
+  global?: string;
+  project: Record<string, string>;
+}
+
 type OverlayState = {
   help: boolean;
   themes: boolean;
@@ -508,12 +513,16 @@ export function useOpenCode() {
   const [config, setConfig] = useState<OpencodeConfig | null>(null);
   const [globalConfig, setGlobalConfig] = useState<OpencodeConfig | null>(null);
   const [projectConfig, setProjectConfig] = useState<OpencodeConfig | null>(null);
+  const [configTargets, setConfigTargets] = useState<ConfigTargetsState>({
+    project: {},
+  });
   const configRef = useRef<OpencodeConfig | null>(null);
   const globalConfigRef = useRef<OpencodeConfig | null>(null);
   const projectConfigRef = useRef<OpencodeConfig | null>(null);
   const [configLoading, setConfigLoading] = useState(true);
   const configRequestIdRef = useRef(0);
   const lastConfigDirectoryRef = useRef<string | undefined>(undefined);
+  const configReloadRef = useRef<(() => void) | null>(null);
   const [commands, setCommands] = useState<Command[]>([]);
   const [commandsLoading, setCommandsLoading] = useState(false);
   const [currentPath, setCurrentPath] = useState<string>("");
@@ -533,6 +542,36 @@ export function useOpenCode() {
     }
     return [];
   });
+  const registerConfigTarget = useCallback(
+    (scope: "global" | "project", filepath: string, directory?: string) => {
+      setConfigTargets((prev) => {
+        if (scope === "global") {
+          if (prev.global === filepath) {
+            return prev;
+          }
+          return { ...prev, global: filepath };
+        }
+
+        if (!directory) {
+          return prev;
+        }
+
+        const existing = prev.project[directory];
+        if (existing === filepath) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          project: {
+            ...prev.project,
+            [directory]: filepath,
+          },
+        };
+      });
+    },
+    [],
+  );
   const [sessionActivity, setSessionActivity] = useState<
     Record<string, { running: boolean; lastUpdated: number }>
   >({});
@@ -685,11 +724,16 @@ export function useOpenCode() {
   const loadedCommandsRef = useRef(false);
   const seenMessageIdsRef = useRef<Set<string>>(new Set());
   const currentSessionRef = useRef<Session | null>(null);
+  const currentProjectRef = useRef<Project | null>(null);
   const manualModelSelectionRef = useRef(false);
 
   useEffect(() => {
     currentSessionRef.current = currentSession;
   }, [currentSession]);
+
+  useEffect(() => {
+    currentProjectRef.current = currentProject ?? null;
+  }, [currentProject]);
 
   useEffect(() => {
     loadedConfigRef.current = loadedConfig;
@@ -2183,6 +2227,36 @@ export function useOpenCode() {
           break;
         }
 
+        case "config.updated": {
+          const payload = event.properties;
+          const scope = payload.scope ?? "project";
+          if (payload.filepath) {
+            registerConfigTarget(scope, payload.filepath, payload.directory);
+          }
+
+          const activeWorktree = currentProjectRef.current?.worktree;
+          const shouldReload =
+            scope === "global" ||
+            (scope === "project" &&
+              payload.directory &&
+              activeWorktree &&
+              payload.directory === activeWorktree);
+
+          if (payload.diff && Object.keys(payload.diff).length > 0) {
+            debugLog("[SSE] Config diff received:", {
+              scope,
+              directory: payload.directory,
+              filepath: payload.filepath,
+              diff: payload.diff,
+            });
+          }
+
+          if (shouldReload) {
+            configReloadRef.current?.();
+          }
+          break;
+        }
+
         case "lsp.client.diagnostics": {
           const summary = normalizeDiagnostics(event.properties as Record<string, unknown>);
           if (summary && typeof (event.properties as Record<string, unknown>).serverID === 'string') {
@@ -3566,6 +3640,12 @@ export function useOpenCode() {
     [currentPath, currentProject?.worktree],
   );
 
+  useEffect(() => {
+    configReloadRef.current = () => {
+      void loadConfig({ force: true });
+    };
+  }, [loadConfig]);
+
   const loadCommands = useCallback(async () => {
     try {
       setCommandsLoading(true);
@@ -4209,8 +4289,10 @@ export function useOpenCode() {
     config,
     globalConfig,
     projectConfig,
+    configTargets,
     configLoading,
     loadConfig,
+    registerConfigTarget,
     commands,
     commandsLoading,
     loadCommands,

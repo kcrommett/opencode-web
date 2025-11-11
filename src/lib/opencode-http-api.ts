@@ -14,6 +14,8 @@ import type {
   LspStatus,
   FormatterStatus,
   OpencodeConfig,
+  ConfigUpdateResponse,
+  ConfigErrorPayload,
 } from "../types/opencode";
 
 export class OpencodeHttpError extends Error {
@@ -649,7 +651,13 @@ export async function getConfig(directory?: string) {
     buildUrl("/config", directory ? { directory } : undefined),
   );
   if (!response.ok) {
-    throw new Error(`Failed to get config: ${response.statusText}`);
+    const errorBody = await response.json().catch(() => ({}));
+    const message =
+      (errorBody && typeof errorBody === "object" && "message" in errorBody
+        ? (errorBody as Record<string, unknown>).message
+        : null) ||
+      `Failed to get config: ${response.statusText}`;
+    throw new OpencodeHttpError(message as string, response.status, errorBody);
   }
   return response.json();
 }
@@ -973,13 +981,13 @@ export async function getCommands(directory?: string) {
 
 export async function updateConfig(
   config: Record<string, unknown>,
-  options?: { scope?: "global" | "project"; directory?: string }
-): Promise<OpencodeConfig> {
+  options?: { scope?: "global" | "project"; directory?: string },
+): Promise<ConfigUpdateResponse> {
   const params: Record<string, string> = {};
   if (options?.scope) {
     params.scope = options.scope;
   }
-  if (options?.directory) {
+  if (options?.directory && options?.scope !== "global") {
     params.directory = options.directory;
   }
 
@@ -994,17 +1002,23 @@ export async function updateConfig(
   });
 
   if (!response.ok) {
-    const errorBody = await response.json().catch(() => ({}));
+    const errorBody = (await response
+      .json()
+      .catch(() => ({}))) as ConfigErrorPayload | Record<string, unknown>;
     const message =
       (errorBody && typeof errorBody === "object" && "message" in errorBody
         ? (errorBody as Record<string, unknown>).message
         : null) ||
       `Failed to update config: ${response.statusText}`;
 
-    throw new OpencodeHttpError(message as string, response.status, errorBody);
+    throw new OpencodeHttpError(
+      message as string,
+      response.status,
+      errorBody,
+    );
   }
 
-  return response.json() as Promise<OpencodeConfig>;
+  return response.json() as Promise<ConfigUpdateResponse>;
 }
 
 export async function setAuth(
