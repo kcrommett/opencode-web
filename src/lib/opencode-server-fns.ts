@@ -273,18 +273,31 @@ export const respondToPermission = createServerFn({ method: "POST" })
   });
 
 export const getConfig = createServerFn({ method: "GET" })
-  .inputValidator((data?: { directory?: string }) => data ?? {})
+  .inputValidator(
+    (data?: { directory?: string; scope?: "global" | "project" }) =>
+      data ?? {},
+  )
   .handler(async ({ data }) => {
-    const scope = data.directory ? "project" : "global";
-    const key = getScopeKey(scope, data.directory);
+    const scope = data.scope ?? (data.directory ? "project" : "global");
+    if (scope === "project" && !data.directory) {
+      throw new Error(
+        "Project directory is required when requesting project-scoped config",
+      );
+    }
+
+    const scopeDirectory = scope === "project" ? data.directory : undefined;
+    const key = getScopeKey(scope, scopeDirectory);
 
     if (configFallbackScopes.has(key)) {
-      const fallback = await readConfigFromScope(scope, data.directory);
+      const fallback = await readConfigFromScope(scope, scopeDirectory);
       return fallback ?? ({} as OpencodeConfig);
     }
 
     try {
-      const config = await httpApi.getConfig(data.directory);
+      const config = await httpApi.getConfig({
+        scope,
+        directory: scopeDirectory,
+      });
       configFallbackScopes.delete(key);
       return config;
     } catch (error) {
@@ -292,7 +305,7 @@ export const getConfig = createServerFn({ method: "GET" })
         console.warn(
           `[config] Remote get failed (${error.message}). Reading ${scope} config directly from file.`,
         );
-        const fallback = await readConfigFromScope(scope, data.directory);
+        const fallback = await readConfigFromScope(scope, scopeDirectory);
         configFallbackScopes.add(key);
         return fallback ?? ({} as OpencodeConfig);
       }
@@ -478,11 +491,17 @@ export const updateConfig = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const resolvedScope = data.scope ?? (data.directory ? "project" : "global");
-    const scopeKey = getScopeKey(resolvedScope, data.directory);
+    if (resolvedScope === "project" && !data.directory) {
+      throw new Error(
+        "Project directory is required for project-scoped config updates",
+      );
+    }
+    const scopeDirectory =
+      resolvedScope === "project" ? data.directory : undefined;
+    const scopeKey = getScopeKey(resolvedScope, scopeDirectory);
     try {
       const result = await httpApi.updateConfig(data.config, {
-        directory:
-          resolvedScope === "project" ? data.directory : undefined,
+        directory: scopeDirectory,
         scope: resolvedScope,
       });
       configFallbackScopes.delete(scopeKey);
@@ -495,7 +514,7 @@ export const updateConfig = createServerFn({ method: "POST" })
         const fallback = await updateConfigFileLocal(
           data.config,
           resolvedScope,
-          data.directory,
+          scopeDirectory,
         );
         configFallbackScopes.add(scopeKey);
         return fallback as any;

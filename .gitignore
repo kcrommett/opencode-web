@@ -45,3 +45,7 @@ packages/opencode-web/*.tgz
 temp/
 tmp/
 bun.lock
+
+# mprocs
+mprocs.log
+mprocs.yaml

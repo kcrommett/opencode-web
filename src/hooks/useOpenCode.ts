@@ -1298,7 +1298,7 @@ export function useOpenCode() {
   useEffect(() => {
     const checkConnection = async () => {
       try {
-        const response = await openCodeService.getConfig();
+        const response = await openCodeService.getConfig({ scope: "global" });
         setIsConnected(!!response.data);
       } catch {
         setIsConnected(false);
@@ -3579,16 +3579,26 @@ export function useOpenCode() {
       setConfigLoading(true);
 
       const fetchScopeConfig = async (
+        scope: "global" | "project",
         scopeDirectory?: string,
       ): Promise<OpencodeConfig | null> => {
+        if (scope === "project" && !scopeDirectory) {
+          throw new Error(
+            "Project directory is required to load project-scoped config",
+          );
+        }
         try {
-          const response = await openCodeService.getConfig(scopeDirectory);
+          const response = await openCodeService.getConfig(
+            scope === "project"
+              ? { scope, directory: scopeDirectory }
+              : { scope },
+          );
           const configData = response.data as OpencodeConfig | undefined;
           return configData ?? null;
         } catch (error) {
           if (process.env.NODE_ENV !== "production") {
             console.error(
-              `Failed to load ${scopeDirectory ? "project" : "global"} config:`,
+              `Failed to load ${scope === "project" ? "project" : "global"} config:`,
               error,
             );
           }
@@ -3598,9 +3608,9 @@ export function useOpenCode() {
 
       try {
         const [globalConfigData, projectConfigData] = await Promise.all([
-          fetchScopeConfig(),
+          fetchScopeConfig("global"),
           directory
-            ? fetchScopeConfig(directory)
+            ? fetchScopeConfig("project", directory)
             : Promise.resolve<OpencodeConfig | null>(null),
         ]);
 

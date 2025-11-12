@@ -149,11 +149,20 @@ export const openCodeService = {
     }
   },
 
-  async getConfig(directory?: string) {
+  async getConfig(options?: {
+    directory?: string;
+    scope?: "global" | "project";
+  }) {
     try {
-      const response = await serverFns.getConfig({
-        data: directory ? { directory } : {},
-      });
+      const data: { directory?: string; scope?: "global" | "project" } = {};
+      if (options?.directory) {
+        data.directory = options.directory;
+      }
+      if (options?.scope) {
+        data.scope = options.scope;
+      }
+
+      const response = await serverFns.getConfig({ data });
       return { data: response };
     } catch (error) {
       throw error;
@@ -850,6 +859,11 @@ export const openCodeService = {
     options?: { directory?: string; scope?: "global" | "project" },
   ): Promise<{ data: ConfigUpdateResponse }> {
     try {
+      if (options?.scope === "project" && !options.directory) {
+        throw new Error(
+          "Project directory is required for project-scoped config updates",
+        );
+      }
       const sanitizedDirectory =
         options?.scope === "project" ? options?.directory : undefined;
       const response = (await serverFns.updateConfig({

@@ -646,10 +646,23 @@ export async function respondToPermission(
   return response.ok;
 }
 
-export async function getConfig(directory?: string) {
-  const response = await fetch(
-    buildUrl("/config", directory ? { directory } : undefined),
-  );
+export async function getConfig(options?: {
+  scope?: "global" | "project";
+  directory?: string;
+}) {
+  const params: Record<string, string> = {};
+  if (options?.scope) {
+    params.scope = options.scope;
+  }
+  if (options?.directory && options.scope !== "global") {
+    params.directory = options.directory;
+  }
+
+  const url = Object.keys(params).length > 0
+    ? buildUrl("/config", params)
+    : buildUrl("/config");
+
+  const response = await fetch(url);
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
     const message =
