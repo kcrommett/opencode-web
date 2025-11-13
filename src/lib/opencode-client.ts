@@ -18,6 +18,7 @@ import type {
   TuiControlResponse,
   LspStatus,
   FormatterStatus,
+  ConfigUpdateResponse,
 } from "../types/opencode";
 
 const isDevMode = process.env.NODE_ENV !== "production";
@@ -148,9 +149,20 @@ export const openCodeService = {
     }
   },
 
-  async getConfig() {
+  async getConfig(options?: {
+    directory?: string;
+    scope?: "global" | "project";
+  }) {
     try {
-      const response = await serverFns.getConfig();
+      const data: { directory?: string; scope?: "global" | "project" } = {};
+      if (options?.directory) {
+        data.directory = options.directory;
+      }
+      if (options?.scope) {
+        data.scope = options.scope;
+      }
+
+      const response = await serverFns.getConfig({ data });
       return { data: response };
     } catch (error) {
       throw error;
@@ -842,11 +854,25 @@ export const openCodeService = {
     }
   },
 
-  async updateConfig(config: Record<string, unknown>, directory?: string) {
+  async updateConfig(
+    config: Record<string, unknown>,
+    options?: { directory?: string; scope?: "global" | "project" },
+  ): Promise<{ data: ConfigUpdateResponse }> {
     try {
-      const response = await serverFns.updateConfig({
-        data: { config, directory },
-      });
+      if (options?.scope === "project" && !options.directory) {
+        throw new Error(
+          "Project directory is required for project-scoped config updates",
+        );
+      }
+      const sanitizedDirectory =
+        options?.scope === "project" ? options?.directory : undefined;
+      const response = (await serverFns.updateConfig({
+        data: {
+          config,
+          directory: sanitizedDirectory,
+          scope: options?.scope,
+        },
+      })) as ConfigUpdateResponse;
       return { data: response };
     } catch (error) {
       throw error;

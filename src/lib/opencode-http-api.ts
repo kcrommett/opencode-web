@@ -13,7 +13,21 @@ import type {
   TuiControlResponse,
   LspStatus,
   FormatterStatus,
+  OpencodeConfig,
+  ConfigUpdateResponse,
+  ConfigErrorPayload,
 } from "../types/opencode";
+
+export class OpencodeHttpError extends Error {
+  status: number;
+  details?: unknown;
+
+  constructor(message: string, status: number, details?: unknown) {
+    super(message);
+    this.status = status;
+    this.details = details;
+  }
+}
 
 function buildUrl(
   path: string,
@@ -632,10 +646,31 @@ export async function respondToPermission(
   return response.ok;
 }
 
-export async function getConfig() {
-  const response = await fetch(buildUrl("/config"));
+export async function getConfig(options?: {
+  scope?: "global" | "project";
+  directory?: string;
+}) {
+  const params: Record<string, string> = {};
+  if (options?.scope) {
+    params.scope = options.scope;
+  }
+  if (options?.directory && options.scope !== "global") {
+    params.directory = options.directory;
+  }
+
+  const url = Object.keys(params).length > 0
+    ? buildUrl("/config", params)
+    : buildUrl("/config");
+
+  const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Failed to get config: ${response.statusText}`);
+    const errorBody = await response.json().catch(() => ({}));
+    const message =
+      (errorBody && typeof errorBody === "object" && "message" in errorBody
+        ? (errorBody as Record<string, unknown>).message
+        : null) ||
+      `Failed to get config: ${response.statusText}`;
+    throw new OpencodeHttpError(message as string, response.status, errorBody);
   }
   return response.json();
 }
@@ -959,18 +994,44 @@ export async function getCommands(directory?: string) {
 
 export async function updateConfig(
   config: Record<string, unknown>,
-  directory?: string,
-) {
-  const url = buildUrl("/config", directory ? { directory } : undefined);
+  options?: { scope?: "global" | "project"; directory?: string },
+): Promise<ConfigUpdateResponse> {
+  const params: Record<string, string> = {};
+  if (options?.scope) {
+    params.scope = options.scope;
+  }
+  if (options?.directory && options?.scope !== "global") {
+    params.directory = options.directory;
+  }
+
+  const url = Object.keys(params).length > 0 
+    ? buildUrl("/config", params)
+    : buildUrl("/config");
+
   const response = await fetch(url, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(config),
   });
+
   if (!response.ok) {
-    throw new Error(`Failed to update config: ${response.statusText}`);
+    const errorBody = (await response
+      .json()
+      .catch(() => ({}))) as ConfigErrorPayload | Record<string, unknown>;
+    const message =
+      (errorBody && typeof errorBody === "object" && "message" in errorBody
+        ? (errorBody as Record<string, unknown>).message
+        : null) ||
+      `Failed to update config: ${response.statusText}`;
+
+    throw new OpencodeHttpError(
+      message as string,
+      response.status,
+      errorBody,
+    );
   }
-  return response.json();
+
+  return response.json() as Promise<ConfigUpdateResponse>;
 }
 
 export async function setAuth(

@@ -47,5 +47,5 @@ tmp/
 bun.lock
 
 # mprocs
-mprocs.yaml
 mprocs.log
+mprocs.yaml

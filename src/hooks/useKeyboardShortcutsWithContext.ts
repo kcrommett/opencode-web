@@ -14,7 +14,6 @@ export function useKeyboardShortcutsWithContext() {
     selectedFrame, 
     selectFrame, 
     setShowHelp,
-    setShowThemes,
     setShowModelPicker,
     currentSession,
     currentSessionBusy,
@@ -91,16 +90,6 @@ export function useKeyboardShortcutsWithContext() {
         },
         requiresLeader: true,
         description: "Open Agent picker",
-        category: "navigation"
-      },
-      {
-        key: "t",
-        handler: () => {
-          setShowThemes(true);
-          showToast("Theme picker opened");
-        },
-        requiresLeader: true,
-        description: "Open Theme picker",
         category: "navigation"
       },
       {
@@ -183,7 +172,6 @@ export function useKeyboardShortcutsWithContext() {
     registerShortcut,
     showToast,
     setShowHelp,
-    setShowThemes,
     setShowModelPicker
   ]);
 

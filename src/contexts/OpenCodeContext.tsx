@@ -38,8 +38,12 @@ interface OpenCodeContextType {
   recentModels: ReturnType<typeof useOpenCode>["recentModels"];
   cycleRecentModels: ReturnType<typeof useOpenCode>["cycleRecentModels"];
   config: ReturnType<typeof useOpenCode>["config"];
+  globalConfig: ReturnType<typeof useOpenCode>["globalConfig"];
+  projectConfig: ReturnType<typeof useOpenCode>["projectConfig"];
+  configTargets: ReturnType<typeof useOpenCode>["configTargets"];
   configLoading: ReturnType<typeof useOpenCode>["configLoading"];
   loadConfig: ReturnType<typeof useOpenCode>["loadConfig"];
+  registerConfigTarget: ReturnType<typeof useOpenCode>["registerConfigTarget"];
   commands: ReturnType<typeof useOpenCode>["commands"];
   commandsLoading: ReturnType<typeof useOpenCode>["commandsLoading"];
   loadCommands: ReturnType<typeof useOpenCode>["loadCommands"];

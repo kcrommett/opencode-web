@@ -1,4 +1,4 @@
-import type { Part } from "@/types/opencode";
+import type { Part, ConfigUpdatedEventPayload } from "@/types/opencode";
 
 /**
  * OpenCode Server-Sent Events types and client
@@ -194,6 +194,11 @@ interface LSPDiagnosticsEvent {
   };
 }
 
+interface ConfigUpdatedEvent {
+  type: "config.updated";
+  properties: ConfigUpdatedEventPayload;
+}
+
 export type OpencodeEvent =
   | ServerConnectedEvent
   | InstallationUpdatedEvent
@@ -212,7 +217,8 @@ export type OpencodeEvent =
   | FileEditedEvent
   | FileWatcherUpdatedEvent
   | TodoUpdatedEvent
-  | LSPDiagnosticsEvent;
+  | LSPDiagnosticsEvent
+  | ConfigUpdatedEvent;
 
 export interface SSEConnectionState {
   connected: boolean;

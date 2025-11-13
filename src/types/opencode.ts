@@ -150,18 +150,199 @@ export interface ProviderConfig {
   [key: string]: unknown;
 }
 
+export interface PermissionConfig {
+  edit?: "ask" | "allow" | "deny";
+  bash?: "ask" | "allow" | "deny";
+  webfetch?: "ask" | "allow" | "deny";
+  [key: string]: "ask" | "allow" | "deny" | undefined;
+}
+
+export interface ToolsConfig {
+  bash?: boolean;
+  read?: boolean;
+  write?: boolean;
+  edit?: boolean;
+  glob?: boolean;
+  grep?: boolean;
+  list?: boolean;
+  webfetch?: boolean;
+  task?: boolean;
+  todowrite?: boolean;
+  todoread?: boolean;
+}
+
+export interface ExperimentalHookConfig {
+  command: string[];
+  environment?: Record<string, string>;
+}
+
+export interface ExperimentalConfig {
+  chatMaxRetries?: number;
+  disable_paste_summary?: boolean;
+  hook?: {
+    file_edited?: ExperimentalHookConfig[];
+    session_completed?: ExperimentalHookConfig[];
+    [key: string]: ExperimentalHookConfig[] | undefined;
+  };
+  [key: string]: unknown;
+}
+
+export interface McpServerConfig {
+  type: "local" | "remote";
+  command?: string[];
+  environment?: Record<string, string>;
+  url?: string;
+  headers?: Record<string, string>;
+  enabled?: boolean;
+  timeout?: number;
+}
+
+export interface McpConfig {
+  [serverName: string]: McpServerConfig;
+}
+
+export interface ProviderModelConfig {
+  name?: string;
+  cost?: {
+    input?: number;
+    output?: number;
+  };
+  limit?: {
+    context?: number;
+    output?: number;
+  };
+}
+
+export interface ProviderConfig {
+  api?: string;
+  models?: Record<string, ProviderModelConfig>;
+  options?: {
+    apiKey?: string;
+    timeout?: number;
+  };
+}
+
+export interface LspServerConfig {
+  command: string[];
+  extensions?: string[];
+  environment?: Record<string, string>;
+  initialization?: Record<string, unknown>;
+  disabled?: boolean;
+}
+
+export interface LspConfig {
+  [language: string]: LspServerConfig;
+}
+
+export interface KeybindsConfig {
+  leader?: string;
+  app_exit?: string;
+  editor_open?: string;
+  theme_list?: string;
+  sidebar_toggle?: string;
+  status_view?: string;
+  session_new?: string;
+  session_list?: string;
+  session_share?: string;
+  session_unshare?: string;
+  session_compact?: string;
+  messages_copy?: string;
+  messages_undo?: string;
+  messages_redo?: string;
+  model_list?: string;
+  model_cycle_recent?: string;
+  command_list?: string;
+  agent_list?: string;
+  agent_cycle?: string;
+  agent_cycle_reverse?: string;
+  input_clear?: string;
+  input_submit?: string;
+  history_previous?: string;
+  history_next?: string;
+  [key: string]: string | undefined;
+}
+
+export interface TuiConfig {
+  scroll_speed?: number;
+  [key: string]: unknown;
+}
+
+export interface ConfigDiffSummary {
+  provider?: true;
+  mcp?: true;
+  lsp?: true;
+  watcher?: true;
+  agent?: true;
+  command?: true;
+  formatter?: true;
+  tools?: true;
+  permission?: true;
+  instructions?: true;
+  share?: true;
+  autoshare?: true;
+  model?: true;
+  small_model?: true;
+  disabled_providers?: true;
+  plugin?: true;
+  theme?: true;
+  experimental?: true;
+  keybinds?: true;
+  tui?: true;
+  features?: true;
+  pluginAdded?: string[];
+  pluginRemoved?: string[];
+  changedPaths?: string[];
+}
+
 export interface OpencodeConfig {
   theme?: string;
   model?: string;
+  small_model?: string;
+  share?: "manual" | "auto" | "disabled";
+  autoupdate?: boolean;
+  snapshot?: boolean;
+  username?: string;
+  disabled_providers?: string[];
+  plugin?: string[];
+  instructions?: string[];
   agent?: Record<string, AgentConfig>;
   command?: Record<string, CommandConfig>;
   provider?: Record<string, ProviderConfig>;
+  permission?: PermissionConfig;
+  tools?: ToolsConfig;
+  experimental?: ExperimentalConfig;
+  mcp?: McpConfig;
+  lsp?: LspConfig;
+  keybinds?: KeybindsConfig;
+  tui?: TuiConfig;
   features?: {
     enableMarkdown?: boolean;
     enableMarkdownImages?: boolean;
     [key: string]: unknown;
   };
   [key: string]: unknown;
+}
+
+export interface ConfigUpdateResponse {
+  merged: OpencodeConfig;
+  diff?: ConfigDiffSummary;
+  scope?: "global" | "project";
+  filepath: string;
+}
+
+export interface ConfigUpdatedEventPayload {
+  scope: "global" | "project";
+  directory?: string;
+  filepath?: string;
+  before: OpencodeConfig;
+  after: OpencodeConfig;
+  diff?: ConfigDiffSummary;
+}
+
+export interface ConfigErrorPayload {
+  name?: "ConfigUpdateError" | "ConfigValidationError" | string;
+  message: string;
+  path?: string;
 }
 
 export interface SessionUsageTotals {
