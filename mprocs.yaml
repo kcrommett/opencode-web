@@ -6,7 +6,7 @@ procs:
   claude:
     shell:  "claude --dangerously-skip-permissions"
   oc-serve:
-    shell: "cd ~/repos/worktrees/opencode-fork/feat-config-hot-reload/ && bun dev serve --print-logs --hostname 0.0.0.0 --port 3366"
+    shell: "export OPENCODE_CONFIG_HOT_RELOAD=true && cd ~/repos/forks/opencode/ && bun dev serve --print-logs --hostname 0.0.0.0 --port 3366"
   oc-web:
     shell: "bun run dev"
   config-file-watcher:
