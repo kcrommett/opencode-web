@@ -281,16 +281,13 @@ export class OpencodeSSEClient {
       return;
     }
 
-    // Pre-check for JSON error response before creating EventSource
-    this.checkForProxyError().then((hasError) => {
-      if (hasError) return;
-      this.createEventSource();
-    });
+    // Directly create EventSource - don't pre-check
+    this.createEventSource();
   }
 
-  private async checkForProxyError(): Promise<boolean> {
+  private async checkForProxyError(): Promise<void> {
     try {
-      // Use HEAD or a quick GET to check response type
+      // Only called when EventSource errors - check if it's a JSON error envelope
       const response = await fetch(this.options.url, {
         method: "GET",
         headers: {
@@ -317,16 +314,14 @@ export class OpencodeSSEClient {
           
           // Don't retry for proxy errors - they indicate configuration issues
           this.options.onDisconnect?.();
-          return true;
+          return;
         }
       }
 
-      // Response is not a JSON error, but we consumed it
-      // Need to reconnect with EventSource
-      return false;
+      // Not a JSON error - some other connection issue
+      // Let normal reconnection logic handle it
     } catch {
-      // Network error - let EventSource handle it
-      return false;
+      // Network error - let normal reconnection logic handle it
     }
   }
 
@@ -367,6 +362,11 @@ export class OpencodeSSEClient {
         };
 
         this.options.onError?.(new Error("SSE connection failed"));
+        
+        // Check if this is a proxy error (JSON response instead of SSE)
+        // This only happens on error, not on every successful connection
+        this.checkForProxyError();
+        
         this.handleReconnection();
       };
     } catch (error) {
