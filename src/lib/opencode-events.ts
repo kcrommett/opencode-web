@@ -316,7 +316,7 @@ export class OpencodeSSEClient {
           
           // Don't retry for proxy errors - they indicate configuration issues
           this.options.onDisconnect?.();
-          return;
+          return true;
         }
       }
 
