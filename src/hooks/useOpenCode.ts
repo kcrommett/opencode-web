@@ -2280,6 +2280,21 @@ export function useOpenCode() {
         currentSessionId,
         handleSSEEvent,
         directory,
+        (proxyError) => {
+          // Handle SSE proxy errors (e.g., upstream returned HTML instead of SSE)
+          const message = proxyError.contentType?.includes("text/html")
+            ? `SSE connection failed: upstream returned HTML (status ${proxyError.status}). Check OPENCODE_SERVER_URL configuration.`
+            : `SSE connection failed: ${proxyError.status} - ${proxyError.contentType || "unknown content type"}`;
+          showToast(message, "error");
+          
+          // Update connection state to reflect error
+          setSseConnectionState({
+            connected: false,
+            reconnecting: false,
+            error: message,
+            reconnectAttempts: 0,
+          });
+        },
       );
       setSseConnectionState(connectionState);
     };

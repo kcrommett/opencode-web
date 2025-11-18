@@ -3,6 +3,7 @@ import {
   OpencodeSSEClient,
   OpencodeEvent,
   SSEConnectionState,
+  SseProxyError,
 } from "./opencode-events";
 import type {
   Agent,
@@ -733,6 +734,7 @@ export const openCodeService = {
     sessionId: string,
     onMessage: (event: OpencodeEvent) => void,
     directory?: string,
+    onProxyError?: (error: SseProxyError) => void,
   ) {
     try {
       if (sseClient) {
@@ -765,6 +767,10 @@ export const openCodeService = {
         },
         onError: (error: Error) => {
           devError("[SSE] Connection error:", error);
+        },
+        onProxyError: (error: SseProxyError) => {
+          devError("[SSE] Proxy error:", error);
+          onProxyError?.(error);
         },
       });
 
