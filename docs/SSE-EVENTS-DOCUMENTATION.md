@@ -370,3 +370,8 @@ if existingID < newMessageID {
 Parts within messages are managed as slices with index-based updates and insertions.
 
 This comprehensive event system enables real-time collaboration, live updates, and responsive user experience in the OpenCode TUI.
+
+## Related Documentation
+
+- [SSE Proxy Architecture](./SSE-PROXY-DOCUMENTATION.md) - Details on proxy configuration, content-type validation, and HTML response troubleshooting
+- [API Endpoints](./API-ENDPOINTS-DOCUMENTATION.md) - HTTP endpoint documentation including `/api/events`

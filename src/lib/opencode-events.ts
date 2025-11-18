@@ -18,6 +18,17 @@ const devWarn = (...args: unknown[]) => {
   if (isDevMode) console.warn(...args);
 };
 
+/**
+ * Error envelope returned by SSE proxy when upstream returns non-SSE content
+ */
+export interface SseProxyError {
+  status: number;
+  upstreamUrl: string;
+  contentType: string | null;
+  bodySnippet: string;
+  timestamp: string;
+}
+
 interface ServerConnectedEvent {
   type: "server.connected";
   properties: Record<string, unknown>;
@@ -232,6 +243,7 @@ interface SSEClientOptions {
   url: string;
   onEvent: (event: OpencodeEvent) => void;
   onError?: (error: Error) => void;
+  onProxyError?: (error: SseProxyError) => void;
   onConnect?: () => void;
   onDisconnect?: () => void;
   maxReconnectAttempts?: number;
@@ -269,6 +281,56 @@ export class OpencodeSSEClient {
       return;
     }
 
+    // Pre-check for JSON error response before creating EventSource
+    this.checkForProxyError().then((hasError) => {
+      if (hasError) return;
+      this.createEventSource();
+    });
+  }
+
+  private async checkForProxyError(): Promise<boolean> {
+    try {
+      // Use HEAD or a quick GET to check response type
+      const response = await fetch(this.options.url, {
+        method: "GET",
+        headers: {
+          Accept: "text/event-stream",
+        },
+      });
+
+      const contentType = response.headers.get("content-type");
+      
+      // If server returns JSON, it's an error envelope
+      if (contentType?.includes("application/json")) {
+        const data = await response.json();
+        if (data.error && typeof data.error === "object") {
+          const proxyError = data.error as SseProxyError;
+          devError("[SSE] Proxy returned error:", proxyError);
+          
+          this.state = {
+            ...this.state,
+            connected: false,
+            error: `Upstream error: ${proxyError.status} - ${proxyError.contentType || "unknown"}`,
+          };
+
+          this.options.onProxyError?.(proxyError);
+          
+          // Don't retry for proxy errors - they indicate configuration issues
+          this.options.onDisconnect?.();
+          return true;
+        }
+      }
+
+      // Response is not a JSON error, but we consumed it
+      // Need to reconnect with EventSource
+      return false;
+    } catch {
+      // Network error - let EventSource handle it
+      return false;
+    }
+  }
+
+  private createEventSource(): void {
     try {
       this.eventSource = new EventSource(this.options.url, {
         withCredentials: this.options.withCredentials,

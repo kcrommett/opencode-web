@@ -71,6 +71,8 @@ proxy: {
 
 ### `/api/events` Handler (Prod)
 
+The production proxy uses a shared helper (`packages/opencode-web/sse-proxy.ts`) that validates the upstream response's `Content-Type` before streaming:
+
 ```ts
 if (pathname === "/api/events") {
   const directory = url.searchParams.get("directory");
@@ -79,32 +81,16 @@ if (pathname === "/api/events") {
     console.warn("[SSE Proxy] Warning: OpenCode server URL is missing…");
     return Response.json({ error: "OpenCode server URL not configured…" }, { status: 500 });
   }
-
-  const eventUrl = new URL("/event", serverUrl);
-  if (directory) eventUrl.searchParams.set("directory", directory);
-
-  const upstream = await fetch(eventUrl, {
-    headers: {
-      Accept: "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    },
-  });
-
-  if (!upstream.ok) {
-    return Response.json({ error: "Failed to connect to event stream" }, { status: upstream.status });
-  }
-
-  return new Response(upstream.body, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-      "X-Accel-Buffering": "no",
-    },
-  });
+  const eventUrl = buildEventUrl(serverUrl, directory);
+  return proxySseRequest(eventUrl, { enableLogging: !IS_PRODUCTION });
 }
 ```
+
+The `proxySseRequest` helper:
+1. Sends the request with `Accept: text/event-stream` header
+2. Validates that the upstream response has `Content-Type: text/event-stream`
+3. If valid SSE, streams the body with proper headers (`Cache-Control: no-cache, no-transform`, `Connection: keep-alive`, `X-Accel-Buffering: no`)
+4. If not SSE (e.g., HTML auth page), returns a JSON error envelope with diagnostic information
 
 Error paths intentionally log clear guidance (“Set `VITE_OPENCODE_SERVER_URL`”) so production builds surface misconfiguration quickly.
 
@@ -126,6 +112,42 @@ Because the browser only ever talks to `/api/events` on the same origin, we avoi
 | SSE errors right after dev server starts | Vite proxy still pointing at default `http://localhost:4096` | Confirm `.env.local` values are loaded; with recent changes `loadEnv` syncs into `process.env` |
 | 500 with `[SSE Proxy] Warning…` | We intentionally reject when upstream URL is missing | Set `VITE_OPENCODE_SERVER_URL` (and `OPENCODE_SERVER_URL` if runtime override is needed) |
 | **Windows + bunx**: `error: interpreter executable "/bin/sh" not found` | Cannot launch bundled server via bunx on Windows | Use `--external-server http://127.0.0.1:4096` or install locally. See [Windows + bunx Limitation](../README.md#windows--bunx-limitation) |
+| JSON error with `"contentType": "text/html"` | Upstream returned HTML instead of SSE (auth redirect, error page) | Check `OPENCODE_SERVER_URL`, verify credentials/auth, see HTML Response Troubleshooting below |
+
+### HTML Response Troubleshooting
+
+When the upstream OpenCode server returns HTML instead of SSE (e.g., auth redirects, maintenance pages, error pages), the proxy now returns a JSON error envelope instead of silently passing through the HTML:
+
+```json
+{
+  "error": {
+    "status": 200,
+    "upstreamUrl": "http://localhost:4096/event",
+    "contentType": "text/html",
+    "bodySnippet": "<!DOCTYPE html><html>...",
+    "timestamp": "2025-11-17T10:30:00.000Z"
+  }
+}
+```
+
+**Common causes of HTML responses:**
+
+1. **Authentication required**: The upstream server is behind an auth proxy that redirects to a login page
+2. **Incorrect URL**: `OPENCODE_SERVER_URL` points to a web server instead of the OpenCode API
+3. **Maintenance mode**: The upstream server is in maintenance mode and returning a status page
+4. **Reverse proxy misconfiguration**: An intermediary proxy is serving a cached or error page
+
+**Debugging steps:**
+
+1. **Check the body snippet**: The JSON error includes the first 2KB of the HTML response to help identify the issue
+2. **Verify the upstream URL directly**: `curl -i "$OPENCODE_SERVER_URL/event"` should return `Content-Type: text/event-stream`
+3. **Check required headers**: Ensure reverse proxies forward `Accept: text/event-stream` and don't cache/buffer the response
+4. **Disable proxy buffering**: Set `X-Accel-Buffering: no` for nginx, `ProxyPass` with `flushpackets=on` for Apache
+5. **Review auth configuration**: If using OAuth/SAML, ensure the `/event` endpoint is excluded from auth redirects
+
+**Client-side handling:**
+
+The UI will display a toast with details about the error. The SSE client will not retry automatically when it receives a proxy error, since these typically indicate configuration issues that require manual intervention.
 
 ### Windows-Specific Troubleshooting
 
@@ -208,7 +230,10 @@ Or pass `--external-server https://code.example.com` to `bun start` (the flag se
 - `src/app/__root.tsx` – injects `window.__OPENCODE_CONFIG__`
 - `vite.config.ts` – dev proxy and env sync
 - `server.ts` / `packages/opencode-web/server.ts` – production proxy implementation
-- `src/lib/opencode-events.ts` – client-side SSE
+- `packages/opencode-web/sse-proxy.ts` – shared SSE proxy helper with content-type validation
+- `packages/opencode-web/sse-proxy.test.ts` – unit tests for SSE proxy helper
+- `src/lib/opencode-events.ts` – client-side SSE with proxy error handling
+- `src/lib/opencode-client.ts` – SSE client wrapper with `onProxyError` callback
 - `AGENT_FIX.md`, `EXT_SERVER_PROXY.md` – historical context for proxy fixes (keep for changelog references)
 
 Keep this document updated whenever we touch `getOpencodeServerUrl`, the proxy handlers, or the SSE client so future debugging sessions have a single source of truth.

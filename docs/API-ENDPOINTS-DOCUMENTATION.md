@@ -701,6 +701,30 @@ Subscribes to server-sent events for real-time updates.
 - server.connected
 - ide.installed
 
+### Web UI SSE Proxy
+**GET** `/api/events`
+
+The web UI proxies SSE connections through `/api/events` to the upstream OpenCode server's `/event` endpoint.
+
+**Behavior**:
+- Validates that upstream returns `Content-Type: text/event-stream`
+- If valid SSE, streams the body with proper headers (`Cache-Control`, `Connection`, `X-Accel-Buffering`)
+- If upstream returns non-SSE content (e.g., HTML), returns a JSON error envelope:
+
+```json
+{
+  "error": {
+    "status": 200,
+    "upstreamUrl": "http://localhost:4096/event",
+    "contentType": "text/html",
+    "bodySnippet": "<!DOCTYPE html>...",
+    "timestamp": "2025-11-17T10:30:00.000Z"
+  }
+}
+```
+
+See [SSE Proxy Documentation](./SSE-PROXY-DOCUMENTATION.md#html-response-troubleshooting) for troubleshooting HTML responses.
+
 ---
 
 ## Error Responses

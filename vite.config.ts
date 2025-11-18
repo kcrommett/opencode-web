@@ -55,15 +55,15 @@ export default defineConfig(({ mode }) => {
       port: Number(env.OPENCODE_WEB_PORT || env.PORT) || 3000,
       allowedHosts,
       // CLI populates process.env before invoking Vite
+      // IMPORTANT: More specific routes must come BEFORE general routes
+      // so that Vite's proxy matcher can find them first
       proxy: {
-        "/api": {
-          target: getOpencodeServerUrl(),
-          changeOrigin: true,
-          rewrite: (path) => {
-            // Remove /api prefix and forward to opencode server
-            return path.replace(/^\/api/, "");
-          },
-        },
+        // Note: The Vite dev proxy uses http-proxy which streams responses directly.
+        // Unlike the production servers (server.ts, packages/opencode-web/server.ts),
+        // this proxy cannot validate upstream content-type before streaming.
+        // If you encounter HTML responses in dev mode, the error will appear in the browser.
+        // The production servers use sse-proxy.ts which validates content-type and returns
+        // a JSON error envelope for non-SSE responses.
         "/api/events": {
           target: getOpencodeServerUrl(),
           changeOrigin: true,
@@ -78,6 +78,14 @@ export default defineConfig(({ mode }) => {
               proxyReq.setHeader("Cache-Control", "no-cache");
               proxyReq.setHeader("Connection", "keep-alive");
             });
+          },
+        },
+        "/api": {
+          target: getOpencodeServerUrl(),
+          changeOrigin: true,
+          rewrite: (path) => {
+            // Remove /api prefix and forward to opencode server
+            return path.replace(/^\/api/, "");
           },
         },
       },
