@@ -285,7 +285,8 @@ export class OpencodeSSEClient {
     this.createEventSource();
   }
 
-  private async checkForProxyError(): Promise<void> {
+  private async checkForProxyError(): Promise<boolean> {
+    const abortController = new AbortController();
     try {
       // Only called when EventSource errors - check if it's a JSON error envelope
       const response = await fetch(this.options.url, {
@@ -293,6 +294,7 @@ export class OpencodeSSEClient {
         headers: {
           Accept: "text/event-stream",
         },
+        signal: abortController.signal,
       });
 
       const contentType = response.headers.get("content-type");
@@ -318,10 +320,14 @@ export class OpencodeSSEClient {
         }
       }
 
-      // Not a JSON error - some other connection issue
-      // Let normal reconnection logic handle it
+      // Response is not a JSON error - abort the probe to avoid ghost connection
+      abortController.abort();
+      return false;
     } catch {
-      // Network error - let normal reconnection logic handle it
+      // Abort the connection if still active
+      abortController.abort();
+      // Network error - let EventSource handle it
+      return false;
     }
   }
 
