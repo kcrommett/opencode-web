@@ -606,19 +606,16 @@ export function getPermissionForPart(
         return false;
       }
 
-      if (
-        partId &&
-        typeof permission.partID === "string" &&
-        permission.partID === partId
-      ) {
+      // Normalize permission IDs - check both PascalCase and camelCase variants
+      const permissionAsRecord = permission as Record<string, unknown>;
+      const permissionPartId = pickString(permissionAsRecord, ["partID", "partId"]);
+      const permissionMessageId = pickString(permissionAsRecord, ["messageID", "messageId"]);
+
+      if (partId && permissionPartId === partId) {
         return true;
       }
 
-      if (
-        messageId &&
-        typeof permission.messageID === "string" &&
-        permission.messageID === messageId
-      ) {
+      if (messageId && permissionMessageId === messageId) {
         return true;
       }
 
