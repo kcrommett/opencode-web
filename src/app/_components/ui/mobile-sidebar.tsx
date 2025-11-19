@@ -21,13 +21,14 @@ export const MobileSidebar: React.FC<MobileSidebarProps> = ({
         />
       )}
 
-      <div
-        className={`
-          fixed inset-y-0 left-0 z-50 w-80 max-w-[85vw] transform transition-transform duration-300 md:hidden
-          ${isOpen ? "translate-x-0" : "-translate-x-full"}
-        `}
-        style={{ backgroundColor: "var(--theme-backgroundAlt)" }}
-      >
+        <div
+          id="mobile-sidebar"
+          className={`
+            fixed inset-y-0 left-0 z-50 w-80 max-w-[85vw] transform transition-transform duration-300 md:hidden
+            ${isOpen ? "translate-x-0" : "-translate-x-full"}
+          `}
+          style={{ backgroundColor: "var(--theme-backgroundAlt)" }}
+        >
         <div className="h-full flex flex-col">
           <div
             className="p-4 flex justify-between items-center border-b flex-shrink-0"
