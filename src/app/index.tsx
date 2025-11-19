@@ -512,6 +512,16 @@ function OpenCodeChatTUI() {
   const [messageHistoryIndex, setMessageHistoryIndex] = useState(-1);
   const [isNavigatingHistory, setIsNavigatingHistory] = useState(false);
   const [draftBeforeHistory, setDraftBeforeHistory] = useState("");
+  
+  // Incremental search state
+  const [isSearchActive, setIsSearchActive] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  // We reuse messageHistoryIndex for the current match position, but might need a separate one to distinguish
+  // Actually, let's use a separate one to avoid conflict with ArrowUp/Down logic, or sync them?
+  // If we use messageHistoryIndex, we can seamlessly switch to ArrowUp/Down.
+  // Let's try to use a separate state for the query, but reuse messageHistoryIndex for the position.
+  const [searchStatus, setSearchStatus] = useState<"success" | "failed">("success");
+
   const [showNewProjectForm, setShowNewProjectForm] = useState(false);
   const [newProjectDirectory, setNewProjectDirectory] = useState("");
   const closeNewProjectDialog = () => {
@@ -2427,6 +2437,155 @@ function OpenCodeChatTUI() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Handle incremental search activation
+    if (e.key === "r" && e.ctrlKey && !e.shiftKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      if (!isSearchActive) {
+        setIsSearchActive(true);
+        setSearchQuery("");
+        setSearchStatus("success");
+        // Save current draft if not already navigating
+        if (!isNavigatingHistory) {
+          setDraftBeforeHistory(input);
+          setIsNavigatingHistory(true);
+        }
+      } else {
+        // Already active: Find next match backward
+        const query = searchQuery.toLowerCase();
+        if (!query) return; // No query, do nothing
+
+        let found = false;
+        for (
+          let i = messageHistoryIndex + 1;
+          i < userMessageHistory.length;
+          i++
+        ) {
+          const msg = userMessageHistory[userMessageHistory.length - 1 - i];
+          if (msg.toLowerCase().includes(query)) {
+            setMessageHistoryIndex(i);
+            setInput(msg);
+            setSearchStatus("success");
+            found = true;
+            break;
+          }
+        }
+        if (!found) setSearchStatus("failed");
+      }
+      return;
+    }
+
+    // Handle incremental search active state
+    if (isSearchActive) {
+      if (
+        e.key === "s" &&
+        e.ctrlKey &&
+        !e.shiftKey &&
+        !e.metaKey &&
+        !e.altKey
+      ) {
+        e.preventDefault();
+        const query = searchQuery.toLowerCase();
+        if (!query) return;
+
+        let found = false;
+        for (let i = messageHistoryIndex - 1; i >= 0; i--) {
+          const msg = userMessageHistory[userMessageHistory.length - 1 - i];
+          if (msg.toLowerCase().includes(query)) {
+            setMessageHistoryIndex(i);
+            setInput(msg);
+            setSearchStatus("success");
+            found = true;
+            break;
+          }
+        }
+        if (!found) setSearchStatus("failed");
+        return;
+      }
+
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setIsSearchActive(false);
+        setSearchQuery("");
+        return;
+      }
+
+      if (e.key === "Backspace") {
+        e.preventDefault();
+        const newQuery = searchQuery.slice(0, -1);
+        setSearchQuery(newQuery);
+
+        if (!newQuery) {
+          setSearchStatus("success");
+          return;
+        }
+
+        const lowerQuery = newQuery.toLowerCase();
+        let found = false;
+        for (let i = 0; i < userMessageHistory.length; i++) {
+          const msg = userMessageHistory[userMessageHistory.length - 1 - i];
+          if (msg.toLowerCase().includes(lowerQuery)) {
+            setMessageHistoryIndex(i);
+            setInput(msg);
+            setSearchStatus("success");
+            found = true;
+            break;
+          }
+        }
+        if (!found) setSearchStatus("failed");
+        return;
+      }
+
+      if (e.key === "Enter") {
+        e.preventDefault();
+        setIsSearchActive(false);
+        setSearchQuery("");
+        return;
+      }
+
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        const newQuery = searchQuery + e.key;
+        setSearchQuery(newQuery);
+
+        const lowerQuery = newQuery.toLowerCase();
+        let found = false;
+        // Search from 0 to find best match
+        for (let i = 0; i < userMessageHistory.length; i++) {
+          const msg = userMessageHistory[userMessageHistory.length - 1 - i];
+          if (msg.toLowerCase().includes(lowerQuery)) {
+            setMessageHistoryIndex(i);
+            setInput(msg);
+            setSearchStatus("success");
+            found = true;
+            break;
+          }
+        }
+        if (!found) setSearchStatus("failed");
+        return;
+      }
+
+      // If navigation keys, exit search mode and fall through
+      if (
+        [
+          "ArrowUp",
+          "ArrowDown",
+          "ArrowLeft",
+          "ArrowRight",
+          "Tab",
+          "Home",
+          "End",
+          "PageUp",
+          "PageDown",
+        ].includes(e.key)
+      ) {
+        setIsSearchActive(false);
+        setSearchQuery("");
+      } else {
+        // Block other keys in search mode
+        return;
+      }
+    }
+
     if (e.key === "Enter" && e.shiftKey) {
       e.preventDefault();
       // Shift+Enter enables multi-line mode for shell commands
@@ -2708,6 +2867,11 @@ function OpenCodeChatTUI() {
   };
 
   const handleInputChange = async (value: string) => {
+    if (isSearchActive) {
+      setIsSearchActive(false);
+      setSearchQuery("");
+    }
+
     setInput(value);
     
     // Reset history navigation if user is actually typing (not programmatic change)
@@ -4754,6 +4918,29 @@ function OpenCodeChatTUI() {
                               onRemove={removeImageAttachment}
                             />
                           ))}
+                        </div>
+                      </div>
+                    )}
+                    {/* Incremental Search Overlay */}
+                    {isSearchActive && (
+                      <div
+                        className="absolute bottom-full left-0 right-0 mb-1 z-20 shadow-lg rounded border overflow-hidden"
+                        style={{
+                          backgroundColor: "var(--theme-backgroundAlt)",
+                          borderColor:
+                            searchStatus === "failed"
+                              ? "var(--theme-error)"
+                              : "var(--theme-primary)",
+                          borderWidth: "1px",
+                        }}
+                      >
+                        <div className="flex items-center gap-2 p-2 text-sm font-mono">
+                          <span className="text-theme-primary font-bold whitespace-nowrap">
+                            (reverse-i-search)`{searchQuery}':
+                          </span>
+                          <span className="flex-1 truncate opacity-80">
+                            {input}
+                          </span>
                         </div>
                       </div>
                     )}
