@@ -359,7 +359,7 @@ export class OpencodeSSEClient {
         }
       };
 
-      this.eventSource.onerror = (error) => {
+      this.eventSource.onerror = async (error) => {
         devError("[SSE] Connection error:", error);
         this.state = {
           ...this.state,
@@ -371,9 +371,12 @@ export class OpencodeSSEClient {
         
         // Check if this is a proxy error (JSON response instead of SSE)
         // This only happens on error, not on every successful connection
-        this.checkForProxyError();
+        const isProxyError = await this.checkForProxyError();
         
-        this.handleReconnection();
+        // Don't attempt reconnection if it's a proxy error (fatal condition)
+        if (!isProxyError) {
+          this.handleReconnection();
+        }
       };
     } catch (error) {
       devError("[SSE] Failed to create EventSource:", error);
