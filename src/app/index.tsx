@@ -2454,9 +2454,12 @@ function OpenCodeChatTUI() {
         const query = searchQuery.toLowerCase();
         if (!query) return; // No query, do nothing
 
+        // Ensure we're not stuck at an invalid index if messageHistoryIndex is still -1
+        const startIndex = messageHistoryIndex + 1;
+        
         let found = false;
         for (
-          let i = messageHistoryIndex + 1;
+          let i = startIndex;
           i < userMessageHistory.length;
           i++
         ) {
