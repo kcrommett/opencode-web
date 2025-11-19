@@ -2509,6 +2509,12 @@ function OpenCodeChatTUI() {
         e.preventDefault();
         setIsSearchActive(false);
         setSearchQuery("");
+        setMessageHistoryIndex(-1);
+        setIsNavigatingHistory(false);
+        
+        // Restore the original draft
+        setInput(draftBeforeHistory);
+        setDraftBeforeHistory("");
         return;
       }
 
