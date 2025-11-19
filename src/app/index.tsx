@@ -4882,29 +4882,36 @@ function OpenCodeChatTUI() {
             <div className="flex-1 min-w-0 p-4 flex flex-col overflow-hidden bg-theme-background">
               {selectedFile ? (
                 <>
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-medium flex items-center gap-2">
-                      {selectedFileName}
-                      {showLanguageBadge && selectedFile && (
-                        <Badge
-                          variant="foreground0"
-                          cap="square"
-                          className="text-xs"
-                        >
-                          {detectLanguage(selectedFile)}
-                        </Badge>
-                      )}
-                      {showMimeTypeBadge && fileContent?.mimeType && (
-                        <Badge
-                          variant="foreground0"
-                          cap="square"
-                          className="text-xs uppercase"
-                        >
-                          {fileContent.mimeType}
-                        </Badge>
-                      )}
-                    </h3>
-                    <div className="flex gap-2">
+                  <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+                    <div className="flex flex-col gap-1 min-w-0 flex-1">
+                      <h3 className="text-lg font-medium leading-tight break-words">
+                        {selectedFileName}
+                      </h3>
+                      {(showLanguageBadge && selectedFile) ||
+                        (showMimeTypeBadge && fileContent?.mimeType) ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          {showLanguageBadge && selectedFile && (
+                            <Badge
+                              variant="foreground0"
+                              cap="square"
+                              className="text-xs"
+                            >
+                              {detectLanguage(selectedFile)}
+                            </Badge>
+                          )}
+                          {showMimeTypeBadge && fileContent?.mimeType && (
+                            <Badge
+                              variant="foreground0"
+                              cap="square"
+                              className="text-xs uppercase"
+                            >
+                              {fileContent.mimeType}
+                            </Badge>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-wrap gap-2 justify-end shrink-0">
                       {fileContent?.diff && (
                         <Button
                           variant={fileViewMode === "diff" ? "foreground1" : "foreground0"}
@@ -4963,15 +4970,15 @@ function OpenCodeChatTUI() {
                           Copy
                         </Button>
                       )}
-                       <Button
-                         variant="background2"
-                         box="round"
-                         onClick={() => {
-                           setSelectedFile(null);
-                           setFileContent(null);
-                           setFileError(null);
-                         }}
-                         size="small"
+                      <Button
+                        variant="background2"
+                        box="round"
+                        onClick={() => {
+                          setSelectedFile(null);
+                          setFileContent(null);
+                          setFileError(null);
+                        }}
+                        size="small"
                       >
                         Close
                       </Button>
