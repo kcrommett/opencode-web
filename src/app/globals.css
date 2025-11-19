@@ -434,6 +434,61 @@ button[box-="double"] {
   isolation: auto !important;
 }
 
+/* Semantic colors for box buttons so text stays legible on dark surfaces */
+button[is-="button"][box-][variant-="success"],
+[is-="button"][box-][variant-="success"],
+button[box-="square"][variant-="success"],
+button[box-="round"][variant-="success"],
+button[box-="double"][variant-="success"] {
+  color: var(--theme-success) !important;
+  border-color: var(--theme-success) !important;
+  background-color: rgba(from var(--theme-success) r g b / 0.1) !important;
+}
+
+button[is-="button"][box-][variant-="success"]:hover:not(:disabled),
+[is-="button"][box-][variant-="success"]:hover:not(:disabled),
+button[box-="square"][variant-="success"]:hover:not(:disabled),
+button[box-="round"][variant-="success"]:hover:not(:disabled),
+button[box-="double"][variant-="success"]:hover:not(:disabled) {
+  background-color: rgba(from var(--theme-success) r g b / 0.16) !important;
+}
+
+button[is-="button"][box-][variant-="warning"],
+[is-="button"][box-][variant-="warning"],
+button[box-="square"][variant-="warning"],
+button[box-="round"][variant-="warning"],
+button[box-="double"][variant-="warning"] {
+  color: var(--theme-warning) !important;
+  border-color: var(--theme-warning) !important;
+  background-color: rgba(from var(--theme-warning) r g b / 0.1) !important;
+}
+
+button[is-="button"][box-][variant-="warning"]:hover:not(:disabled),
+[is-="button"][box-][variant-="warning"]:hover:not(:disabled),
+button[box-="square"][variant-="warning"]:hover:not(:disabled),
+button[box-="round"][variant-="warning"]:hover:not(:disabled),
+button[box-="double"][variant-="warning"]:hover:not(:disabled) {
+  background-color: rgba(from var(--theme-warning) r g b / 0.16) !important;
+}
+
+button[is-="button"][box-][variant-="error"],
+[is-="button"][box-][variant-="error"],
+button[box-="square"][variant-="error"],
+button[box-="round"][variant-="error"],
+button[box-="double"][variant-="error"] {
+  color: var(--theme-error) !important;
+  border-color: var(--theme-error) !important;
+  background-color: rgba(from var(--theme-error) r g b / 0.1) !important;
+}
+
+button[is-="button"][box-][variant-="error"]:hover:not(:disabled),
+[is-="button"][box-][variant-="error"]:hover:not(:disabled),
+button[box-="square"][variant-="error"]:hover:not(:disabled),
+button[box-="round"][variant-="error"]:hover:not(:disabled),
+button[box-="double"][variant-="error"]:hover:not(:disabled) {
+  background-color: rgba(from var(--theme-error) r g b / 0.16) !important;
+}
+
 /* Disable WebTUI box pseudo-elements for buttons - all states */
 button[is-="button"][box-]:before,
 button[is-="button"][box-]:after,

@@ -1,5 +1,32 @@
-import type { Part, ToolPartDetail, DiffMetadata } from "@/types/opencode";
+import type {
+  Part,
+  ToolPartDetail,
+  DiffMetadata,
+  PermissionRequest,
+} from "@/types/opencode";
 import { parseDiff, extractDiffPaths } from "./diff-utils";
+
+const toRecord = (
+  value: unknown,
+): Record<string, unknown> | undefined =>
+  value && typeof value === "object" ? (value as Record<string, unknown>) : undefined;
+
+const pickString = (
+  record: Record<string, unknown> | undefined,
+  keys: string[],
+): string | undefined => {
+  if (!record) return undefined;
+  for (const key of keys) {
+    const candidate = record[key];
+    if (typeof candidate === "string") {
+      const trimmed = candidate.trim();
+      if (trimmed.length > 0) {
+        return trimmed;
+      }
+    }
+  }
+  return undefined;
+};
 
 /**
  * Status mapping from various sources to normalized enum
@@ -544,4 +571,63 @@ export function normalizeToolPart(part: Part): ToolPartDetail {
         : undefined,
     diff,
   };
+}
+
+export function getPermissionForPart(
+  part: Part,
+  queue: PermissionRequest[],
+): PermissionRequest | null {
+  if (!Array.isArray(queue) || queue.length === 0) {
+    return null;
+  }
+
+  const partRecord = part as Record<string, unknown>;
+  const stateRecord = toRecord(partRecord["state"]);
+  const metadataRecord = toRecord(partRecord["metadata"]);
+
+  const partId =
+    pickString(partRecord, ["id", "partID", "partId"]) ??
+    pickString(stateRecord, ["partID", "id"]) ??
+    pickString(metadataRecord, ["partID", "partId", "id"]);
+
+  const messageId =
+    pickString(partRecord, ["messageID", "messageId"]) ??
+    pickString(stateRecord, ["messageID", "messageId"]) ??
+    pickString(metadataRecord, ["messageID", "messageId"]);
+
+  const normalizedTool = extractToolName(part).toLowerCase();
+
+  return (
+    queue.find((permission) => {
+      if (
+        permission.status !== "pending" &&
+        permission.status !== "expired"
+      ) {
+        return false;
+      }
+
+      // Normalize permission IDs - check both PascalCase and camelCase variants
+      const permissionAsRecord = permission as Record<string, unknown>;
+      const permissionPartId = pickString(permissionAsRecord, ["partID", "partId"]);
+      const permissionMessageId = pickString(permissionAsRecord, ["messageID", "messageId"]);
+
+      if (partId && permissionPartId === partId) {
+        return true;
+      }
+
+      if (messageId && permissionMessageId === messageId) {
+        return true;
+      }
+
+      if (
+        normalizedTool &&
+        typeof permission.tool === "string" &&
+        permission.tool.toLowerCase() === normalizedTool
+      ) {
+        return true;
+      }
+
+      return false;
+    }) ?? null
+  );
 }

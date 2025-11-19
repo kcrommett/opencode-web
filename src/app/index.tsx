@@ -38,7 +38,7 @@ import {
 } from "@/app/_components/ui/session-picker";
 import { SessionSearchInput } from "@/app/_components/ui/session-search";
 import { ProjectPicker } from "@/app/_components/ui/project-picker";
-import { PermissionModal } from "@/app/_components/ui/permission-modal";
+import { PermissionQueue } from "@/app/_components/ui/permission-queue";
 import { MessagePart } from "@/app/_components/message";
 import { GENERIC_TOOL_TEXTS } from "@/app/_components/message/TextPart";
 import { ImagePreview } from "@/app/_components/ui/image-preview";
@@ -512,6 +512,16 @@ function OpenCodeChatTUI() {
   const [messageHistoryIndex, setMessageHistoryIndex] = useState(-1);
   const [isNavigatingHistory, setIsNavigatingHistory] = useState(false);
   const [draftBeforeHistory, setDraftBeforeHistory] = useState("");
+  
+  // Incremental search state
+  const [isSearchActive, setIsSearchActive] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  // We reuse messageHistoryIndex for the current match position, but might need a separate one to distinguish
+  // Actually, let's use a separate one to avoid conflict with ArrowUp/Down logic, or sync them?
+  // If we use messageHistoryIndex, we can seamlessly switch to ArrowUp/Down.
+  // Let's try to use a separate state for the query, but reuse messageHistoryIndex for the position.
+  const [searchStatus, setSearchStatus] = useState<"success" | "failed">("success");
+
   const [showNewProjectForm, setShowNewProjectForm] = useState(false);
   const [newProjectDirectory, setNewProjectDirectory] = useState("");
   const closeNewProjectDialog = () => {
@@ -745,11 +755,7 @@ function OpenCodeChatTUI() {
     abortSession,
     currentSessionBusy,
     abortInFlight,
-    currentPermission,
-    setCurrentPermission,
-    shouldBlurEditor,
-    setShouldBlurEditor,
-    respondToPermission,
+    permissionQueue,
     currentSessionTodos,
     config,
     commands,
@@ -2427,6 +2433,164 @@ function OpenCodeChatTUI() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Handle incremental search activation
+    if (e.key === "r" && e.ctrlKey && !e.shiftKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      if (!isSearchActive) {
+        setIsSearchActive(true);
+        setSearchQuery("");
+        setSearchStatus("success");
+        // Save current draft if not already navigating
+        if (!isNavigatingHistory) {
+          setDraftBeforeHistory(input);
+          setIsNavigatingHistory(true);
+        }
+      } else {
+        // Already active: Find next match backward
+        const query = searchQuery.toLowerCase();
+        if (!query) return; // No query, do nothing
+
+        // Ensure we're not stuck at an invalid index if messageHistoryIndex is still -1
+        const startIndex = messageHistoryIndex + 1;
+        
+        let found = false;
+        for (
+          let i = startIndex;
+          i < userMessageHistory.length;
+          i++
+        ) {
+          const msg = userMessageHistory[userMessageHistory.length - 1 - i];
+          if (msg.toLowerCase().includes(query)) {
+            setMessageHistoryIndex(i);
+            setInput(msg);
+            setSearchStatus("success");
+            found = true;
+            break;
+          }
+        }
+        if (!found) setSearchStatus("failed");
+      }
+      return;
+    }
+
+    // Handle incremental search active state
+    if (isSearchActive) {
+      if (
+        e.key === "s" &&
+        e.ctrlKey &&
+        !e.shiftKey &&
+        !e.metaKey &&
+        !e.altKey
+      ) {
+        e.preventDefault();
+        const query = searchQuery.toLowerCase();
+        if (!query) return;
+
+        let found = false;
+        for (let i = messageHistoryIndex - 1; i >= 0; i--) {
+          const msg = userMessageHistory[userMessageHistory.length - 1 - i];
+          if (msg.toLowerCase().includes(query)) {
+            setMessageHistoryIndex(i);
+            setInput(msg);
+            setSearchStatus("success");
+            found = true;
+            break;
+          }
+        }
+        if (!found) setSearchStatus("failed");
+        return;
+      }
+
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setIsSearchActive(false);
+        setSearchQuery("");
+        setMessageHistoryIndex(-1);
+        setIsNavigatingHistory(false);
+        
+        // Restore the original draft
+        setInput(draftBeforeHistory);
+        setDraftBeforeHistory("");
+        return;
+      }
+
+      if (e.key === "Backspace") {
+        e.preventDefault();
+        const newQuery = searchQuery.slice(0, -1);
+        setSearchQuery(newQuery);
+
+        if (!newQuery) {
+          setSearchStatus("success");
+          return;
+        }
+
+        const lowerQuery = newQuery.toLowerCase();
+        let found = false;
+        for (let i = 0; i < userMessageHistory.length; i++) {
+          const msg = userMessageHistory[userMessageHistory.length - 1 - i];
+          if (msg.toLowerCase().includes(lowerQuery)) {
+            setMessageHistoryIndex(i);
+            setInput(msg);
+            setSearchStatus("success");
+            found = true;
+            break;
+          }
+        }
+        if (!found) setSearchStatus("failed");
+        return;
+      }
+
+      if (e.key === "Enter") {
+        e.preventDefault();
+        setIsSearchActive(false);
+        setSearchQuery("");
+        return;
+      }
+
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        const newQuery = searchQuery + e.key;
+        setSearchQuery(newQuery);
+
+        const lowerQuery = newQuery.toLowerCase();
+        let found = false;
+        // Search from 0 to find best match
+        for (let i = 0; i < userMessageHistory.length; i++) {
+          const msg = userMessageHistory[userMessageHistory.length - 1 - i];
+          if (msg.toLowerCase().includes(lowerQuery)) {
+            setMessageHistoryIndex(i);
+            setInput(msg);
+            setSearchStatus("success");
+            found = true;
+            break;
+          }
+        }
+        if (!found) setSearchStatus("failed");
+        return;
+      }
+
+      // If navigation keys, exit search mode and fall through
+      if (
+        [
+          "ArrowUp",
+          "ArrowDown",
+          "ArrowLeft",
+          "ArrowRight",
+          "Tab",
+          "Home",
+          "End",
+          "PageUp",
+          "PageDown",
+        ].includes(e.key)
+      ) {
+        setIsSearchActive(false);
+        setSearchQuery("");
+      } else {
+        // Block other keys in search mode
+        return;
+      }
+    }
+
     if (e.key === "Enter" && e.shiftKey) {
       e.preventDefault();
       // Shift+Enter enables multi-line mode for shell commands
@@ -2708,6 +2872,11 @@ function OpenCodeChatTUI() {
   };
 
   const handleInputChange = async (value: string) => {
+    if (isSearchActive) {
+      setIsSearchActive(false);
+      setSearchQuery("");
+    }
+
     setInput(value);
     
     // Reset history navigation if user is actually typing (not programmatic change)
@@ -4288,8 +4457,6 @@ function OpenCodeChatTUI() {
           box="square"
           className="flex-1 min-w-0 flex flex-col gap-0 bg-theme-background overflow-hidden"
           style={{
-            filter: shouldBlurEditor ? "blur(4px)" : undefined,
-            pointerEvents: shouldBlurEditor ? "none" : undefined,
             maxWidth: isMobile ? undefined : `${availableChatWidth}px`,
           }}
         >
@@ -4331,6 +4498,12 @@ function OpenCodeChatTUI() {
               className="flex-1 flex flex-col overflow-hidden"
               data-dialog-anchor="chat"
             >
+              {permissionQueue.length > 0 && (
+                <div className="px-2 pt-3">
+                  <PermissionQueue />
+                </div>
+              )}
+
               {/* Chat Messages */}
               <div className="flex-1 overflow-y-auto scrollbar p-2 pb-4 space-y-2 min-h-0 flex flex-col overflow-hidden">
                 <div className="max-w-full space-y-2 flex-1 flex flex-col min-w-0">
@@ -4443,6 +4616,40 @@ function OpenCodeChatTUI() {
                       return null;
                     }
 
+                    const messageHasToolPart = Array.isArray(message.parts)
+                      ? message.parts.some(
+                          (part) =>
+                            !!part &&
+                            typeof part === "object" &&
+                            "type" in part &&
+                            part.type === "tool",
+                        )
+                      : false;
+
+                    const messageHasTextPart = Array.isArray(message.parts)
+                      ? message.parts.some((part) => {
+                          if (
+                            !part ||
+                            typeof part !== "object" ||
+                            !("type" in part) ||
+                            part.type !== "text"
+                          ) {
+                            return false;
+                          }
+                          const rawText =
+                            typeof (part as { text?: unknown }).text === "string"
+                              ? ((part as { text?: string }).text ?? "").trim()
+                              : typeof (part as { content?: unknown }).content ===
+                                  "string"
+                                ? ((part as { content?: string }).content ?? "").trim()
+                                : "";
+                          return rawText.length > 0;
+                        })
+                      : false;
+
+                    const shouldShowStepParts =
+                      messageHasToolPart || !(messageHasTextPart || hasTextContent);
+
                     return (
                       <div
                         key={message.clientId ?? message.id}
@@ -4466,6 +4673,7 @@ function OpenCodeChatTUI() {
                                   part={part}
                                   messageRole={message.type}
                                   showDetails={true}
+                                  shouldShowStepParts={shouldShowStepParts}
                                 />
                               ))}
                               {message.metadata && (
@@ -4757,6 +4965,29 @@ function OpenCodeChatTUI() {
                         </div>
                       </div>
                     )}
+                    {/* Incremental Search Overlay */}
+                    {isSearchActive && (
+                      <div
+                        className="absolute bottom-full left-0 right-0 mb-1 z-20 shadow-lg rounded border overflow-hidden"
+                        style={{
+                          backgroundColor: "var(--theme-backgroundAlt)",
+                          borderColor:
+                            searchStatus === "failed"
+                              ? "var(--theme-error)"
+                              : "var(--theme-primary)",
+                          borderWidth: "1px",
+                        }}
+                      >
+                        <div className="flex items-center gap-2 p-2 text-sm font-mono">
+                          <span className="text-theme-primary font-bold whitespace-nowrap">
+                            (reverse-i-search)`{searchQuery}':
+                          </span>
+                          <span className="flex-1 truncate opacity-80">
+                            {input}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                     <Textarea
                       ref={textareaRef}
                       value={input}
@@ -4882,29 +5113,36 @@ function OpenCodeChatTUI() {
             <div className="flex-1 min-w-0 p-4 flex flex-col overflow-hidden bg-theme-background">
               {selectedFile ? (
                 <>
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-medium flex items-center gap-2">
-                      {selectedFileName}
-                      {showLanguageBadge && selectedFile && (
-                        <Badge
-                          variant="foreground0"
-                          cap="square"
-                          className="text-xs"
-                        >
-                          {detectLanguage(selectedFile)}
-                        </Badge>
-                      )}
-                      {showMimeTypeBadge && fileContent?.mimeType && (
-                        <Badge
-                          variant="foreground0"
-                          cap="square"
-                          className="text-xs uppercase"
-                        >
-                          {fileContent.mimeType}
-                        </Badge>
-                      )}
-                    </h3>
-                    <div className="flex gap-2">
+                  <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+                    <div className="flex flex-col gap-1 min-w-0 flex-1">
+                      <h3 className="text-lg font-medium leading-tight break-words">
+                        {selectedFileName}
+                      </h3>
+                      {(showLanguageBadge && selectedFile) ||
+                        (showMimeTypeBadge && fileContent?.mimeType) ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          {showLanguageBadge && selectedFile && (
+                            <Badge
+                              variant="foreground0"
+                              cap="square"
+                              className="text-xs"
+                            >
+                              {detectLanguage(selectedFile)}
+                            </Badge>
+                          )}
+                          {showMimeTypeBadge && fileContent?.mimeType && (
+                            <Badge
+                              variant="foreground0"
+                              cap="square"
+                              className="text-xs uppercase"
+                            >
+                              {fileContent.mimeType}
+                            </Badge>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-wrap gap-2 justify-end shrink-0">
                       {fileContent?.diff && (
                         <Button
                           variant={fileViewMode === "diff" ? "foreground1" : "foreground0"}
@@ -4963,15 +5201,15 @@ function OpenCodeChatTUI() {
                           Copy
                         </Button>
                       )}
-                       <Button
-                         variant="background2"
-                         box="round"
-                         onClick={() => {
-                           setSelectedFile(null);
-                           setFileContent(null);
-                           setFileError(null);
-                         }}
-                         size="small"
+                      <Button
+                        variant="background2"
+                        box="round"
+                        onClick={() => {
+                          setSelectedFile(null);
+                          setFileContent(null);
+                          setFileError(null);
+                        }}
+                        size="small"
                       >
                         Close
                       </Button>
@@ -5669,27 +5907,6 @@ function OpenCodeChatTUI() {
             </div>
           </View>
         </Dialog>
-      )}
-
-      {/* Permission Modal */}
-      {currentPermission && (
-        <PermissionModal
-          permission={currentPermission}
-          isOpen={!!currentPermission}
-          onClose={() => {
-            setCurrentPermission(null);
-            setShouldBlurEditor(false);
-          }}
-          onRespond={async (response) => {
-            if (currentPermission?.id && currentSession?.id) {
-              await respondToPermission(
-                currentSession.id,
-                currentPermission.id,
-                response,
-              );
-            }
-          }}
-        />
       )}
 
       {/* PWA Components */}

@@ -1,4 +1,5 @@
 import React from "react";
+import { Button } from "./button";
 
 interface MobileSidebarProps {
   isOpen: boolean;
@@ -21,37 +22,25 @@ export const MobileSidebar: React.FC<MobileSidebarProps> = ({
         />
       )}
 
-      <div
-        className={`
-          fixed inset-y-0 left-0 z-50 w-80 max-w-[85vw] transform transition-transform duration-300 md:hidden
-          ${isOpen ? "translate-x-0" : "-translate-x-full"}
-        `}
-        style={{ backgroundColor: "var(--theme-backgroundAlt)" }}
-      >
+        <div
+          id="mobile-sidebar"
+          className={`
+            fixed inset-y-0 left-0 z-50 w-80 max-w-[85vw] transform transition-transform duration-300 md:hidden
+            ${isOpen ? "translate-x-0" : "-translate-x-full"}
+          `}
+          style={{ backgroundColor: "var(--theme-backgroundAlt)" }}
+        >
         <div className="h-full flex flex-col">
           <div
             className="p-4 flex justify-between items-center border-b flex-shrink-0"
             style={{ borderColor: "var(--theme-border)" }}
           >
             <h2 className="text-lg font-semibold">Menu</h2>
-            <button
+            <Button
+              variant="background2"
+              box="round"
+              size="small"
               onClick={onClose}
-              className="flex items-center justify-center rounded-full transition-all"
-              onMouseEnter={(e) => {
-                e.currentTarget.style.opacity = "1";
-                e.currentTarget.style.backgroundColor = "var(--theme-backgroundAccent)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.opacity = "0.7";
-                e.currentTarget.style.backgroundColor = "var(--theme-border)";
-              }}
-              style={{
-                minWidth: "36px",
-                minHeight: "36px",
-                backgroundColor: "var(--theme-border)",
-                opacity: 0.7,
-                color: "var(--theme-foreground)",
-              }}
               aria-label="Close menu"
             >
               <svg
@@ -66,7 +55,7 @@ export const MobileSidebar: React.FC<MobileSidebarProps> = ({
               >
                 <path d="M4.5 4.5l9 9M13.5 4.5l-9 9" />
               </svg>
-            </button>
+            </Button>
           </div>
           <div className="flex-1 overflow-y-auto p-4">{children}</div>
         </div>

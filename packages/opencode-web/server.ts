@@ -3,6 +3,7 @@
  */
 
 import path from "node:path";
+import { proxySseRequest, buildEventUrl } from "./sse-proxy.js";
 
 // Inlined config helpers with canonical env var support
 interface WebConfig {
@@ -283,51 +284,10 @@ async function initializeServer() {
               },
             );
           }
-          const eventUrl = new URL("/event", serverUrl);
-          if (directory) {
-            eventUrl.searchParams.set("directory", directory);
-          }
-
-          try {
-            const response = await fetch(eventUrl.toString(), {
-              headers: {
-                Accept: "text/event-stream",
-                "Cache-Control": "no-cache",
-                Connection: "keep-alive",
-              },
-            });
-
-            if (!response.ok) {
-              return new Response(
-                JSON.stringify({ error: "Failed to connect to event stream" }),
-                {
-                  status: response.status,
-                  headers: { "Content-Type": "application/json" },
-                },
-              );
-            }
-
-            return new Response(response.body, {
-              headers: {
-                "Content-Type": "text/event-stream",
-                "Cache-Control": "no-cache",
-                Connection: "keep-alive",
-                "X-Accel-Buffering": "no",
-              },
-            });
-          } catch (error) {
-            console.error("[SSE Proxy] Error:", error);
-            return new Response(
-              JSON.stringify({
-                error:
-                  "Failed to proxy event stream. Ensure OpenCode server is running and accessible.",
-              }),
-              {
-                status: 500,
-                headers: { "Content-Type": "application/json" },
-              },
-            );
-          }
+          const eventUrl = buildEventUrl(serverUrl, directory);
+          return proxySseRequest(eventUrl, {
+            enableLogging: !IS_PRODUCTION,
+          });
         }
 
         const staticResponse = await serveStatic(pathname);

@@ -49,3 +49,4 @@ bun.lock
 # mprocs
 mprocs.log
 mprocs.yaml
+.lazyagent_logs
