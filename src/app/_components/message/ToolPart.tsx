@@ -1,10 +1,13 @@
-import { useState } from "react";
-import type { Part } from "@/types/opencode";
+import { useCallback, useMemo, useState } from "react";
+import type { Part, PermissionResponse } from "@/types/opencode";
 import { Badge, Button, Spinner } from "../ui";
+import { PermissionCard } from "../ui/permission-card";
+import { useOpenCodeContext } from "@/contexts/OpenCodeContext";
 import {
   normalizeToolPart,
   TOOL_STATUS_LABELS,
   formatDuration,
+  getPermissionForPart,
 } from "@/lib/tool-helpers";
 import { DiffPart } from "./DiffPart";
 import { useIsMobile } from "@/lib/breakpoints";
@@ -21,6 +24,12 @@ export function ToolPart({ part, showDetails }: ToolPartProps) {
   const [showInput, setShowInput] = useState(false);
   const [showOutput, setShowOutput] = useState(() => !isMobile);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const {
+    permissionQueue,
+    currentSession,
+    respondToPermission,
+    removePermission,
+  } = useOpenCodeContext();
 
   if (part.type !== "tool") return null;
 
@@ -56,7 +65,9 @@ export function ToolPart({ part, showDetails }: ToolPartProps) {
     return undefined;
   };
 
-  const metadataRecord = metadata ?? undefined;
+  const metadataRecord = (metadata ?? undefined) as
+    | Record<string, unknown>
+    | undefined;
 
   const commandText =
     extractCommandFromInput(input) ||
@@ -78,7 +89,41 @@ export function ToolPart({ part, showDetails }: ToolPartProps) {
           : undefined
     : undefined;
 
+  const pendingPermission = useMemo(
+    () => getPermissionForPart(part, permissionQueue),
+    [part, permissionQueue],
+  );
+
+  const showPermissionCard = Boolean(pendingPermission);
+  const isAwaitingPermission = pendingPermission?.status === "pending";
+
+  const handlePermissionResponse = useCallback(
+    async (responseValue: PermissionResponse) => {
+      if (!pendingPermission?.id) {
+        throw new Error("Permission context unavailable.");
+      }
+      if (!currentSession?.id) {
+        throw new Error("No active session available.");
+      }
+
+      await respondToPermission(
+        currentSession.id,
+        pendingPermission.id,
+        responseValue,
+      );
+    },
+    [currentSession?.id, pendingPermission?.id, respondToPermission],
+  );
+
+  const handlePermissionDismiss = useCallback(() => {
+    if (!pendingPermission?.id) {
+      return;
+    }
+    removePermission(pendingPermission.id);
+  }, [pendingPermission?.id, removePermission]);
+ 
   const statusLabel = TOOL_STATUS_LABELS[status] || status;
+
   const headerLabel = commandText ? `$ ${commandText}` : tool;
   const shouldShowInputSection = showDetails && input !== undefined && !commandText;
 
@@ -145,23 +190,39 @@ export function ToolPart({ part, showDetails }: ToolPartProps) {
           <Badge variant="foreground0" cap="square" className="text-xs shrink-0">
             {statusLabel}
           </Badge>
-        </div>
-        <div className="flex items-center gap-2 text-xs opacity-70 shrink-0">
-          {shouldShowPath && fileName && (
-            <span
-              className="font-mono truncate max-w-[200px] sm:max-w-xs"
-              title={resolvedPath}
-            >
-              {fileName}
-            </span>
-          )}
-          {duration !== undefined && (
-            <span className="font-mono">{formatDuration(duration)}</span>
+          {isAwaitingPermission && (
+            <Badge variant="warning" cap="square" className="text-xs shrink-0">
+              Awaiting permission
+            </Badge>
           )}
         </div>
+      <div className="flex items-center gap-2 text-xs opacity-70 shrink-0">
+        {shouldShowPath && fileName && (
+          <span
+            className="font-mono truncate max-w-[200px] sm:max-w-xs"
+            title={resolvedPath}
+          >
+            {fileName}
+          </span>
+        )}
+        {duration !== undefined && (
+          <span className="font-mono">{formatDuration(duration)}</span>
+        )}
       </div>
+    </div>
 
-      {(workingDirectory || exitCode !== undefined) && (
+    {showPermissionCard && pendingPermission && (
+      <div className="border-t border-theme-border bg-theme-background-alt/40 px-3 py-3">
+        <PermissionCard
+          permission={pendingPermission}
+          onRespond={handlePermissionResponse}
+          onDismiss={handlePermissionDismiss}
+        />
+      </div>
+    )}
+ 
+    {(workingDirectory || exitCode !== undefined) && (
+
         <div className="px-3 py-2 text-xs border-t border-theme-border bg-theme-background-alt/40 space-y-1">
           {workingDirectory && (
             <div className="flex flex-wrap items-center gap-2">

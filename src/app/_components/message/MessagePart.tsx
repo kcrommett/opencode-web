@@ -12,12 +12,14 @@ interface MessagePartProps {
   part: Part;
   messageRole: "user" | "assistant";
   showDetails?: boolean;
+  shouldShowStepParts?: boolean;
 }
 
 export function MessagePart({
   part,
   messageRole: _messageRole,
   showDetails = true,
+  shouldShowStepParts = true,
 }: MessagePartProps) {
   switch (part.type) {
     case "text":
@@ -30,6 +32,7 @@ export function MessagePart({
       return <FilePart part={part} />;
     case "step-start":
     case "step-finish":
+      if (!shouldShowStepParts) return null;
       return <StepPart part={part} showDetails={showDetails} />;
     case "patch":
       return <PatchPart part={part} />;
