@@ -38,7 +38,7 @@ import {
 } from "@/app/_components/ui/session-picker";
 import { SessionSearchInput } from "@/app/_components/ui/session-search";
 import { ProjectPicker } from "@/app/_components/ui/project-picker";
-import { PermissionModal } from "@/app/_components/ui/permission-modal";
+import { PermissionQueue } from "@/app/_components/ui/permission-queue";
 import { MessagePart } from "@/app/_components/message";
 import { GENERIC_TOOL_TEXTS } from "@/app/_components/message/TextPart";
 import { ImagePreview } from "@/app/_components/ui/image-preview";
@@ -745,11 +745,7 @@ function OpenCodeChatTUI() {
     abortSession,
     currentSessionBusy,
     abortInFlight,
-    currentPermission,
-    setCurrentPermission,
-    shouldBlurEditor,
-    setShouldBlurEditor,
-    respondToPermission,
+    permissionQueue,
     currentSessionTodos,
     config,
     commands,
@@ -4288,8 +4284,6 @@ function OpenCodeChatTUI() {
           box="square"
           className="flex-1 min-w-0 flex flex-col gap-0 bg-theme-background overflow-hidden"
           style={{
-            filter: shouldBlurEditor ? "blur(4px)" : undefined,
-            pointerEvents: shouldBlurEditor ? "none" : undefined,
             maxWidth: isMobile ? undefined : `${availableChatWidth}px`,
           }}
         >
@@ -4331,6 +4325,12 @@ function OpenCodeChatTUI() {
               className="flex-1 flex flex-col overflow-hidden"
               data-dialog-anchor="chat"
             >
+              {permissionQueue.length > 0 && (
+                <div className="px-2 pt-3">
+                  <PermissionQueue />
+                </div>
+              )}
+
               {/* Chat Messages */}
               <div className="flex-1 overflow-y-auto scrollbar p-2 pb-4 space-y-2 min-h-0 flex flex-col overflow-hidden">
                 <div className="max-w-full space-y-2 flex-1 flex flex-col min-w-0">
@@ -4443,6 +4443,40 @@ function OpenCodeChatTUI() {
                       return null;
                     }
 
+                    const messageHasToolPart = Array.isArray(message.parts)
+                      ? message.parts.some(
+                          (part) =>
+                            !!part &&
+                            typeof part === "object" &&
+                            "type" in part &&
+                            part.type === "tool",
+                        )
+                      : false;
+
+                    const messageHasTextPart = Array.isArray(message.parts)
+                      ? message.parts.some((part) => {
+                          if (
+                            !part ||
+                            typeof part !== "object" ||
+                            !("type" in part) ||
+                            part.type !== "text"
+                          ) {
+                            return false;
+                          }
+                          const rawText =
+                            typeof (part as { text?: unknown }).text === "string"
+                              ? ((part as { text?: string }).text ?? "").trim()
+                              : typeof (part as { content?: unknown }).content ===
+                                  "string"
+                                ? ((part as { content?: string }).content ?? "").trim()
+                                : "";
+                          return rawText.length > 0;
+                        })
+                      : false;
+
+                    const shouldShowStepParts =
+                      messageHasToolPart || !(messageHasTextPart || hasTextContent);
+
                     return (
                       <div
                         key={message.clientId ?? message.id}
@@ -4466,6 +4500,7 @@ function OpenCodeChatTUI() {
                                   part={part}
                                   messageRole={message.type}
                                   showDetails={true}
+                                  shouldShowStepParts={shouldShowStepParts}
                                 />
                               ))}
                               {message.metadata && (
@@ -5676,27 +5711,6 @@ function OpenCodeChatTUI() {
             </div>
           </View>
         </Dialog>
-      )}
-
-      {/* Permission Modal */}
-      {currentPermission && (
-        <PermissionModal
-          permission={currentPermission}
-          isOpen={!!currentPermission}
-          onClose={() => {
-            setCurrentPermission(null);
-            setShouldBlurEditor(false);
-          }}
-          onRespond={async (response) => {
-            if (currentPermission?.id && currentSession?.id) {
-              await respondToPermission(
-                currentSession.id,
-                currentPermission.id,
-                response,
-              );
-            }
-          }}
-        />
       )}
 
       {/* PWA Components */}

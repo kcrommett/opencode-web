@@ -52,7 +52,14 @@ export interface PermissionState {
   sessionID: string;
   message?: string;
   details?: unknown;
+  messageID?: string;
+  partID?: string;
   [key: string]: unknown;
+}
+
+export interface PermissionRequest extends PermissionState {
+  timestamp: number;
+  status: "pending" | "responded" | "expired";
 }
 
 export interface SessionTodo {

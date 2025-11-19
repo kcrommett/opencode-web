@@ -8,11 +8,13 @@ import { shouldDecodeAsText as checkIfText } from "@/lib/mime-utils";
 import { searchSessions, SessionFilters } from "@/lib/session-index";
 import { normalizeDiagnostics } from "@/lib/status-utils";
 import { generateUnifiedDiff } from "@/lib/diff-utils";
+import { getPermissionForPart, normalizeToolStatus } from "@/lib/tool-helpers";
 import type {
   Agent,
   FileContentData,
   Part,
   PermissionState,
+  PermissionRequest,
   SessionTodo,
   OpencodeConfig,
   Command,
@@ -47,6 +49,35 @@ const normalizeProjectRelativePath = (inputPath: string): string | null => {
   normalized = normalized.replace(/^(?:\.\.\/)+/, "").replace(/^\.\//, "");
 
   return normalized || null;
+};
+
+type PermissionLike = PermissionState & {
+  timestamp?: number;
+  status?: PermissionRequest["status"];
+};
+
+const toPermissionRequest = (permission: PermissionLike): PermissionRequest => ({
+  ...permission,
+  status: permission.status ?? "pending",
+  timestamp:
+    typeof permission.timestamp === "number"
+      ? permission.timestamp
+      : Date.now(),
+});
+
+const getPartStartTimestamp = (part: Part): number | null => {
+  const stateTimings = (part as { state?: { timings?: { startTime?: number } } })
+    .state?.timings;
+  if (stateTimings && typeof stateTimings.startTime === "number") {
+    return stateTimings.startTime;
+  }
+
+  const partTimings = (part as { timings?: { startTime?: number } }).timings;
+  if (partTimings && typeof partTimings.startTime === "number") {
+    return partTimings.startTime;
+  }
+
+  return null;
 };
 
 type SessionSearchState = {
@@ -238,6 +269,14 @@ const FALLBACK_MODEL: Model = {
   modelID: "big-pickle",
   name: "opencode/big-pickle",
 };
+
+const PERMISSION_EXPIRATION_MS = 10 * 60 * 1000;
+
+const buildPermissionStorageKey = (sessionId: string): string =>
+  `opencode-permissions-${sessionId}`;
+
+const isPermissionExpired = (permission: PermissionRequest): boolean =>
+  Date.now() - permission.timestamp > PERMISSION_EXPIRATION_MS;
 
 type ModelPreference =
   | Model
@@ -460,11 +499,72 @@ export function useOpenCode() {
   }, [sessions, sessionSearchQuery, sessionFilters]);
 
   // Permission and todo state
-  const [currentPermission, setCurrentPermission] =
-    useState<PermissionState | null>(null);
-  const [shouldBlurEditor, setShouldBlurEditor] = useState(false);
+  const [permissionQueue, setPermissionQueue] =
+    useState<PermissionRequest[]>([]);
+  const permissionQueueRef = useRef<PermissionRequest[]>([]);
+  const derivedPermissionsRef = useRef<Set<string>>(new Set());
   const [currentSessionTodos, setCurrentSessionTodos] = useState<SessionTodo[]>(
     [],
+  );
+
+  const addPermission = useCallback((permission: PermissionLike) => {
+    setPermissionQueue((prev) => {
+      const normalizedPermission = toPermissionRequest(permission);
+
+      const existingIndex = prev.findIndex(
+        (item) => item.id === normalizedPermission.id,
+      );
+
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          ...normalizedPermission,
+        };
+        return updated.sort((a, b) => a.timestamp - b.timestamp);
+      }
+
+      const nextQueue = [...prev, normalizedPermission];
+      return nextQueue.sort((a, b) => a.timestamp - b.timestamp);
+    });
+  }, []);
+
+  const removePermission = useCallback((permissionId: string) => {
+    setPermissionQueue((prev) =>
+      prev.filter((permission) => permission.id !== permissionId),
+    );
+  }, []);
+
+  const getPermissionById = useCallback(
+    (permissionId: string) =>
+      permissionQueue.find((permission) => permission.id === permissionId) ??
+      null,
+    [permissionQueue],
+  );
+
+  const restorePermissionsFromStorage = useCallback(
+    (sessionId: string) => {
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      const key = buildPermissionStorageKey(sessionId);
+      const stored = localStorage.getItem(key);
+      if (!stored) {
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(stored) as PermissionRequest[];
+        parsed
+          .filter((permission) => !isPermissionExpired(permission))
+          .forEach((permission) => addPermission(permission));
+      } catch (error) {
+        console.error("Failed to restore permission queue:", error);
+        localStorage.removeItem(key);
+      }
+    },
+    [addPermission],
   );
   
   // Session diffs fetched from API (fallback to converted summary diffs)
@@ -655,6 +755,7 @@ export function useOpenCode() {
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [sseConnectionState, setSseConnectionState] =
     useState<SSEConnectionState | null>(null);
+  const isSseConnected = sseConnectionState?.connected ?? false;
   const [isStreaming, setIsStreaming] = useState(false);
   const streamingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [messageQueue, setMessageQueue] = useState<Message[]>([]);
@@ -746,6 +847,22 @@ export function useOpenCode() {
   useEffect(() => {
     manualModelSelectionRef.current = false;
   }, [currentSession?.id]);
+
+  useEffect(() => {
+    permissionQueueRef.current = permissionQueue;
+  }, [permissionQueue]);
+
+  useEffect(() => {
+    derivedPermissionsRef.current.clear();
+    setPermissionQueue([]);
+  }, [currentSession?.id]);
+
+  useEffect(() => {
+    if (!currentSession?.id) {
+      return;
+    }
+    restorePermissionsFromStorage(currentSession.id);
+  }, [currentSession?.id, restorePermissionsFromStorage]);
 
   useEffect(() => {
     manualModelSelectionRef.current = false;
@@ -2169,16 +2286,74 @@ export function useOpenCode() {
         case "permission.updated": {
           const { id, sessionID, message, details, ...rest } = event.properties;
           if (sessionID === activeSession?.id) {
-            const permissionPayload: PermissionState = {
+            const partData =
+              rest.part && typeof rest.part === "object"
+                ? (rest.part as { id?: string; messageID?: string; tool?: string })
+                : null;
+
+            const messageIdValue =
+              typeof rest.messageID === "string"
+                ? (rest.messageID as string)
+                : typeof partData?.messageID === "string"
+                  ? partData.messageID
+                  : undefined;
+
+            const partIdValue =
+              typeof rest.partID === "string"
+                ? (rest.partID as string)
+                : typeof partData?.id === "string"
+                  ? partData.id
+                  : undefined;
+
+            const timestampValue =
+              typeof rest.timestamp === "number"
+                ? (rest.timestamp as number)
+                : undefined;
+
+            const statusValue =
+              typeof rest.status === "string"
+                ? (rest.status as PermissionRequest["status"])
+                : undefined;
+
+            const toolName =
+              typeof rest.tool === "string"
+                ? (rest.tool as string)
+                : typeof partData?.tool === "string"
+                  ? partData.tool
+                  : undefined;
+
+            const permissionPayload = toPermissionRequest({
+              ...rest,
               id,
               sessionID,
               message,
               details,
-              ...rest,
-            };
-            setCurrentPermission(permissionPayload);
-            setShouldBlurEditor(true);
-            debugLog("[SSE] Permission request received:", id);
+              messageID: messageIdValue,
+              partID: partIdValue,
+              timestamp: timestampValue,
+              status: statusValue,
+              tool: toolName,
+            });
+
+            if (partIdValue) {
+              const derivedMatch = permissionQueueRef.current.find(
+                (existing) =>
+                  ((existing as { source?: string }).source === "derived" &&
+                    typeof existing.partID === "string" &&
+                    existing.partID === partIdValue),
+              );
+              if (derivedMatch) {
+                removePermission(derivedMatch.id);
+                derivedPermissionsRef.current.delete(derivedMatch.id);
+              }
+            }
+
+            addPermission(permissionPayload);
+            debugLog("[SSE] Permission request received:", {
+              id,
+              messageID: messageIdValue,
+              partID: partIdValue,
+            });
           }
           break;
         }
@@ -2186,8 +2361,7 @@ export function useOpenCode() {
         case "permission.replied": {
           const { permissionID, sessionID } = event.properties;
           if (sessionID === activeSession?.id) {
-            setCurrentPermission(null);
-            setShouldBlurEditor(false);
+            removePermission(permissionID);
             debugLog("[SSE] Permission response received:", permissionID);
           }
           break;
@@ -2333,8 +2507,153 @@ export function useOpenCode() {
     showToast,
     loadMessages,
     refreshGitStatus,
+    addPermission,
+    removePermission,
     // processNextInQueueRef.current is used but doesn't need to be in deps (ref pattern)
     // messageQueue.length is accessed via the ref, not directly
+  ]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const sessionId = currentSession?.id;
+    if (!sessionId) {
+      return;
+    }
+
+    const key = buildPermissionStorageKey(sessionId);
+    const pendingPermissions = permissionQueue.filter(
+      (permission) =>
+        permission.status === "pending" && !isPermissionExpired(permission),
+    );
+
+    if (pendingPermissions.length === 0) {
+      localStorage.removeItem(key);
+      return;
+    }
+
+    try {
+      localStorage.setItem(key, JSON.stringify(pendingPermissions));
+    } catch (error) {
+      console.error("Failed to persist permission queue:", error);
+    }
+  }, [permissionQueue, currentSession?.id]);
+
+  useEffect(() => {
+    if (!permissionQueue.length) {
+      return;
+    }
+    permissionQueue.forEach((permission) => {
+      if (
+        permission.status === "expired" ||
+        !isPermissionExpired(permission)
+      ) {
+        return;
+      }
+      addPermission({
+        ...permission,
+        status: "expired",
+        timestamp: permission.timestamp,
+      });
+    });
+  }, [permissionQueue, addPermission]);
+
+  useEffect(() => {
+    if (!isSseConnected || !currentSession?.id) {
+      return;
+    }
+    restorePermissionsFromStorage(currentSession.id);
+  }, [restorePermissionsFromStorage, isSseConnected, currentSession?.id]);
+
+  useEffect(() => {
+    if (!currentSession?.id) {
+      return;
+    }
+
+    const now = Date.now();
+    const thresholdMs = 5000;
+    const derivedTracker = derivedPermissionsRef.current;
+    const activeDerived = new Set<string>();
+
+    messages.forEach((message) => {
+      if (!message.parts || message.parts.length === 0) {
+        return;
+      }
+
+      message.parts.forEach((part, index) => {
+        if (part.type !== "tool") {
+          return;
+        }
+
+        const status = normalizeToolStatus(part);
+        if (status !== "running") {
+          return;
+        }
+
+        const startTimestamp = getPartStartTimestamp(part);
+        if (!startTimestamp || now - startTimestamp < thresholdMs) {
+          return;
+        }
+
+        const existingPermission = getPermissionForPart(part, permissionQueue);
+        if (existingPermission) {
+          return;
+        }
+
+        const fallbackId =
+          (message.id ? `${message.id}-` : "") +
+          (typeof part.id === "string" && part.id.length > 0
+            ? part.id
+            : `part-${index}`);
+        const derivedId = `derived-${fallbackId}`;
+        activeDerived.add(derivedId);
+
+        if (derivedTracker.has(derivedId)) {
+          return;
+        }
+
+        derivedTracker.add(derivedId);
+
+        addPermission({
+          id: derivedId,
+          sessionID: currentSession.id,
+          message:
+            typeof part.tool === "string"
+              ? `Awaiting permission for ${part.tool}`
+              : "Awaiting permission",
+          details: {
+            derived: true,
+            tool: part.tool,
+          },
+          messageID: message.id,
+          partID:
+            (typeof part.id === "string" && part.id.length > 0
+              ? part.id
+              : `${message.id ?? "message"}:${index}`) ?? undefined,
+          timestamp: startTimestamp,
+          status: "pending",
+          source: "derived",
+        });
+      });
+    });
+
+    permissionQueue.forEach((permission) => {
+      if (
+        (permission as { source?: string }).source !== "derived" ||
+        activeDerived.has(permission.id)
+      ) {
+        return;
+      }
+      removePermission(permission.id);
+      derivedTracker.delete(permission.id);
+    });
+  }, [
+    addPermission,
+    currentSession?.id,
+    messages,
+    permissionQueue,
+    removePermission,
   ]);
 
   // Save current session to localStorage when it changes
@@ -4124,14 +4443,13 @@ export function useOpenCode() {
           responseValue,
           currentProject?.worktree,
         );
-        setCurrentPermission(null);
-        setShouldBlurEditor(false);
+        removePermission(permissionId);
       } catch (error) {
         console.error("Failed to respond to permission:", error);
         throw error;
       }
     },
-    [currentProject?.worktree],
+    [currentProject?.worktree, removePermission],
   );
 
   const initSession = useCallback(
@@ -4366,10 +4684,10 @@ export function useOpenCode() {
     parseCommand: (input: string) => parseCommand(input, commands),
     sseConnectionState,
     // Permission and todo state
-    currentPermission,
-    setCurrentPermission,
-    shouldBlurEditor,
-    setShouldBlurEditor,
+    permissionQueue,
+    addPermission,
+    removePermission,
+    getPermissionById,
     respondToPermission,
     currentSessionTodos,
     setCurrentSessionTodos,
