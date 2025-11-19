@@ -112,7 +112,7 @@ export function ToolPart({ part, showDetails }: ToolPartProps) {
         responseValue,
       );
     },
-    [currentSession?.id, pendingPermission?.id, respondToPermission],
+    [currentSession?.id, pendingPermission, respondToPermission],
   );
 
   const handlePermissionDismiss = useCallback(() => {
@@ -120,7 +120,7 @@ export function ToolPart({ part, showDetails }: ToolPartProps) {
       return;
     }
     removePermission(pendingPermission.id);
-  }, [pendingPermission?.id, removePermission]);
+  }, [pendingPermission, removePermission]);
  
   const statusLabel = TOOL_STATUS_LABELS[status] || status;
 
