@@ -4561,13 +4561,13 @@ function OpenCodeChatTUI() {
                          {currentProject && (
                           <div className="flex gap-2 justify-center flex-wrap mt-4">
                             {!currentSession && (
-                              <Badge
+                              <Button
                                 variant="foreground0"
-                                cap="square"
+                                onClick={() => setShowSessionPicker(true)}
                                 className="text-xs"
                               >
                                 Create or select a session →
-                              </Badge>
+                              </Button>
                             )}
                           </div>
                         )}
