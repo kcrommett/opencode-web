@@ -204,7 +204,7 @@ function getClientOpencodeConfig(): { serverUrl: string } {
   return { serverUrl: resolveServerUrlFromEnv() };
 }
 
-import { proxySseRequest, buildEventUrl } from "./packages/opencode-web/sse-proxy.js";
+import { proxySseRequest, buildEventUrl } from "./sse-proxy.js";
 
 const argv = process.argv.slice(2);
 for (let i = 0; i < argv.length; i++) {
