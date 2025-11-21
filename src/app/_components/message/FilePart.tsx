@@ -91,9 +91,9 @@ export function FilePart({ part }: FilePartProps) {
 
   const diffDisplayPath = normalizeDiffPathValue(
     matchingDiff?.path ??
-      matchingDiff?.file ??
-      matchingDiff?.newPath ??
-      matchingDiff?.oldPath,
+    matchingDiff?.file ??
+    matchingDiff?.newPath ??
+    matchingDiff?.oldPath,
   ) ?? displayName ?? pathString ?? undefined;
 
   const resolvedDiffText = useMemo(() => {
@@ -152,23 +152,35 @@ export function FilePart({ part }: FilePartProps) {
 
   return (
     <div className="mb-2 space-y-2 rounded-md border border-theme-border bg-theme-background-alt p-3 max-w-full min-w-0">
-      <div className="flex flex-wrap items-center justify-between gap-2 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-[11px] uppercase tracking-wide opacity-70">
-            FILE
-          </span>
-          <span className="text-sm font-medium break-all" title={displayName}>
-            {displayName}
-          </span>
-          {hasDiff && (
-            <Badge variant="foreground0" cap="square" className="text-xs">
-              {matchingDiff.additions > 0 && `+${matchingDiff.additions}`}
-              {matchingDiff.additions > 0 && matchingDiff.deletions > 0 && " "}
-              {matchingDiff.deletions > 0 && `-${matchingDiff.deletions}`}
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-col gap-1.5 md:flex-row md:items-center md:gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="font-mono text-[11px] uppercase tracking-wide opacity-70">
+              FILE
+            </span>
+            <span className="text-sm font-medium break-all" title={displayName}>
+              {displayName}
+            </span>
+            {hasDiff && (
+              <Badge variant="foreground0" cap="square" className="text-xs">
+                {matchingDiff.additions > 0 && `+${matchingDiff.additions}`}
+                {matchingDiff.additions > 0 && matchingDiff.deletions > 0 && " "}
+                {matchingDiff.deletions > 0 && `-${matchingDiff.deletions}`}
+              </Badge>
+            )}
+          </div>
+          {mimeType && (
+            <Badge
+              variant="foreground0"
+              cap="square"
+              className="mt-0.5 max-w-full truncate text-[11px] uppercase tracking-wide md:mt-0"
+              title={mimeType}
+            >
+              {mimeType}
             </Badge>
           )}
         </div>
-        <div className="flex items-center gap-2 text-xs text-theme-muted">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-theme-muted">
           {hasDiff && (
             <div className="flex items-center gap-1">
               <Button
@@ -190,11 +202,6 @@ export function FilePart({ part }: FilePartProps) {
                 Diff
               </Button>
             </div>
-          )}
-          {mimeType && (
-            <span className="truncate max-w-[10rem]" title={mimeType}>
-              {mimeType}
-            </span>
           )}
           {typeof size === "number" && (
             <Badge variant="foreground0" cap="square" className="text-xs">

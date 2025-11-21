@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "opencode-web",
@@ -16,6 +17,7 @@
         "react-markdown": "10.1.0",
         "rehype-sanitize": "6.0.0",
         "remark-gfm": "4.0.1",
+        "zod": "4.1.12",
       },
       "devDependencies": {
         "@tailwindcss/vite": "^4.1.13",
@@ -49,7 +51,7 @@
     },
     "packages/opencode-web": {
       "name": "opencode-web",
-      "version": "1.0.1",
+      "version": "0.5.8",
       "bin": {
         "opencode-web": "bin/opencode-web.js",
       },

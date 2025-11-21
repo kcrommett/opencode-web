@@ -1,4 +1,4 @@
-import type { Part } from "@/types/opencode";
+import type { Part, ConfigUpdatedEventPayload } from "@/types/opencode";
 
 /**
  * OpenCode Server-Sent Events types and client
@@ -17,6 +17,17 @@ const devError = (...args: unknown[]) => {
 const devWarn = (...args: unknown[]) => {
   if (isDevMode) console.warn(...args);
 };
+
+/**
+ * Error envelope returned by SSE proxy when upstream returns non-SSE content
+ */
+export interface SseProxyError {
+  status: number;
+  upstreamUrl: string;
+  contentType: string | null;
+  bodySnippet: string;
+  timestamp: string;
+}
 
 interface ServerConnectedEvent {
   type: "server.connected";
@@ -194,6 +205,11 @@ interface LSPDiagnosticsEvent {
   };
 }
 
+interface ConfigUpdatedEvent {
+  type: "config.updated";
+  properties: ConfigUpdatedEventPayload;
+}
+
 export type OpencodeEvent =
   | ServerConnectedEvent
   | InstallationUpdatedEvent
@@ -212,7 +228,8 @@ export type OpencodeEvent =
   | FileEditedEvent
   | FileWatcherUpdatedEvent
   | TodoUpdatedEvent
-  | LSPDiagnosticsEvent;
+  | LSPDiagnosticsEvent
+  | ConfigUpdatedEvent;
 
 export interface SSEConnectionState {
   connected: boolean;
@@ -226,6 +243,7 @@ interface SSEClientOptions {
   url: string;
   onEvent: (event: OpencodeEvent) => void;
   onError?: (error: Error) => void;
+  onProxyError?: (error: SseProxyError) => void;
   onConnect?: () => void;
   onDisconnect?: () => void;
   maxReconnectAttempts?: number;
@@ -263,6 +281,57 @@ export class OpencodeSSEClient {
       return;
     }
 
+    // Directly create EventSource - don't pre-check
+    this.createEventSource();
+  }
+
+  private async checkForProxyError(): Promise<boolean> {
+    const abortController = new AbortController();
+    try {
+      // Only called when EventSource errors - check if it's a JSON error envelope
+      const response = await fetch(this.options.url, {
+        method: "GET",
+        headers: {
+          Accept: "text/event-stream",
+        },
+        signal: abortController.signal,
+      });
+
+      const contentType = response.headers.get("content-type");
+      
+      // If server returns JSON, it's an error envelope
+      if (contentType?.includes("application/json")) {
+        const data = await response.json();
+        if (data.error && typeof data.error === "object") {
+          const proxyError = data.error as SseProxyError;
+          devError("[SSE] Proxy returned error:", proxyError);
+          
+          this.state = {
+            ...this.state,
+            connected: false,
+            error: `Upstream error: ${proxyError.status} - ${proxyError.contentType || "unknown"}`,
+          };
+
+          this.options.onProxyError?.(proxyError);
+          
+          // Don't retry for proxy errors - they indicate configuration issues
+          this.options.onDisconnect?.();
+          return true;
+        }
+      }
+
+      // Response is not a JSON error - abort the probe to avoid ghost connection
+      abortController.abort();
+      return false;
+    } catch {
+      // Abort the connection if still active
+      abortController.abort();
+      // Network error - let EventSource handle it
+      return false;
+    }
+  }
+
+  private createEventSource(): void {
     try {
       this.eventSource = new EventSource(this.options.url, {
         withCredentials: this.options.withCredentials,
@@ -290,7 +359,7 @@ export class OpencodeSSEClient {
         }
       };
 
-      this.eventSource.onerror = (error) => {
+      this.eventSource.onerror = async (error) => {
         devError("[SSE] Connection error:", error);
         this.state = {
           ...this.state,
@@ -299,7 +368,15 @@ export class OpencodeSSEClient {
         };
 
         this.options.onError?.(new Error("SSE connection failed"));
-        this.handleReconnection();
+        
+        // Check if this is a proxy error (JSON response instead of SSE)
+        // This only happens on error, not on every successful connection
+        const isProxyError = await this.checkForProxyError();
+        
+        // Don't attempt reconnection if it's a proxy error (fatal condition)
+        if (!isProxyError) {
+          this.handleReconnection();
+        }
       };
     } catch (error) {
       devError("[SSE] Failed to create EventSource:", error);

@@ -1,4 +1,5 @@
 import React from "react";
+import { Button } from "./button";
 
 interface HamburgerMenuProps {
   isOpen: boolean;
@@ -10,46 +11,33 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
   onClick,
 }) => {
   return (
-    <button
+    <Button
+      variant="foreground1"
+      box="round"
+      size="small"
       onClick={onClick}
-      className="md:hidden flex flex-col justify-center items-center p-2 transition-opacity"
-      onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = "var(--theme-primaryHover)";
-        e.currentTarget.style.borderColor = "var(--theme-primaryHover)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = "var(--theme-primary)";
-        e.currentTarget.style.borderColor = "var(--theme-primary)";
-      }}
-      aria-label="Toggle menu"
-      style={{
-        minWidth: "44px",
-        minHeight: "44px",
-        gap: "6px",
-        backgroundColor: "var(--theme-primary)",
-        border: "1px solid var(--theme-primary)",
-        borderRadius: "0",
-        color: "var(--theme-background)",
-      }}
+      className="md:!hidden px-2 min-w-[44px]"
+      aria-label="Toggle navigation menu"
+      aria-expanded={isOpen}
+      aria-controls="mobile-sidebar"
     >
-      <span
-        className={`block w-6 h-0.5 transition-all duration-300 ${
-          isOpen ? "rotate-45 translate-y-[8px]" : ""
-        }`}
-        style={{ backgroundColor: "var(--theme-background)" }}
-      />
-      <span
-        className={`block w-6 h-0.5 transition-opacity duration-300 ${
-          isOpen ? "opacity-0" : ""
-        }`}
-        style={{ backgroundColor: "var(--theme-background)" }}
-      />
-      <span
-        className={`block w-6 h-0.5 transition-all duration-300 ${
-          isOpen ? "-rotate-45 -translate-y-[8px]" : ""
-        }`}
-        style={{ backgroundColor: "var(--theme-background)" }}
-      />
-    </button>
+      <div className="flex flex-col gap-[6px] justify-center items-center w-6">
+        <span
+          className={`block w-6 h-0.5 bg-current transition-all duration-300 ${
+            isOpen ? "rotate-45 translate-y-[8px]" : ""
+          }`}
+        />
+        <span
+          className={`block w-6 h-0.5 bg-current transition-opacity duration-300 ${
+            isOpen ? "opacity-0" : ""
+          }`}
+        />
+        <span
+          className={`block w-6 h-0.5 bg-current transition-all duration-300 ${
+            isOpen ? "-rotate-45 -translate-y-[8px]" : ""
+          }`}
+        />
+      </div>
+    </Button>
   );
 };

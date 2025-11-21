@@ -1,0 +1,165 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "theme": "dracula",
+  "model": "anthropic/claude-3.5-sonnet",
+  "small_model": "anthropic/claude-3-haiku",
+  "share": "manual",
+  "autoupdate": true,
+  "snapshot": true,
+  "username": "developer",
+  "disabled_providers": ["google"],
+  "plugin": ["github", "mcp"],
+  "instructions": ["./docs/instructions.md"],
+  "agent": {
+    "code-reviewer": {
+      "model": "anthropic/claude-3.5-sonnet",
+      "description": "Specialized agent for code review tasks",
+      "prompt": "You are an expert code reviewer. Focus on code quality, security, and best practices.",
+      "temperature": 0.3,
+      "topP": 0.8
+    },
+    "documentation": {
+      "model": "anthropic/claude-3-haiku",
+      "description": "Agent for documentation tasks",
+      "prompt": "You are a technical writer. Create clear, comprehensive documentation.",
+      "temperature": 0.7,
+      "topP": 0.9
+    }
+  },
+  "command": {
+    "refactor": {
+      "description": "Refactor code for better structure and readability",
+      "agent": "code-reviewer",
+      "model": "anthropic/claude-3.5-sonnet",
+      "prompt": "Refactor the provided code to improve structure, readability, and maintainability.",
+      "trigger": ["refactor", "improve"]
+    },
+    "document": {
+      "description": "Generate documentation for code",
+      "agent": "documentation",
+      "model": "anthropic/claude-3-haiku",
+      "prompt": "Create comprehensive documentation for the provided code.",
+      "trigger": ["document", "docs"]
+    }
+  },
+  "provider": {
+    "openai": {
+      "api": "https://api.openai.com/v1",
+      "models": {
+        "gpt-4": {
+          "name": "GPT-4",
+          "cost": { "input": 0.03, "output": 0.06 },
+          "limit": { "context": 8192, "output": 4096 }
+        }
+      },
+      "options": {
+        "apiKey": "sk-...",
+        "timeout": 300000
+      }
+    }
+  },
+  "permission": {
+    "edit": "ask",
+    "bash": "ask",
+    "webfetch": "ask"
+  },
+  "tools": {
+    "bash": true,
+    "read": true,
+    "write": true,
+    "edit": true,
+    "glob": true,
+    "grep": true,
+    "list": true,
+    "webfetch": true,
+    "task": true,
+    "todowrite": true,
+    "todoread": true
+  },
+  "experimental": {
+    "chatMaxRetries": 3,
+    "disable_paste_summary": false,
+    "hook": {
+      "file_edited": [
+        {
+          "command": ["echo", "File edited: $FILE"],
+          "environment": { "VAR": "value" }
+        }
+      ],
+      "session_completed": [
+        {
+          "command": ["echo", "Session completed"],
+          "environment": { "VAR": "value" }
+        }
+      ]
+    }
+  },
+  "mcp": {
+    "weather": {
+      "type": "local",
+      "command": ["bun", "x", "@h1deya/mcp-server-weather"],
+      "environment": { "API_KEY": "weather-api-key" },
+      "enabled": true,
+      "timeout": 5000
+    },
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {
+        "CONTEXT7_API_KEY": "{env:CONTEXT7_API_KEY}"
+      },
+      "enabled": true,
+      "timeout": 5000
+    }
+  },
+  "lsp": {
+    "typescript": {
+      "command": ["typescript-language-server", "--stdio"],
+      "extensions": [".ts", ".tsx", ".js", ".jsx"],
+      "environment": { "NODE_ENV": "production" },
+      "initialization": {
+        "typescript": {
+          "preferences": {
+            "includeInlayParameterNameHints": "all"
+          }
+        }
+      }
+    },
+    "python": {
+      "disabled": true
+    }
+  },
+  "keybinds": {
+    "leader": "ctrl+x",
+    "app_exit": "ctrl+c,ctrl+d,<leader>q",
+    "editor_open": "<leader>e",
+    "theme_list": "<leader>t",
+    "sidebar_toggle": "<leader>b",
+    "status_view": "<leader>s",
+    "session_new": "<leader>n",
+    "session_list": "<leader>l",
+    "session_share": "none",
+    "session_unshare": "none",
+    "session_compact": "<leader>c",
+    "messages_copy": "<leader>y",
+    "messages_undo": "<leader>u",
+    "messages_redo": "<leader>r",
+    "model_list": "<leader>m",
+    "model_cycle_recent": "f2",
+    "command_list": "ctrl+p",
+    "agent_list": "<leader>a",
+    "agent_cycle": "tab",
+    "agent_cycle_reverse": "shift+tab",
+    "input_clear": "ctrl+c",
+    "input_submit": "return",
+    "history_previous": "up",
+    "history_next": "down"
+  },
+  "tui": {
+    "scroll_speed": 2
+  },
+  "features": {
+    "enableMarkdown": true,
+    "enableMarkdownImages": false
+  }
+}

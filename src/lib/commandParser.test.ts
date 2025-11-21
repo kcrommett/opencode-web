@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import type { Command } from "@/types/opencode";
 import { parseCommand } from "./commandParser";
-import { runCommand } from "./opencode-http-api";
 
 describe("commandParser", () => {
   describe("shell command parsing", () => {
@@ -186,6 +185,11 @@ describe("opencode-http-api runCommand", () => {
     globalThis.fetch = originalFetch;
   });
 
+  const importRunCommand = async () => {
+    const module = await import("./opencode-http-api?actual");
+    return module.runCommand;
+  };
+
   const createMockResponse = () =>
     new Response("{}", {
       status: 200,
@@ -200,6 +204,7 @@ describe("opencode-http-api runCommand", () => {
       return Promise.resolve(createMockResponse());
     }) as typeof fetch;
 
+    const runCommand = await importRunCommand();
     await runCommand("session-123", "ls", undefined, "/tmp/worktree");
 
     expect(recordedCalls).toHaveLength(1);
@@ -220,6 +225,7 @@ describe("opencode-http-api runCommand", () => {
       return Promise.resolve(createMockResponse());
     }) as typeof fetch;
 
+    const runCommand = await importRunCommand();
     await runCommand("session-abc", "ls", [], "/tmp/worktree");
 
     expect(recordedCalls).toHaveLength(1);
@@ -241,6 +247,7 @@ describe("opencode-http-api runCommand", () => {
       return Promise.resolve(createMockResponse());
     }) as typeof fetch;
 
+    const runCommand = await importRunCommand();
     await runCommand(
       "session-agent",
       "ls",

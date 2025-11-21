@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
+import { OpencodeHttpError } from "./opencode-http-api";
 import * as httpApi from "./opencode-http-api";
+import { updateConfigFileLocal, readConfigFromScope } from "./config-file";
 import type {
   Agent,
   Part,
@@ -8,12 +10,19 @@ import type {
   PermissionResponse,
   SessionDiffResponse,
   SessionForkResponse,
+  OpencodeConfig,
   TuiEvent,
   TuiControlRequest,
   TuiControlResponse,
   LspStatus,
   FormatterStatus,
 } from "../types/opencode";
+
+const configFallbackScopes = new Set<string>();
+const getScopeKey = (scope: "global" | "project", directory?: string) =>
+  scope === "project" ? `project:${directory ?? ""}` : "global";
+
+type ValidationStatus = "ok" | "missing" | "error" | "unknown";
 
 export const getAgents = createServerFn({ method: "GET" }).handler(async () => {
   return httpApi.getAgents();
@@ -265,9 +274,46 @@ export const respondToPermission = createServerFn({ method: "POST" })
     );
   });
 
-export const getConfig = createServerFn({ method: "GET" }).handler(async () => {
-  return httpApi.getConfig();
-});
+export const getConfig = createServerFn({ method: "GET" })
+  .inputValidator(
+    (data?: { directory?: string; scope?: "global" | "project" }) =>
+      data ?? {},
+  )
+  .handler(async ({ data }) => {
+    const scope = data.scope ?? (data.directory ? "project" : "global");
+    if (scope === "project" && !data.directory) {
+      throw new Error(
+        "Project directory is required when requesting project-scoped config",
+      );
+    }
+
+    const scopeDirectory = scope === "project" ? data.directory : undefined;
+    const key = getScopeKey(scope, scopeDirectory);
+
+    if (configFallbackScopes.has(key)) {
+      const fallback = await readConfigFromScope(scope, scopeDirectory);
+      return fallback ?? ({} as OpencodeConfig);
+    }
+
+    try {
+      const config = await httpApi.getConfig({
+        scope,
+        directory: scopeDirectory,
+      });
+      configFallbackScopes.delete(key);
+      return config;
+    } catch (error) {
+      if (error instanceof OpencodeHttpError && error.status >= 500) {
+        console.warn(
+          `[config] Remote get failed (${error.message}). Reading ${scope} config directly from file.`,
+        );
+        const fallback = await readConfigFromScope(scope, scopeDirectory);
+        configFallbackScopes.add(key);
+        return fallback ?? ({} as OpencodeConfig);
+      }
+      throw error;
+    }
+  });
 
 export const getSessionChildren = createServerFn({ method: "GET" })
   .inputValidator((data: { sessionId: string; directory?: string }) => data)
@@ -431,6 +477,76 @@ export const getTools = createServerFn({ method: "GET" })
     return httpApi.getTools(data.provider, data.model, data.directory);
   });
 
+export const validateProjectWorktrees = createServerFn({ method: "POST" })
+  .inputValidator((data?: { worktrees?: string[] }) => ({
+    worktrees: data?.worktrees ?? [],
+  }))
+  .handler(async ({ data }) => {
+    const { worktrees } = data;
+
+    if (!Array.isArray(worktrees)) {
+      throw new Error("worktrees must be an array");
+    }
+
+    if (worktrees.length === 0) {
+      return { existing: {} };
+    }
+
+    // Deduplicate paths
+    // We do NOT use path.resolve() here because the paths are on the OpenCode server,
+    // which might be on a different host with a different filesystem structure.
+    const uniquePaths = Array.from(
+      new Set(
+        worktrees
+          .filter((p): p is string => typeof p === "string" && p.length > 0),
+      ),
+    );
+
+    const results: Record<string, ValidationStatus> = {};
+
+    // Process paths concurrently with a cap of 5 at a time
+    const concurrencyLimit = 5;
+    for (let i = 0; i < uniquePaths.length; i += concurrencyLimit) {
+      const batch = uniquePaths.slice(i, i + concurrencyLimit);
+
+      const batchPromises = batch.map(async (p) => {
+        try {
+          // Use listFiles with directory scoped to the worktree; path "." to avoid absolute issues
+          await httpApi.listFiles(".", p);
+          return { path: p, status: "ok" as const };
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          const normalizedErrorMessage = errorMessage.toLowerCase();
+          const statusCode =
+            error instanceof OpencodeHttpError ? error.status : undefined;
+          const isMissing =
+            statusCode === 404 ||
+            (typeof statusCode === "number" && statusCode >= 500) ||
+            normalizedErrorMessage.includes("not found") ||
+            normalizedErrorMessage.includes("404") ||
+            normalizedErrorMessage.includes("enoent") ||
+            normalizedErrorMessage.includes("internal server error");
+
+          const status = isMissing ? ("missing" as const) : ("unknown" as const);
+
+          if (process.env.NODE_ENV !== "production" && status === "unknown") {
+            console.warn(`[validateProjectWorktrees] Non-missing error for ${p}:`, error);
+          }
+
+          return { path: p, status };
+        }
+      });
+
+      const batchResults = await Promise.all(batchPromises);
+
+      batchResults.forEach(({ path: p, status }) => {
+        results[p] = status;
+      });
+    }
+
+    return { existing: results };
+  });
 export const getCommands = createServerFn({ method: "GET" })
   .inputValidator((data?: { directory?: string }) => data ?? {})
   .handler(async ({ data }) => {
@@ -439,10 +555,44 @@ export const getCommands = createServerFn({ method: "GET" })
 
 export const updateConfig = createServerFn({ method: "POST" })
   .inputValidator(
-    (data: { config: Record<string, unknown>; directory?: string }) => data,
+    (data: {
+      config: Record<string, unknown>;
+      directory?: string;
+      scope?: "global" | "project"
+    }) => data,
   )
   .handler(async ({ data }) => {
-    return httpApi.updateConfig(data.config, data.directory);
+    const resolvedScope = data.scope ?? (data.directory ? "project" : "global");
+    if (resolvedScope === "project" && !data.directory) {
+      throw new Error(
+        "Project directory is required for project-scoped config updates",
+      );
+    }
+    const scopeDirectory =
+      resolvedScope === "project" ? data.directory : undefined;
+    const scopeKey = getScopeKey(resolvedScope, scopeDirectory);
+    try {
+      const result = await httpApi.updateConfig(data.config, {
+        directory: scopeDirectory,
+        scope: resolvedScope,
+      });
+      configFallbackScopes.delete(scopeKey);
+      return result as any;
+    } catch (error) {
+      if (error instanceof OpencodeHttpError && error.status >= 500) {
+        console.warn(
+          `[config] Remote update failed (${error.message}). Attempting local config file update for ${resolvedScope} scope.`,
+        );
+        const fallback = await updateConfigFileLocal(
+          data.config,
+          resolvedScope,
+          scopeDirectory,
+        );
+        configFallbackScopes.add(scopeKey);
+        return fallback as any;
+      }
+      throw error;
+    }
   });
 
 export const setAuth = createServerFn({ method: "POST" })

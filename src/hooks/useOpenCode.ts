@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { flushSync } from "react-dom";
 import { openCodeService, handleOpencodeError } from "@/lib/opencode-client";
@@ -8,11 +9,14 @@ import { shouldDecodeAsText as checkIfText } from "@/lib/mime-utils";
 import { searchSessions, SessionFilters } from "@/lib/session-index";
 import { normalizeDiagnostics } from "@/lib/status-utils";
 import { generateUnifiedDiff } from "@/lib/diff-utils";
+import { getPermissionForPart, normalizeToolStatus } from "@/lib/tool-helpers";
+import { validateProjectWorktrees } from "@/lib/opencode-server-fns";
 import type {
   Agent,
   FileContentData,
   Part,
   PermissionState,
+  PermissionRequest,
   SessionTodo,
   OpencodeConfig,
   Command,
@@ -49,6 +53,35 @@ const normalizeProjectRelativePath = (inputPath: string): string | null => {
   return normalized || null;
 };
 
+type PermissionLike = PermissionState & {
+  timestamp?: number;
+  status?: PermissionRequest["status"];
+};
+
+const toPermissionRequest = (permission: PermissionLike): PermissionRequest => ({
+  ...permission,
+  status: permission.status ?? "pending",
+  timestamp:
+    typeof permission.timestamp === "number"
+      ? permission.timestamp
+      : Date.now(),
+});
+
+const getPartStartTimestamp = (part: Part): number | null => {
+  const stateTimings = (part as { state?: { timings?: { startTime?: number } } })
+    .state?.timings;
+  if (stateTimings && typeof stateTimings.startTime === "number") {
+    return stateTimings.startTime;
+  }
+
+  const partTimings = (part as { timings?: { startTime?: number } }).timings;
+  if (partTimings && typeof partTimings.startTime === "number") {
+    return partTimings.startTime;
+  }
+
+  return null;
+};
+
 type SessionSearchState = {
   query: string;
   filters: SessionFilters;
@@ -58,6 +91,8 @@ const defaultSessionFilters: SessionFilters = {
   sortBy: "updated",
   sortOrder: "desc",
 };
+
+type ValidationStatus = "ok" | "missing" | "error" | "unknown";
 
 const createDefaultSessionSearchState = (): SessionSearchState => ({
   query: "",
@@ -193,6 +228,7 @@ interface Project {
   };
   createdAt?: Date;
   updatedAt?: Date;
+  health?: "ok" | "missing" | "unknown";
 }
 
 interface FileInfo {
@@ -209,6 +245,11 @@ interface Model {
   providerID: string;
   modelID: string;
   name: string;
+}
+
+interface ConfigTargetsState {
+  global?: string;
+  project: Record<string, string>;
 }
 
 type OverlayState = {
@@ -233,6 +274,15 @@ const FALLBACK_MODEL: Model = {
   modelID: "big-pickle",
   name: "opencode/big-pickle",
 };
+
+const PERMISSION_EXPIRATION_MS = 10 * 60 * 1000;
+const PROJECT_VALIDATION_STORAGE_KEY = "opencode-project-validation";
+
+const buildPermissionStorageKey = (sessionId: string): string =>
+  `opencode-permissions-${sessionId}`;
+
+const isPermissionExpired = (permission: PermissionRequest): boolean =>
+  Date.now() - permission.timestamp > PERMISSION_EXPIRATION_MS;
 
 type ModelPreference =
   | Model
@@ -330,8 +380,8 @@ interface ProvidersData {
     id: string;
     name?: string;
     models?:
-      | { id: string; name?: string }[]
-      | Record<string, { name?: string; [key: string]: unknown }>;
+    | { id: string; name?: string }[]
+    | Record<string, { name?: string;[key: string]: unknown }>;
   }[];
   default?: { [key: string]: string };
 }
@@ -373,7 +423,7 @@ export function useOpenCode() {
   const mountCountRef = useRef(0);
   const didMountRef = useRef(false);
   const initializedRef = useRef(false);
-  
+
   if (isDevEnvironment) {
     if (!didMountRef.current) {
       performance.mark('useOpenCode-start');
@@ -385,19 +435,19 @@ export function useOpenCode() {
       initializedRef.current = true;
     }
   }
-  
+
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [sessions, setSessions] = useState<Session[]>([]);
-  
+
   // Session search state
   const [sessionSearchState, setSessionSearchState] = useState<SessionSearchState>(
     () => createDefaultSessionSearchState(),
   );
   const sessionSearchQuery = sessionSearchState.query;
   const sessionFilters = sessionSearchState.filters;
-  
+
 
   const setSessionSearchQuery = useCallback(
     (next: string | ((prev: string) => string)) => {
@@ -432,7 +482,7 @@ export function useOpenCode() {
     },
     [],
   );
-  
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [files, setFiles] = useState<FileInfo[]>([]);
@@ -440,13 +490,143 @@ export function useOpenCode() {
   const [models, setModels] = useState<Model[]>([]);
   const modelsRef = useRef<Model[]>([]);
 
+  // Validation cache and persistence
+  const validationCacheRef = useRef<Record<string, ValidationStatus>>({});
+
+  const persistValidationToStorage = useCallback((cache: Record<string, ValidationStatus>) => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem(PROJECT_VALIDATION_STORAGE_KEY, JSON.stringify({
+        cache,
+        timestamp: Date.now()
+      }));
+    } catch (e) {
+      if (process.env.NODE_ENV !== "production") {
+        console.error("Failed to persist validation cache:", e);
+      }
+    }
+  }, []);
+
+  const restoreValidationFromStorage = useCallback(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const stored = localStorage.getItem(PROJECT_VALIDATION_STORAGE_KEY);
+      if (stored) {
+        const { cache, timestamp } = JSON.parse(stored);
+        // Expire cache after 24 hours
+        if (Date.now() - timestamp < 24 * 60 * 60 * 1000) {
+          validationCacheRef.current = cache;
+        }
+      }
+    } catch (e) {
+      if (process.env.NODE_ENV !== "production") {
+        console.error("Failed to restore validation cache:", e);
+      }
+    }
+  }, []);
+
+  // Initialize validation cache from storage
+  useEffect(() => {
+    restoreValidationFromStorage();
+  }, [restoreValidationFromStorage]);
+
+  const normalizeWorktree = useCallback((worktree: string): string => {
+    // Robust path normalization for worktree paths.
+    // Removes redundant slashes, '.' segments, and collapses '..' where possible.
+    // Does NOT resolve to absolute paths or remove leading '..' to respect remote/virtual filesystems.
+    const normalizePathSegments = (input: string): string => {
+      const parts = input.split('/'); // Always use POSIX-style for remote/virtual
+      const stack: string[] = [];
+      for (const part of parts) {
+        if (!part || part === ".") continue;
+        if (part === "..") {
+          if (stack.length && stack[stack.length - 1] !== "..") {
+            stack.pop();
+          } else {
+            stack.push("..");
+          }
+        } else {
+          stack.push(part);
+        }
+      }
+      return stack.join("/");
+    };
+    
+    // Avoid trailing slashes and normalize path segments for consistent lookups
+    const noTrailing = worktree.replace(/\/+$/, "");
+    return normalizePathSegments(noTrailing);
+  }, []);
+
+  const applyValidationToProjects = useCallback(
+    (
+      projectList: Project[],
+      validationMap?: Record<string, ValidationStatus>,
+    ): { filtered: Project[]; withHealth: Project[] } => {
+      const map = validationMap ?? validationCacheRef.current;
+
+      const withHealth = projectList.map((p) => {
+        const normalized = normalizeWorktree(p.worktree);
+        const status = map[normalized];
+        const health =
+          status === "ok" || status === "missing"
+            ? status
+            : (p.health ?? "unknown");
+
+        return { ...p, health };
+      });
+
+      const filtered = withHealth.filter(
+        (p) => p.health !== "missing" || p.id === currentProject?.id,
+      );
+
+      return { filtered, withHealth };
+    },
+    [currentProject?.id, normalizeWorktree],
+  );
+
+  const runWorktreeValidation = useCallback(async (worktrees: string[]) => {
+    // Filter out worktrees that are already known to be missing or ok, unless forced?
+    // For now, we validate all provided worktrees to ensure freshness, 
+    // but we could optimize to only validate unknown ones if needed.
+    // Given the requirement to filter non-existent projects, we should probably validate.
+
+    // However, to avoid spamming, we can check if we recently validated.
+    // But the user might have just mounted the drive.
+
+    try {
+      const result = await validateProjectWorktrees({ data: { worktrees } });
+      const existing = result.existing as Record<string, ValidationStatus>;
+
+      // Normalize all paths for consistent cache lookups
+      const normalizedResults: Record<string, ValidationStatus> = {};
+      Object.entries(existing).forEach(([path, status]) => {
+        const normalized = normalizeWorktree(path);
+        normalizedResults[normalized] = status;
+      });
+
+      const newCache: Record<string, ValidationStatus> = {
+        ...validationCacheRef.current,
+        ...normalizedResults,
+      };
+      validationCacheRef.current = newCache;
+      persistValidationToStorage(newCache);
+
+      return newCache;
+    } catch (error) {
+      if (process.env.NODE_ENV !== "production") {
+        console.error("Failed to validate worktrees:", error);
+      }
+      return validationCacheRef.current;
+    }
+  }, [normalizeWorktree, persistValidationToStorage]);
+
   // Computed filtered sessions based on search query and filters
   const filteredSessions = useMemo(() => {
     // If no search query and no active filters, return all sessions
     if (!sessionSearchQuery && !sessionFilters.dateFrom && !sessionFilters.dateTo && !sessionFilters.projectID && !sessionFilters.sortBy) {
       return sessions;
     }
-    
+
     // Apply search and filters
     return searchSessions(sessions, {
       text: sessionSearchQuery,
@@ -455,13 +635,74 @@ export function useOpenCode() {
   }, [sessions, sessionSearchQuery, sessionFilters]);
 
   // Permission and todo state
-  const [currentPermission, setCurrentPermission] =
-    useState<PermissionState | null>(null);
-  const [shouldBlurEditor, setShouldBlurEditor] = useState(false);
+  const [permissionQueue, setPermissionQueue] =
+    useState<PermissionRequest[]>([]);
+  const permissionQueueRef = useRef<PermissionRequest[]>([]);
+  const derivedPermissionsRef = useRef<Set<string>>(new Set());
   const [currentSessionTodos, setCurrentSessionTodos] = useState<SessionTodo[]>(
     [],
   );
-  
+
+  const addPermission = useCallback((permission: PermissionLike) => {
+    setPermissionQueue((prev) => {
+      const normalizedPermission = toPermissionRequest(permission);
+
+      const existingIndex = prev.findIndex(
+        (item) => item.id === normalizedPermission.id,
+      );
+
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          ...normalizedPermission,
+        };
+        return updated.sort((a, b) => a.timestamp - b.timestamp);
+      }
+
+      const nextQueue = [...prev, normalizedPermission];
+      return nextQueue.sort((a, b) => a.timestamp - b.timestamp);
+    });
+  }, []);
+
+  const removePermission = useCallback((permissionId: string) => {
+    setPermissionQueue((prev) =>
+      prev.filter((permission) => permission.id !== permissionId),
+    );
+  }, []);
+
+  const getPermissionById = useCallback(
+    (permissionId: string) =>
+      permissionQueue.find((permission) => permission.id === permissionId) ??
+      null,
+    [permissionQueue],
+  );
+
+  const restorePermissionsFromStorage = useCallback(
+    (sessionId: string) => {
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      const key = buildPermissionStorageKey(sessionId);
+      const stored = localStorage.getItem(key);
+      if (!stored) {
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(stored) as PermissionRequest[];
+        parsed
+          .filter((permission) => !isPermissionExpired(permission))
+          .forEach((permission) => addPermission(permission));
+      } catch (error) {
+        console.error("Failed to restore permission queue:", error);
+        localStorage.removeItem(key);
+      }
+    },
+    [addPermission],
+  );
+
   // Session diffs fetched from API (fallback to converted summary diffs)
   const [currentSessionDiffs, setCurrentSessionDiffs] =
     useState<SessionDiffResponse>([]);
@@ -506,7 +747,18 @@ export function useOpenCode() {
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
 
   const [config, setConfig] = useState<OpencodeConfig | null>(null);
+  const [globalConfig, setGlobalConfig] = useState<OpencodeConfig | null>(null);
+  const [projectConfig, setProjectConfig] = useState<OpencodeConfig | null>(null);
+  const [configTargets, setConfigTargets] = useState<ConfigTargetsState>({
+    project: {},
+  });
+  const configRef = useRef<OpencodeConfig | null>(null);
+  const globalConfigRef = useRef<OpencodeConfig | null>(null);
+  const projectConfigRef = useRef<OpencodeConfig | null>(null);
   const [configLoading, setConfigLoading] = useState(true);
+  const configRequestIdRef = useRef(0);
+  const lastConfigDirectoryRef = useRef<string | undefined>(undefined);
+  const configReloadRef = useRef<(() => void) | null>(null);
   const [commands, setCommands] = useState<Command[]>([]);
   const [commandsLoading, setCommandsLoading] = useState(false);
   const [currentPath, setCurrentPath] = useState<string>("");
@@ -526,10 +778,52 @@ export function useOpenCode() {
     }
     return [];
   });
+  const registerConfigTarget = useCallback(
+    (scope: "global" | "project", filepath: string, directory?: string) => {
+      setConfigTargets((prev) => {
+        if (scope === "global") {
+          if (prev.global === filepath) {
+            return prev;
+          }
+          return { ...prev, global: filepath };
+        }
+
+        if (!directory) {
+          return prev;
+        }
+
+        const existing = prev.project[directory];
+        if (existing === filepath) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          project: {
+            ...prev.project,
+            [directory]: filepath,
+          },
+        };
+      });
+    },
+    [],
+  );
   const [sessionActivity, setSessionActivity] = useState<
     Record<string, { running: boolean; lastUpdated: number }>
   >({});
   const [abortInFlight, setAbortInFlight] = useState(false);
+
+  useEffect(() => {
+    configRef.current = config;
+  }, [config]);
+
+  useEffect(() => {
+    globalConfigRef.current = globalConfig;
+  }, [globalConfig]);
+
+  useEffect(() => {
+    projectConfigRef.current = projectConfig;
+  }, [projectConfig]);
 
   useEffect(() => {
     setFileDirectory(".");
@@ -597,6 +891,7 @@ export function useOpenCode() {
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [sseConnectionState, setSseConnectionState] =
     useState<SSEConnectionState | null>(null);
+  const isSseConnected = sseConnectionState?.connected ?? false;
   const [isStreaming, setIsStreaming] = useState(false);
   const streamingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [messageQueue, setMessageQueue] = useState<Message[]>([]);
@@ -658,6 +953,7 @@ export function useOpenCode() {
 
   const [loadedModels, setLoadedModels] = useState(false);
   const [loadedConfig, setLoadedConfig] = useState(false);
+  const loadedConfigRef = useRef(loadedConfig);
   const [loadedCustomCommands, setLoadedCustomCommands] = useState(false);
   const loadedAgentsRef = useRef(false);
   const loadedProjectsRef = useRef(false);
@@ -665,11 +961,20 @@ export function useOpenCode() {
   const loadedCommandsRef = useRef(false);
   const seenMessageIdsRef = useRef<Set<string>>(new Set());
   const currentSessionRef = useRef<Session | null>(null);
+  const currentProjectRef = useRef<Project | null>(null);
   const manualModelSelectionRef = useRef(false);
 
   useEffect(() => {
     currentSessionRef.current = currentSession;
   }, [currentSession]);
+
+  useEffect(() => {
+    currentProjectRef.current = currentProject ?? null;
+  }, [currentProject]);
+
+  useEffect(() => {
+    loadedConfigRef.current = loadedConfig;
+  }, [loadedConfig]);
 
   useEffect(() => {
     modelsRef.current = models;
@@ -678,6 +983,22 @@ export function useOpenCode() {
   useEffect(() => {
     manualModelSelectionRef.current = false;
   }, [currentSession?.id]);
+
+  useEffect(() => {
+    permissionQueueRef.current = permissionQueue;
+  }, [permissionQueue]);
+
+  useEffect(() => {
+    derivedPermissionsRef.current.clear();
+    setPermissionQueue([]);
+  }, [currentSession?.id]);
+
+  useEffect(() => {
+    if (!currentSession?.id) {
+      return;
+    }
+    restorePermissionsFromStorage(currentSession.id);
+  }, [currentSession?.id, restorePermissionsFromStorage]);
 
   useEffect(() => {
     manualModelSelectionRef.current = false;
@@ -759,7 +1080,7 @@ export function useOpenCode() {
     // Delay showing loading state to prevent flash on fast responses
     const LOADING_DELAY = 200; // ms
     let showLoading = false;
-    
+
     const loadingTimer = setTimeout(() => {
       showLoading = true;
       setSidebarStatus((prev) => ({
@@ -844,7 +1165,7 @@ export function useOpenCode() {
 
   const refreshGitStatus = useCallback(async () => {
     if (!currentProject?.worktree) return;
-    
+
     try {
       const response = await openCodeService.getFileStatus(currentProject.worktree);
       // API returns array of file status objects: [{ path, status, added, removed }]
@@ -854,14 +1175,14 @@ export function useOpenCode() {
         added?: number;
         removed?: number;
       }> | undefined;
-      
+
       if (fileStatusArray) {
         // Transform array into separate arrays by status
         const staged: string[] = [];
         const modified: string[] = [];
         const untracked: string[] = [];
         const deleted: string[] = [];
-        
+
         fileStatusArray.forEach((file) => {
           const normalizedPath = normalizeProjectRelativePath(file.path);
           if (!normalizedPath) {
@@ -896,7 +1217,7 @@ export function useOpenCode() {
               }
           }
         });
-        
+
         setSidebarStatus((prev) => ({
           ...prev,
           gitStatus: {
@@ -1097,7 +1418,7 @@ export function useOpenCode() {
                 ? new Date(session.time.updated)
                 : undefined,
             });
-            
+
             // Extract session diffs
             await syncSessionDiffs(session.id, {
               summaryFallback: session.summary?.diffs ?? null,
@@ -1128,21 +1449,21 @@ export function useOpenCode() {
                     timestamp: new Date(msg.info?.time?.created || Date.now()),
                     metadata:
                       msg.info?.role === "assistant" &&
-                      "tokens" in (msg.info || {})
+                        "tokens" in (msg.info || {})
                         ? {
-                            tokens: (
-                              msg.info as {
-                                tokens?: {
-                                  input: number;
-                                  output: number;
-                                  reasoning: number;
-                                };
-                              }
-                            ).tokens,
-                            cost: (msg.info as { cost?: number }).cost,
-                            model: (msg.info as { modelID?: string }).modelID,
-                            agent: (msg.info as { mode?: string }).mode,
-                          }
+                          tokens: (
+                            msg.info as {
+                              tokens?: {
+                                input: number;
+                                output: number;
+                                reasoning: number;
+                              };
+                            }
+                          ).tokens,
+                          cost: (msg.info as { cost?: number }).cost,
+                          model: (msg.info as { modelID?: string }).modelID,
+                          agent: (msg.info as { mode?: string }).mode,
+                        }
                         : undefined,
                   };
                 },
@@ -1230,7 +1551,7 @@ export function useOpenCode() {
   useEffect(() => {
     const checkConnection = async () => {
       try {
-        const response = await openCodeService.getConfig();
+        const response = await openCodeService.getConfig({ scope: "global" });
         setIsConnected(!!response.data);
       } catch {
         setIsConnected(false);
@@ -1307,19 +1628,19 @@ export function useOpenCode() {
               metadata:
                 "tokens" in (msg.info || {})
                   ? {
-                      tokens: (
-                        msg.info as {
-                          tokens?: {
-                            input: number;
-                            output: number;
-                            reasoning: number;
-                          };
-                        }
-                      ).tokens,
-                      cost: (msg.info as { cost?: number }).cost,
-                      model: (msg.info as { modelID?: string }).modelID,
-                      agent: (msg.info as { mode?: string }).mode,
-                    }
+                    tokens: (
+                      msg.info as {
+                        tokens?: {
+                          input: number;
+                          output: number;
+                          reasoning: number;
+                        };
+                      }
+                    ).tokens,
+                    cost: (msg.info as { cost?: number }).cost,
+                    model: (msg.info as { modelID?: string }).modelID,
+                    agent: (msg.info as { mode?: string }).mode,
+                  }
                   : undefined,
               optimistic: false,
               error: Boolean(errorInfo),
@@ -1408,10 +1729,10 @@ export function useOpenCode() {
             usageTotalsBase.totalTokens > 0
               ? usageTotalsBase.totalTokens
               : usageTotalsBase.input +
-                usageTotalsBase.output +
-                usageTotalsBase.reasoning +
-                usageTotalsBase.cacheRead +
-                usageTotalsBase.cacheWrite,
+              usageTotalsBase.output +
+              usageTotalsBase.reasoning +
+              usageTotalsBase.cacheRead +
+              usageTotalsBase.cacheWrite,
         };
 
         setSessionUsage((prev) => {
@@ -1625,7 +1946,7 @@ export function useOpenCode() {
               activeSessionId: activeSession?.id,
               eventSessionId: sessionId,
             });
-            
+
             if (messageQueueRef.current.length > 0 && processNextInQueueRef.current) {
               debugLog("[SSE] Processing next queued message after idle");
               processNextInQueueRef.current();
@@ -1648,7 +1969,7 @@ export function useOpenCode() {
           if (sessionId) {
             markSessionIdle(sessionId);
           }
-          
+
           // Update session context with error
           if (sessionId && sessionId === activeSession?.id) {
             setSidebarStatus((prev) => ({
@@ -1658,7 +1979,7 @@ export function useOpenCode() {
                 lastError: typeof error?.message === 'string' ? error.message : 'Unknown error',
               },
             }));
-            
+
             loadMessages(sessionId).catch((loadError) => {
               console.error(
                 "[SSE] Failed to refresh messages after session error:",
@@ -1679,7 +2000,7 @@ export function useOpenCode() {
 
           // Reset streaming state when message is updated (completed)
           setIsStreaming(false);
-          
+
           // Clear streaming timeout
           if (streamingTimeoutRef.current) {
             clearTimeout(streamingTimeoutRef.current);
@@ -1746,11 +2067,11 @@ export function useOpenCode() {
                 reverted: messageInfo.reverted || false,
                 metadata: messageInfo.tokens
                   ? {
-                      tokens: messageInfo.tokens,
-                      cost: messageInfo.cost,
-                      model: messageInfo.modelID,
-                      agent: messageInfo.mode,
-                    }
+                    tokens: messageInfo.tokens,
+                    cost: messageInfo.cost,
+                    model: messageInfo.modelID,
+                    agent: messageInfo.mode,
+                  }
                   : optimisticMessage.metadata,
                 optimistic: false,
                 error: Boolean(errorInfo),
@@ -1799,11 +2120,11 @@ export function useOpenCode() {
                   messageInfo.reverted ?? existingMessage.reverted,
                 metadata: messageInfo.tokens
                   ? {
-                      tokens: messageInfo.tokens,
-                      cost: messageInfo.cost,
-                      model: messageInfo.modelID,
-                      agent: messageInfo.mode,
-                    }
+                    tokens: messageInfo.tokens,
+                    cost: messageInfo.cost,
+                    model: messageInfo.modelID,
+                    agent: messageInfo.mode,
+                  }
                   : existingMessage.metadata,
                 optimistic: false,
                 error: Boolean(errorInfo),
@@ -1836,11 +2157,11 @@ export function useOpenCode() {
               reverted: messageInfo.reverted || false,
               metadata: messageInfo.tokens
                 ? {
-                    tokens: messageInfo.tokens,
-                    cost: messageInfo.cost,
-                    model: messageInfo.modelID,
-                    agent: messageInfo.mode,
-                  }
+                  tokens: messageInfo.tokens,
+                  cost: messageInfo.cost,
+                  model: messageInfo.modelID,
+                  agent: messageInfo.mode,
+                }
                 : undefined,
               optimistic: false,
               error: Boolean(errorInfo),
@@ -1953,12 +2274,12 @@ export function useOpenCode() {
 
           // Set streaming state when we receive message parts
           setIsStreaming(true);
-          
+
           // Clear existing timeout
           if (streamingTimeoutRef.current) {
             clearTimeout(streamingTimeoutRef.current);
           }
-          
+
           // Set timeout to reset streaming state if no parts received for 3 seconds
           streamingTimeoutRef.current = setTimeout(() => {
             setIsStreaming(false);
@@ -1969,7 +2290,7 @@ export function useOpenCode() {
             const existingMessageIndex = prevMessages.findIndex(
               (msg) => msg.id === targetMessageId,
             );
-            
+
             if (existingMessageIndex === -1) {
               // Create placeholder message for incoming parts
               const newMessage: Message = {
@@ -1981,7 +2302,7 @@ export function useOpenCode() {
                 timestamp: new Date(),
                 optimistic: false,
               };
-              
+
               debugLog("[SSE] Created placeholder message for parts:", targetMessageId);
               return [...prevMessages, newMessage];
             }
@@ -2084,12 +2405,12 @@ export function useOpenCode() {
               prevMessages.map((msg) =>
                 msg.id === messageID
                   ? {
-                      ...msg,
-                      parts:
-                        msg.parts?.filter(
-                          (_, index) => index.toString() !== partID,
-                        ) || [],
-                    }
+                    ...msg,
+                    parts:
+                      msg.parts?.filter(
+                        (_, index) => index.toString() !== partID,
+                      ) || [],
+                  }
                   : msg,
               ),
             );
@@ -2101,16 +2422,74 @@ export function useOpenCode() {
         case "permission.updated": {
           const { id, sessionID, message, details, ...rest } = event.properties;
           if (sessionID === activeSession?.id) {
-            const permissionPayload: PermissionState = {
+            const partData =
+              rest.part && typeof rest.part === "object"
+                ? (rest.part as { id?: string; messageID?: string; tool?: string })
+                : null;
+
+            const messageIdValue =
+              typeof rest.messageID === "string"
+                ? (rest.messageID as string)
+                : typeof partData?.messageID === "string"
+                  ? partData.messageID
+                  : undefined;
+
+            const partIdValue =
+              typeof rest.partID === "string"
+                ? (rest.partID as string)
+                : typeof partData?.id === "string"
+                  ? partData.id
+                  : undefined;
+
+            const timestampValue =
+              typeof rest.timestamp === "number"
+                ? (rest.timestamp as number)
+                : undefined;
+
+            const statusValue =
+              typeof rest.status === "string"
+                ? (rest.status as PermissionRequest["status"])
+                : undefined;
+
+            const toolName =
+              typeof rest.tool === "string"
+                ? (rest.tool as string)
+                : typeof partData?.tool === "string"
+                  ? partData.tool
+                  : undefined;
+
+            const permissionPayload = toPermissionRequest({
+              ...rest,
               id,
               sessionID,
               message,
               details,
-              ...rest,
-            };
-            setCurrentPermission(permissionPayload);
-            setShouldBlurEditor(true);
-            debugLog("[SSE] Permission request received:", id);
+              messageID: messageIdValue,
+              partID: partIdValue,
+              timestamp: timestampValue,
+              status: statusValue,
+              tool: toolName,
+            });
+
+            if (partIdValue) {
+              const derivedMatch = permissionQueueRef.current.find(
+                (existing) =>
+                ((existing as { source?: string }).source === "derived" &&
+                  typeof existing.partID === "string" &&
+                  existing.partID === partIdValue),
+              );
+              if (derivedMatch) {
+                removePermission(derivedMatch.id);
+                derivedPermissionsRef.current.delete(derivedMatch.id);
+              }
+            }
+
+            addPermission(permissionPayload);
+            debugLog("[SSE] Permission request received:", {
+              id,
+              messageID: messageIdValue,
+              partID: partIdValue,
+            });
           }
           break;
         }
@@ -2118,8 +2497,7 @@ export function useOpenCode() {
         case "permission.replied": {
           const { permissionID, sessionID } = event.properties;
           if (sessionID === activeSession?.id) {
-            setCurrentPermission(null);
-            setShouldBlurEditor(false);
+            removePermission(permissionID);
             debugLog("[SSE] Permission response received:", permissionID);
           }
           break;
@@ -2137,12 +2515,12 @@ export function useOpenCode() {
           const { file, event: fileEvent } = event.properties;
           if (file && fileEvent) {
             debugLog("[SSE] File watcher update:", file, fileEvent);
-            
+
             // Trigger git status refresh with debouncing
             if (gitStatusDebounceRef.current) {
               clearTimeout(gitStatusDebounceRef.current);
             }
-            
+
             gitStatusDebounceRef.current = setTimeout(() => {
               refreshGitStatus();
             }, 1000); // Debounce for 1 second
@@ -2155,6 +2533,36 @@ export function useOpenCode() {
           if (sessionID === activeSession?.id && Array.isArray(todos)) {
             setCurrentSessionTodos(todos);
             debugLog("[SSE] Todo items updated for session:", sessionID);
+          }
+          break;
+        }
+
+        case "config.updated": {
+          const payload = event.properties;
+          const scope = payload.scope ?? "project";
+          if (payload.filepath) {
+            registerConfigTarget(scope, payload.filepath, payload.directory);
+          }
+
+          const activeWorktree = currentProjectRef.current?.worktree;
+          const shouldReload =
+            scope === "global" ||
+            (scope === "project" &&
+              payload.directory &&
+              activeWorktree &&
+              payload.directory === activeWorktree);
+
+          if (payload.diff && Object.keys(payload.diff).length > 0) {
+            debugLog("[SSE] Config diff received:", {
+              scope,
+              directory: payload.directory,
+              filepath: payload.filepath,
+              diff: payload.diff,
+            });
+          }
+
+          if (shouldReload) {
+            configReloadRef.current?.();
           }
           break;
         }
@@ -2182,6 +2590,21 @@ export function useOpenCode() {
         currentSessionId,
         handleSSEEvent,
         directory,
+        (proxyError) => {
+          // Handle SSE proxy errors (e.g., upstream returned HTML instead of SSE)
+          const message = proxyError.contentType?.includes("text/html")
+            ? `SSE connection failed: upstream returned HTML (status ${proxyError.status}). Check OPENCODE_SERVER_URL configuration.`
+            : `SSE connection failed: ${proxyError.status} - ${proxyError.contentType || "unknown content type"}`;
+          showToast(message, "error");
+
+          // Update connection state to reflect error
+          setSseConnectionState({
+            connected: false,
+            reconnecting: false,
+            error: message,
+            reconnectAttempts: 0,
+          });
+        },
       );
       setSseConnectionState(connectionState);
     };
@@ -2198,13 +2621,13 @@ export function useOpenCode() {
       debugLog("[SSE] Cleaning up event subscription");
       openCodeService.unsubscribeFromEvents();
       setSseConnectionState(null);
-      
+
       // Clear streaming timeout
       if (streamingTimeoutRef.current) {
         clearTimeout(streamingTimeoutRef.current);
         streamingTimeoutRef.current = null;
       }
-      
+
       // Clear git status debounce
       if (gitStatusDebounceRef.current) {
         clearTimeout(gitStatusDebounceRef.current);
@@ -2220,8 +2643,153 @@ export function useOpenCode() {
     showToast,
     loadMessages,
     refreshGitStatus,
+    addPermission,
+    removePermission,
     // processNextInQueueRef.current is used but doesn't need to be in deps (ref pattern)
     // messageQueue.length is accessed via the ref, not directly
+  ]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const sessionId = currentSession?.id;
+    if (!sessionId) {
+      return;
+    }
+
+    const key = buildPermissionStorageKey(sessionId);
+    const pendingPermissions = permissionQueue.filter(
+      (permission) =>
+        permission.status === "pending" && !isPermissionExpired(permission),
+    );
+
+    if (pendingPermissions.length === 0) {
+      localStorage.removeItem(key);
+      return;
+    }
+
+    try {
+      localStorage.setItem(key, JSON.stringify(pendingPermissions));
+    } catch (error) {
+      console.error("Failed to persist permission queue:", error);
+    }
+  }, [permissionQueue, currentSession?.id]);
+
+  useEffect(() => {
+    if (!permissionQueue.length) {
+      return;
+    }
+    permissionQueue.forEach((permission) => {
+      if (
+        permission.status === "expired" ||
+        !isPermissionExpired(permission)
+      ) {
+        return;
+      }
+      addPermission({
+        ...permission,
+        status: "expired",
+        timestamp: permission.timestamp,
+      });
+    });
+  }, [permissionQueue, addPermission]);
+
+  useEffect(() => {
+    if (!isSseConnected || !currentSession?.id) {
+      return;
+    }
+    restorePermissionsFromStorage(currentSession.id);
+  }, [restorePermissionsFromStorage, isSseConnected, currentSession?.id]);
+
+  useEffect(() => {
+    if (!currentSession?.id) {
+      return;
+    }
+
+    const now = Date.now();
+    const thresholdMs = 5000;
+    const derivedTracker = derivedPermissionsRef.current;
+    const activeDerived = new Set<string>();
+
+    messages.forEach((message) => {
+      if (!message.parts || message.parts.length === 0) {
+        return;
+      }
+
+      message.parts.forEach((part, index) => {
+        if (part.type !== "tool") {
+          return;
+        }
+
+        const status = normalizeToolStatus(part);
+        if (status !== "running") {
+          return;
+        }
+
+        const startTimestamp = getPartStartTimestamp(part);
+        if (!startTimestamp || now - startTimestamp < thresholdMs) {
+          return;
+        }
+
+        const existingPermission = getPermissionForPart(part, permissionQueue);
+        if (existingPermission) {
+          return;
+        }
+
+        const fallbackId =
+          (message.id ? `${message.id}-` : "") +
+          (typeof part.id === "string" && part.id.length > 0
+            ? part.id
+            : `part-${index}`);
+        const derivedId = `derived-${fallbackId}`;
+        activeDerived.add(derivedId);
+
+        if (derivedTracker.has(derivedId)) {
+          return;
+        }
+
+        derivedTracker.add(derivedId);
+
+        addPermission({
+          id: derivedId,
+          sessionID: currentSession.id,
+          message:
+            typeof part.tool === "string"
+              ? `Awaiting permission for ${part.tool}`
+              : "Awaiting permission",
+          details: {
+            derived: true,
+            tool: part.tool,
+          },
+          messageID: message.id,
+          partID:
+            (typeof part.id === "string" && part.id.length > 0
+              ? part.id
+              : `${message.id ?? "message"}:${index}`) ?? undefined,
+          timestamp: startTimestamp,
+          status: "pending",
+          source: "derived",
+        });
+      });
+    });
+
+    permissionQueue.forEach((permission) => {
+      if (
+        (permission as { source?: string }).source !== "derived" ||
+        activeDerived.has(permission.id)
+      ) {
+        return;
+      }
+      removePermission(permission.id);
+      derivedTracker.delete(permission.id);
+    });
+  }, [
+    addPermission,
+    currentSession?.id,
+    messages,
+    permissionQueue,
+    removePermission,
   ]);
 
   // Save current session to localStorage when it changes
@@ -2425,13 +2993,13 @@ export function useOpenCode() {
         }
         const session = response.data as unknown as
           | {
-              id: string;
-              title?: string;
-              directory?: string;
-              projectID?: string;
-              createdAt?: string | number;
-              updatedAt?: string | number;
-            }
+            id: string;
+            title?: string;
+            directory?: string;
+            projectID?: string;
+            createdAt?: string | number;
+            updatedAt?: string | number;
+          }
           | undefined;
         if (!session?.id) {
           throw new Error("Failed to create session");
@@ -2464,17 +3032,21 @@ export function useOpenCode() {
             const data = projectsResponse.data || [];
             const fetchedProjects: Project[] = (
               Array.isArray(data) ? data : []
-            ).map((project: ProjectResponse) => ({
-              id: project.id,
-              worktree: project.worktree,
-              vcs: project.vcs,
-              createdAt: project.time?.created
-                ? new Date(project.time.created)
-                : undefined,
-              updatedAt: project.time?.updated
-                ? new Date(project.time.updated)
-                : undefined,
-            }));
+            ).map((project: ProjectResponse) => {
+              const cachedHealth = validationCacheRef.current[project.worktree];
+              return {
+                id: project.id,
+                worktree: project.worktree,
+                vcs: project.vcs,
+                createdAt: project.time?.created
+                  ? new Date(project.time.created)
+                  : undefined,
+                updatedAt: project.time?.updated
+                  ? new Date(project.time.updated)
+                  : undefined,
+                health: (cachedHealth === "ok" || cachedHealth === "missing") ? cachedHealth : "unknown",
+              };
+            });
             const mergedProjects = new Map<string, Project>();
             projects.forEach((project) =>
               mergedProjects.set(project.id, project),
@@ -2483,9 +3055,41 @@ export function useOpenCode() {
               mergedProjects.set(project.id, project),
             );
             const mergedProjectList = Array.from(mergedProjects.values());
-            setProjects(mergedProjectList);
+            const { filtered: mergedFiltered, withHealth: mergedWithHealth } = applyValidationToProjects(
+              mergedProjectList,
+              validationCacheRef.current,
+            );
+            setProjects(mergedFiltered);
+            if (currentProject) {
+              const refreshedCurrent = mergedWithHealth.find(
+                (p) => p.id === currentProject.id,
+              );
+              if (refreshedCurrent) {
+                setCurrentProject(refreshedCurrent);
+              }
+            }
+
+            // Trigger validation for fetched projects
+            const worktrees = fetchedProjects.map(p => p.worktree).filter(Boolean);
+            if (worktrees.length > 0) {
+              runWorktreeValidation(worktrees).then((validationResults) => {
+                const { filtered: validated, withHealth: validatedWithHealth } = applyValidationToProjects(
+                  mergedProjectList,
+                  validationResults,
+                );
+                setProjects(validated);
+                if (currentProject) {
+                  const refreshedCurrent = validatedWithHealth.find(
+                    (p) => p.id === currentProject.id,
+                  );
+                  if (refreshedCurrent) {
+                    setCurrentProject(refreshedCurrent);
+                  }
+                }
+              });
+            }
             loadedProjectsRef.current = true;
-            updatedProjects = mergedProjectList;
+            updatedProjects = mergedFiltered;
           } catch (projectError) {
             console.error(
               "Failed to refresh projects after session creation:",
@@ -2538,7 +3142,7 @@ export function useOpenCode() {
         setLoading(false);
       }
     },
-    [currentProject, normalizeProject, projects],
+    [currentProject, normalizeProject, projects, applyValidationToProjects, runWorktreeValidation],
   );
 
   const sendMessage = useCallback(
@@ -2570,7 +3174,7 @@ export function useOpenCode() {
       try {
         setLoading(true);
         setIsStreaming(false);
-        
+
         // Clear any existing streaming timeout
         if (streamingTimeoutRef.current) {
           clearTimeout(streamingTimeoutRef.current);
@@ -2732,7 +3336,7 @@ export function useOpenCode() {
       loading,
       isStreaming,
     });
-    
+
     if (
       messageQueue.length === 0 ||
       isProcessingQueue ||
@@ -2827,7 +3431,7 @@ export function useOpenCode() {
     // Only process queue when session transitions from busy to idle
     const isBusy = loading || isStreaming || currentSessionBusy;
     const hasQueuedMessages = messageQueue.length > 0;
-    
+
     debugLog("[Queue] Session busy state changed:", {
       isBusy,
       loading,
@@ -2880,33 +3484,77 @@ export function useOpenCode() {
     },
   }), []);
 
-  const loadProjects = useCallback(async () => {
-    if (loadedProjectsRef.current) return;
+  const loadProjects = useCallback(async (options?: { force?: boolean }) => {
+    const force = options?.force ?? false;
+    if (loadedProjectsRef.current && !force) return;
     try {
       const response = await openCodeService.listProjects(currentPath);
       const data = response.data || [];
+
+      // Map initial data with unknown health or cached health
       const projectsData: Project[] = (Array.isArray(data) ? data : []).map(
-        (project: ProjectResponse) => ({
-          id: project.id,
-          worktree: project.worktree,
-          vcs: project.vcs,
-          createdAt: project.time?.created
-            ? new Date(project.time.created)
-            : undefined,
-          updatedAt: project.time?.updated
-            ? new Date(project.time.updated)
-            : undefined,
-        }),
+        (project: ProjectResponse) => {
+          const cachedHealth = validationCacheRef.current[project.worktree];
+          return {
+            id: project.id,
+            worktree: project.worktree,
+            vcs: project.vcs,
+            createdAt: project.time?.created
+              ? new Date(project.time.created)
+              : undefined,
+            updatedAt: project.time?.updated
+              ? new Date(project.time.updated)
+              : undefined,
+            health: (cachedHealth === "ok" || cachedHealth === "missing") ? cachedHealth : "unknown",
+          };
+        }
       );
-      setProjects(projectsData);
+
+      const { filtered, withHealth } = applyValidationToProjects(
+        projectsData,
+        validationCacheRef.current,
+      );
+
+      setProjects(filtered);
       loadedProjectsRef.current = true;
 
       debugLog(
         "[LoadProjects] Loaded projects from API:",
-        projectsData.length,
+        filtered.length,
       );
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[LoadProjects] Initial projects data:", withHealth);
+      }
+
+      // Trigger validation in background
+      const worktrees = projectsData.map(p => p.worktree).filter(Boolean);
+
+      if (worktrees.length > 0) {
+        if (process.env.NODE_ENV !== "production") {
+          console.log("[LoadProjects] Triggering validation for:", worktrees);
+        }
+        runWorktreeValidation(worktrees).then((validationResults) => {
+          if (process.env.NODE_ENV !== "production") {
+            console.log("[LoadProjects] Validation results received:", validationResults);
+          }
+          const { filtered: validated, withHealth: validatedWithHealth } = applyValidationToProjects(
+            projectsData,
+            validationResults,
+          );
+          setProjects(validated);
+          if (currentProject) {
+            const refreshedCurrent = validatedWithHealth.find(
+              (p) => p.id === currentProject.id,
+            );
+            if (refreshedCurrent) {
+              setCurrentProject(refreshedCurrent);
+            }
+          }
+        });
+      }
+
       if (currentProject) {
-        const matchingProject = projectsData.find(
+        const matchingProject = withHealth.find(
           (p) => p.id === currentProject.id,
         );
         if (matchingProject) {
@@ -2919,7 +3567,7 @@ export function useOpenCode() {
     } catch (error) {
       console.error("Failed to load projects:", error);
     }
-  }, [currentPath, currentProject]);
+  }, [applyValidationToProjects, currentPath, currentProject, runWorktreeValidation]);
 
   const loadSessions = useCallback(async (options?: { force?: boolean }) => {
     const force = options?.force ?? false;
@@ -3122,16 +3770,16 @@ export function useOpenCode() {
         const data = response.data || [];
         const filesData: FileInfo[] = Array.isArray(data)
           ? data.map((file: FileResponse) => ({
-              path: file.path,
-              name: file.name,
-              type: file.type,
-              absolute: file.absolute,
-              ignored: file.ignored,
-              size: file.size,
-              modifiedAt: file.modifiedAt
-                ? new Date(file.modifiedAt)
-                : undefined,
-            }))
+            path: file.path,
+            name: file.name,
+            type: file.type,
+            absolute: file.absolute,
+            ignored: file.ignored,
+            size: file.size,
+            modifiedAt: file.modifiedAt
+              ? new Date(file.modifiedAt)
+              : undefined,
+          }))
           : [];
         setFiles(filesData);
         setFileDirectory(targetPath);
@@ -3374,15 +4022,15 @@ export function useOpenCode() {
             id: string;
             name?: string;
             models?:
-              | { id: string; name?: string }[]
-              | Record<string, { name?: string; [key: string]: unknown }>;
+            | { id: string; name?: string }[]
+            | Record<string, { name?: string;[key: string]: unknown }>;
           }) => {
             debugLog("Processing provider:", provider);
             if (provider.models && typeof provider.models === "object") {
               Object.entries(provider.models).forEach(
                 ([modelId, modelData]: [
                   string,
-                  { name?: string; [key: string]: unknown },
+                  { name?: string;[key: string]: unknown },
                 ]) => {
                   availableModels.push({
                     providerID: provider.id,
@@ -3436,7 +4084,7 @@ export function useOpenCode() {
           [currentSession.id]: model,
         }));
       }
-      
+
       setRecentModels((prev) => {
         const filtered = prev.filter(
           (m) => !(m.providerID === model.providerID && m.modelID === model.modelID)
@@ -3452,24 +4100,111 @@ export function useOpenCode() {
   );
 
   // Config and path
-  const loadConfig = useCallback(async ({ force }: { force?: boolean } = {}) => {
-    if (loadedConfig && !force) return config ?? null;
-    try {
-      setConfigLoading(true);
-      const response = await openCodeService.getConfig();
-      const configData = response.data as OpencodeConfig | undefined;
-      setConfig(configData || null);
-      setLoadedConfig(true);
-      return configData || null;
-    } catch (error) {
-      if (process.env.NODE_ENV !== "production") {
-        console.error("Failed to load config:", error);
+  const loadConfig = useCallback(
+    async ({ force }: { force?: boolean } = {}) => {
+      const projectDirectory = currentProject?.worktree?.trim();
+      const fallbackDirectory = currentPath?.trim();
+      const directory =
+        projectDirectory && projectDirectory.length > 0
+          ? projectDirectory
+          : fallbackDirectory && fallbackDirectory.length > 0
+            ? fallbackDirectory
+            : undefined;
+
+      const lastDirectory = lastConfigDirectoryRef.current;
+      const isSameDirectory =
+        (directory && lastDirectory === directory) || (!directory && !lastDirectory);
+
+      const cachedConfig =
+        projectConfigRef.current ??
+        globalConfigRef.current ??
+        configRef.current ??
+        null;
+
+      if (loadedConfigRef.current && !force && isSameDirectory) {
+        return cachedConfig;
       }
-      return null;
-    } finally {
-      setConfigLoading(false);
-    }
-  }, [loadedConfig, config]);
+
+      const requestId = ++configRequestIdRef.current;
+      setConfigLoading(true);
+
+      const fetchScopeConfig = async (
+        scope: "global" | "project",
+        scopeDirectory?: string,
+      ): Promise<OpencodeConfig | null> => {
+        if (scope === "project" && !scopeDirectory) {
+          throw new Error(
+            "Project directory is required to load project-scoped config",
+          );
+        }
+        try {
+          const response = await openCodeService.getConfig(
+            scope === "project"
+              ? { scope, directory: scopeDirectory }
+              : { scope },
+          );
+          const configData = response.data as OpencodeConfig | undefined;
+          return configData ?? null;
+        } catch (error) {
+          if (process.env.NODE_ENV !== "production") {
+            console.error(
+              `Failed to load ${scope === "project" ? "project" : "global"} config:`,
+              error,
+            );
+          }
+          return null;
+        }
+      };
+
+      try {
+        const [globalConfigData, projectConfigData] = await Promise.all([
+          fetchScopeConfig("global"),
+          directory
+            ? fetchScopeConfig("project", directory)
+            : Promise.resolve<OpencodeConfig | null>(null),
+        ]);
+
+        if (configRequestIdRef.current !== requestId) {
+          return projectConfigData ?? globalConfigData ?? null;
+        }
+
+        lastConfigDirectoryRef.current = directory;
+        globalConfigRef.current = globalConfigData;
+        projectConfigRef.current = projectConfigData;
+        setGlobalConfig(globalConfigData);
+        setProjectConfig(projectConfigData);
+
+        const resolvedConfig = projectConfigData ?? globalConfigData ?? null;
+        configRef.current = resolvedConfig;
+        setConfig(resolvedConfig);
+
+        const hasConfig = Boolean(globalConfigData || projectConfigData);
+        loadedConfigRef.current = hasConfig;
+        setLoadedConfig(hasConfig);
+        return resolvedConfig;
+      } catch (error) {
+        if (process.env.NODE_ENV !== "production") {
+          console.error("Failed to load config:", error);
+        }
+        if (configRequestIdRef.current === requestId) {
+          loadedConfigRef.current = false;
+          setLoadedConfig(false);
+        }
+        return null;
+      } finally {
+        if (configRequestIdRef.current === requestId) {
+          setConfigLoading(false);
+        }
+      }
+    },
+    [currentPath, currentProject?.worktree],
+  );
+
+  useEffect(() => {
+    configReloadRef.current = () => {
+      void loadConfig({ force: true });
+    };
+  }, [loadConfig]);
 
   const loadCommands = useCallback(async () => {
     try {
@@ -3485,42 +4220,42 @@ export function useOpenCode() {
         return [];
       }
 
-       const commandList: Command[] = Object.entries(commandsData).map(
-         ([name, cmd]: [string, unknown]) => {
-           const cmdObj = cmd as Record<string, unknown>;
-           const actualName = (cmdObj as Record<string, unknown> & { name?: string }).name || name;
-           return {
-             name: actualName,
-             description:
-               typeof cmdObj.description === "string"
-                 ? cmdObj.description
-                 : undefined,
-             agent:
-               typeof cmdObj.agent === "string" ? cmdObj.agent : undefined,
-             model:
-               cmdObj.model &&
-               typeof cmdObj.model === "object" &&
-               "providerID" in cmdObj.model &&
-               "modelID" in cmdObj.model
-                 ? {
-                     providerID: String(cmdObj.model.providerID),
-                     modelID: String(cmdObj.model.modelID),
-                   }
-                 : undefined,
-             prompt:
-               typeof cmdObj.prompt === "string" 
-                 ? cmdObj.prompt 
-                 : typeof cmdObj.template === "string"
-                   ? cmdObj.template
-                   : undefined,
-             trigger: Array.isArray(cmdObj.trigger)
-               ? cmdObj.trigger.map(String)
-               : [`/${actualName}`],
-             custom:
-               typeof cmdObj.custom === "boolean" ? cmdObj.custom : true,
-           };
-          },
-        );
+      const commandList: Command[] = Object.entries(commandsData).map(
+        ([name, cmd]: [string, unknown]) => {
+          const cmdObj = cmd as Record<string, unknown>;
+          const actualName = (cmdObj as Record<string, unknown> & { name?: string }).name || name;
+          return {
+            name: actualName,
+            description:
+              typeof cmdObj.description === "string"
+                ? cmdObj.description
+                : undefined,
+            agent:
+              typeof cmdObj.agent === "string" ? cmdObj.agent : undefined,
+            model:
+              cmdObj.model &&
+                typeof cmdObj.model === "object" &&
+                "providerID" in cmdObj.model &&
+                "modelID" in cmdObj.model
+                ? {
+                  providerID: String(cmdObj.model.providerID),
+                  modelID: String(cmdObj.model.modelID),
+                }
+                : undefined,
+            prompt:
+              typeof cmdObj.prompt === "string"
+                ? cmdObj.prompt
+                : typeof cmdObj.template === "string"
+                  ? cmdObj.template
+                  : undefined,
+            trigger: Array.isArray(cmdObj.trigger)
+              ? cmdObj.trigger.map(String)
+              : [`/${actualName}`],
+            custom:
+              typeof cmdObj.custom === "boolean" ? cmdObj.custom : true,
+          };
+        },
+      );
 
       debugLog("Parsed command list:", commandList);
       setCommands(commandList);
@@ -3637,12 +4372,12 @@ export function useOpenCode() {
         (agent) => agent.mode === "primary" || agent.mode === "all" || !agent.mode
       );
       setAgents(agentsArray);
-      
+
       const subagentsArray = allAgents.filter(
         (agent) => agent.mode === "subagent" || agent.mode === "all"
       );
       setSubagents(subagentsArray);
-      
+
       loadedAgentsRef.current = true;
 
       // Try to restore saved agent from localStorage
@@ -3685,7 +4420,7 @@ export function useOpenCode() {
     flushSync(() => {
       setCurrentAgent(agent);
       manualModelSelectionRef.current = false;
-      
+
       const agentModel = resolveModelPreference(
         getAgentModel(config, agent),
         modelsRef.current,
@@ -3727,10 +4462,13 @@ export function useOpenCode() {
       if (projectIdChanged) {
         debugLog("Project changed, loading sessions for:", currentProject);
         loadedSessionsRef.current = false; // Reset flag when project changes
+        loadedConfigRef.current = false;
+        setLoadedConfig(false); // Reset config flag when project changes
         loadSessions();
+        loadConfig({ force: true }); // Reload config when project changes
       }
     }
-  }, [currentProject, loadSessions]);
+  }, [currentProject, loadSessions, loadConfig]);
 
   // MCP status initial load
   useEffect(() => {
@@ -3921,14 +4659,13 @@ export function useOpenCode() {
           responseValue,
           currentProject?.worktree,
         );
-        setCurrentPermission(null);
-        setShouldBlurEditor(false);
+        removePermission(permissionId);
       } catch (error) {
         console.error("Failed to respond to permission:", error);
         throw error;
       }
     },
-    [currentProject?.worktree],
+    [currentProject?.worktree, removePermission],
   );
 
   const initSession = useCallback(
@@ -4046,13 +4783,13 @@ export function useOpenCode() {
 
   const cycleRecentModels = useCallback(() => {
     if (recentModels.length === 0) return;
-    
+
     const currentIndex = selectedModel
       ? recentModels.findIndex(
-          (m) => m.providerID === selectedModel.providerID && m.modelID === selectedModel.modelID
-        )
+        (m) => m.providerID === selectedModel.providerID && m.modelID === selectedModel.modelID
+      )
       : -1;
-    
+
     const nextIndex = (currentIndex + 1) % recentModels.length;
     selectModel(recentModels[nextIndex]);
   }, [recentModels, selectedModel, selectModel]);
@@ -4109,8 +4846,12 @@ export function useOpenCode() {
     recentModels,
     cycleRecentModels,
     config,
+    globalConfig,
+    projectConfig,
+    configTargets,
     configLoading,
     loadConfig,
+    registerConfigTarget,
     commands,
     commandsLoading,
     loadCommands,
@@ -4159,10 +4900,10 @@ export function useOpenCode() {
     parseCommand: (input: string) => parseCommand(input, commands),
     sseConnectionState,
     // Permission and todo state
-    currentPermission,
-    setCurrentPermission,
-    shouldBlurEditor,
-    setShouldBlurEditor,
+    permissionQueue,
+    addPermission,
+    removePermission,
+    getPermissionById,
     respondToPermission,
     currentSessionTodos,
     setCurrentSessionTodos,
