@@ -1,13 +1,15 @@
 import {
-  Outlet,
-  createRootRoute,
-  Scripts,
   HeadContent,
+  Outlet,
+  ScrollRestoration,
+  Scripts,
+  createRootRoute,
 } from "@tanstack/react-router";
 import "./globals.css";
+
 import { OpenCodeProvider } from "@/contexts/OpenCodeContext";
-import { themes } from "@/lib/themes";
 import { getClientOpencodeConfig } from "@/lib/opencode-config";
+import { themes } from "@/lib/themes";
 
 const pwaAssetsUrl = import.meta.env.VITE_PWA_ASSETS_URL || "";
 
@@ -76,26 +78,11 @@ function RootLayout() {
         />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta
-          name="apple-mobile-web-app-status-bar-style"
-          content="black-translucent"
-        />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <title>oc web</title>
-        <link
-          rel="icon"
-          type="image/svg+xml"
-          href={`${pwaAssetsUrl}/favicon.svg`}
-        />
-        <link
-          rel="icon"
-          type="image/x-icon"
-          href={`${pwaAssetsUrl}/favicon.ico`}
-          sizes="any"
-        />
-        <link
-          rel="apple-touch-icon"
-          href={`${pwaAssetsUrl}/apple-touch-icon-180x180.png`}
-        />
+        <link rel="icon" type="image/svg+xml" href={`${pwaAssetsUrl}/favicon.svg`} />
+        <link rel="icon" type="image/x-icon" href={`${pwaAssetsUrl}/favicon.ico`} sizes="any" />
+        <link rel="apple-touch-icon" href={`${pwaAssetsUrl}/apple-touch-icon-180x180.png`} />
         <link rel="manifest" href={`${pwaAssetsUrl}/manifest.webmanifest`} />
         <script
           dangerouslySetInnerHTML={{
@@ -127,13 +114,11 @@ function RootLayout() {
           }}
         />
       </head>
-      <body
-        className="antialiased"
-        style={{ margin: 0, padding: 0, overflow: "hidden" }}
-      >
+      <body className="antialiased" style={{ margin: 0, padding: 0, overflow: "hidden" }}>
         <OpenCodeProvider>
           <Outlet />
         </OpenCodeProvider>
+        <ScrollRestoration />
         <Scripts />
       </body>
     </html>

@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
-import * as httpApi from "./opencode-http-api";
 import { OpencodeHttpError } from "./opencode-http-api";
+import * as httpApi from "./opencode-http-api";
 import { updateConfigFileLocal, readConfigFromScope } from "./config-file";
 import type {
   Agent,
@@ -21,6 +21,8 @@ import type {
 const configFallbackScopes = new Set<string>();
 const getScopeKey = (scope: "global" | "project", directory?: string) =>
   scope === "project" ? `project:${directory ?? ""}` : "global";
+
+type ValidationStatus = "ok" | "missing" | "error" | "unknown";
 
 export const getAgents = createServerFn({ method: "GET" }).handler(async () => {
   return httpApi.getAgents();
@@ -475,6 +477,68 @@ export const getTools = createServerFn({ method: "GET" })
     return httpApi.getTools(data.provider, data.model, data.directory);
   });
 
+export const validateProjectWorktrees = createServerFn({ method: "POST" })
+  .inputValidator((data: { worktrees: string[] }) => data)
+  .handler(async ({ data }) => {
+    const { worktrees } = data;
+
+    if (!Array.isArray(worktrees)) {
+      throw new Error("worktrees must be an array");
+    }
+
+    // Deduplicate paths
+    // We do NOT use path.resolve() here because the paths are on the OpenCode server,
+    // which might be on a different host with a different filesystem structure.
+    const uniquePaths = Array.from(
+      new Set(
+        worktrees
+          .filter((p): p is string => typeof p === "string" && p.length > 0),
+      ),
+    );
+
+    const results: Record<string, ValidationStatus> = {};
+
+    // Process paths concurrently with a cap of 5 at a time
+    const concurrencyLimit = 5;
+    for (let i = 0; i < uniquePaths.length; i += concurrencyLimit) {
+      const batch = uniquePaths.slice(i, i + concurrencyLimit);
+
+      const batchPromises = batch.map(async (p) => {
+        try {
+          // Use listFiles with directory scoped to the worktree; path "." to avoid absolute issues
+          await httpApi.listFiles(".", p);
+          return { path: p, status: "ok" as const };
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          const statusCode =
+            error instanceof OpencodeHttpError ? error.status : undefined;
+          const isMissing =
+            statusCode === 404 ||
+            errorMessage.includes("Not Found") ||
+            errorMessage.includes("404") ||
+            errorMessage.includes("ENOENT") ||
+            errorMessage.includes("Internal Server Error");
+
+          const status = isMissing ? ("missing" as const) : ("unknown" as const);
+
+          if (process.env.NODE_ENV !== "production" && status === "unknown") {
+            console.warn(`[validateProjectWorktrees] Non-missing error for ${p}:`, error);
+          }
+
+          return { path: p, status };
+        }
+      });
+
+      const batchResults = await Promise.all(batchPromises);
+
+      batchResults.forEach(({ path: p, status }) => {
+        results[p] = status;
+      });
+    }
+
+    return { existing: results };
+  });
 export const getCommands = createServerFn({ method: "GET" })
   .inputValidator((data?: { directory?: string }) => data ?? {})
   .handler(async ({ data }) => {
@@ -483,10 +547,10 @@ export const getCommands = createServerFn({ method: "GET" })
 
 export const updateConfig = createServerFn({ method: "POST" })
   .inputValidator(
-    (data: { 
-      config: Record<string, unknown>; 
-      directory?: string; 
-      scope?: "global" | "project" 
+    (data: {
+      config: Record<string, unknown>;
+      directory?: string;
+      scope?: "global" | "project"
     }) => data,
   )
   .handler(async ({ data }) => {
