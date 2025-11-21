@@ -474,6 +474,10 @@ export async function runCommand(
     body.args = args;
   }
 
+  if (directory) {
+    body.directory = directory;
+  }
+
   if (agent) {
     body.agent = agent;
   }

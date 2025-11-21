@@ -175,9 +175,8 @@ function ProjectSelector({
     <div className="relative" ref={containerRef}>
       <Button
         box="square"
-        className={`w-full flex items-center justify-between gap-2 text-sm ${buttonClassName} ${
-          hasProject ? "[&]:!bg-[var(--theme-primary)] [&]:!text-[var(--theme-background)]" : "[&]:!bg-[var(--theme-background)] [&]:!text-[var(--theme-foreground)]"
-        }`}
+        className={`w-full flex items-center justify-between gap-2 text-sm ${buttonClassName} ${hasProject ? "[&]:!bg-[var(--theme-primary)] [&]:!text-[var(--theme-background)]" : "[&]:!bg-[var(--theme-background)] [&]:!text-[var(--theme-foreground)]"
+          }`}
         onClick={() => setIsOpen((prev) => !prev)}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
@@ -393,10 +392,10 @@ function ThemePickerDialog({
 
   return (
     <Dialog open={true} onClose={onClose}>
-                  <View
-                    box="round"
-                    className="p-2 mb-2 bg-theme-background-alt"
-                  >
+      <View
+        box="round"
+        className="p-2 mb-2 bg-theme-background-alt"
+      >
         <h2 className="text-lg font-bold mb-4">Select Theme</h2>
         <Separator className="mb-4" />
 
@@ -425,13 +424,12 @@ function ThemePickerDialog({
               <div
                 key={theme.id}
                 ref={index === selectedIndex ? selectedItemRef : null}
-                className={`p-3 rounded cursor-pointer transition-colors border ${
-                  index === selectedIndex
+                className={`p-3 rounded cursor-pointer transition-colors border ${index === selectedIndex
                     ? "bg-theme-primary/20 border-theme-primary text-theme-foreground ring-2 ring-theme-primary/50"
                     : currentTheme === theme.id
                       ? "border-theme-primary/50 bg-theme-background-alt"
                       : "border-theme-border bg-theme-background-alt hover:bg-opacity-50"
-                }`}
+                  }`}
                 onClick={() => {
                   setSelectedIndex(index);
                   onThemeChange(theme.id);
@@ -512,7 +510,7 @@ function OpenCodeChatTUI() {
   const [messageHistoryIndex, setMessageHistoryIndex] = useState(-1);
   const [isNavigatingHistory, setIsNavigatingHistory] = useState(false);
   const [draftBeforeHistory, setDraftBeforeHistory] = useState("");
-  
+
   // Incremental search state
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -637,7 +635,7 @@ function OpenCodeChatTUI() {
   const [isResizing, setIsResizing] = useState(false);
   const [isRightResizing, setIsRightResizing] = useState(false);
   const isMobile = useIsMobile();
-  
+
   // Track viewport width for chat column calculations
   const [viewportWidth, setViewportWidth] = useState(() => {
     if (typeof window !== "undefined") {
@@ -717,6 +715,7 @@ function OpenCodeChatTUI() {
     projects,
     currentProject,
     switchProject,
+    loadProjects,
     files,
     fileDirectory,
     loadFiles,
@@ -1307,7 +1306,7 @@ function OpenCodeChatTUI() {
           }
           break;
       }
-      
+
       // Clear frame selection after action
       selectFrame(null);
     };
@@ -1318,7 +1317,7 @@ function OpenCodeChatTUI() {
     };
 
     window.addEventListener("frame-action", handleFrameActionEvent as EventListener);
-    
+
     return () => {
       window.removeEventListener("frame-action", handleFrameActionEvent as EventListener);
     };
@@ -1375,7 +1374,7 @@ function OpenCodeChatTUI() {
     if (hasAttachments) {
       setImageAttachments([]);
     }
-    
+
     // Reset history navigation state when sending a message
     setMessageHistoryIndex(-1);
     setIsNavigatingHistory(false);
@@ -1508,7 +1507,7 @@ function OpenCodeChatTUI() {
       const gutters = 32;
       const rightUsed = isStatusSidebarOpen ? rightSidebarWidth : 0;
       const maxAllowedLeftWidth = window.innerWidth - minChatWidth - rightUsed - gutters;
-      
+
       if (newWidth >= 200 && newWidth <= 600 && newWidth <= maxAllowedLeftWidth) {
         setSidebarWidth(newWidth);
         localStorage.setItem("opencode-sidebar-width", newWidth.toString());
@@ -1537,7 +1536,7 @@ function OpenCodeChatTUI() {
       const gutters = 32;
       const leftUsed = isLeftSidebarOpen ? sidebarWidth : 0;
       const maxAllowedRightWidth = window.innerWidth - minChatWidth - leftUsed - gutters;
-      
+
       if (newWidth >= 200 && newWidth <= 600 && newWidth <= maxAllowedRightWidth) {
         setRightSidebarWidth(newWidth);
         if (typeof window !== "undefined") {
@@ -1562,11 +1561,11 @@ function OpenCodeChatTUI() {
   // Update viewport width on resize
   useEffect(() => {
     if (typeof window === "undefined") return;
-    
+
     const handleResize = () => {
       setViewportWidth(window.innerWidth);
     };
-    
+
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
@@ -2452,7 +2451,7 @@ function OpenCodeChatTUI() {
 
         // Ensure we're not stuck at an invalid index if messageHistoryIndex is still -1
         const startIndex = messageHistoryIndex + 1;
-        
+
         let found = false;
         for (
           let i = startIndex;
@@ -2507,7 +2506,7 @@ function OpenCodeChatTUI() {
         setSearchQuery("");
         setMessageHistoryIndex(-1);
         setIsNavigatingHistory(false);
-        
+
         // Restore the original draft
         setInput(draftBeforeHistory);
         setDraftBeforeHistory("");
@@ -2672,7 +2671,7 @@ function OpenCodeChatTUI() {
         if (completed) {
           // Check if it's a picker command that should execute immediately
           const commandName = completed.slice(1); // Remove leading /
-          
+
           if (PICKER_COMMANDS.includes(commandName) || NO_ARG_COMMANDS.includes(commandName)) {
             // Execute immediately for picker and no-arg commands
             setInput("");
@@ -2706,16 +2705,16 @@ function OpenCodeChatTUI() {
       ) {
         // History navigation: ArrowDown moves forward (toward more recent)
         e.preventDefault();
-        
+
         if (messageHistoryIndex > 0) {
           const newIndex = messageHistoryIndex - 1;
           setMessageHistoryIndex(newIndex);
           const historyMessage = userMessageHistory[userMessageHistory.length - 1 - newIndex];
-          
+
           // Mark that we're programmatically changing input
           isHistoryNavigationRef.current = true;
           setInput(historyMessage);
-          
+
           // Place cursor at end of text
           requestAnimationFrame(() => {
             if (textareaRef.current) {
@@ -2728,12 +2727,12 @@ function OpenCodeChatTUI() {
           // Exit history navigation and restore draft
           setMessageHistoryIndex(-1);
           setIsNavigatingHistory(false);
-          
+
           // Mark that we're programmatically changing input
           isHistoryNavigationRef.current = true;
           setInput(draftBeforeHistory);
           setDraftBeforeHistory("");
-          
+
           // Place cursor at end
           requestAnimationFrame(() => {
             if (textareaRef.current) {
@@ -2749,7 +2748,7 @@ function OpenCodeChatTUI() {
       if (showCommandPicker) {
         e.preventDefault();
         // Circular navigation: wrap to last item when moving past the beginning
-        setSelectedCommandIndex((prev) => 
+        setSelectedCommandIndex((prev) =>
           (prev - 1 + commandSuggestions.length) % commandSuggestions.length
         );
       } else if (showMentionSuggestions) {
@@ -2763,24 +2762,24 @@ function OpenCodeChatTUI() {
       ) {
         // History navigation: ArrowUp moves backward into history
         e.preventDefault();
-        
+
         // Save draft before entering history navigation
         if (!isNavigatingHistory) {
           setDraftBeforeHistory(input);
           setIsNavigatingHistory(true);
         }
-        
+
         const newIndex = Math.min(
           messageHistoryIndex + 1,
           userMessageHistory.length - 1,
         );
         setMessageHistoryIndex(newIndex);
         const historyMessage = userMessageHistory[userMessageHistory.length - 1 - newIndex];
-        
+
         // Mark that we're programmatically changing input
         isHistoryNavigationRef.current = true;
         setInput(historyMessage);
-        
+
         // Place cursor at end of text
         requestAnimationFrame(() => {
           if (textareaRef.current) {
@@ -2806,7 +2805,7 @@ function OpenCodeChatTUI() {
         // Handle double ESC for agent interruption (desktop only)
         const now = Date.now();
         const timeSinceLastEsc = now - lastEscTimeRef.current;
-        
+
         if (timeSinceLastEsc < 500 && currentSessionBusy && !isMobile) {
           // Double ESC detected - interrupt agent
           e.preventDefault();
@@ -2815,13 +2814,13 @@ function OpenCodeChatTUI() {
         } else {
           // Single ESC - blur focused element or prepare for double ESC
           lastEscTimeRef.current = now;
-          
+
           // Blur any focused element that's not the body
           const activeElement = document.activeElement as HTMLElement;
           if (activeElement && activeElement !== document.body) {
             activeElement.blur();
           }
-          
+
           // Clear the timer after the threshold
           setTimeout(() => {
             if (lastEscTimeRef.current === now) {
@@ -2878,14 +2877,14 @@ function OpenCodeChatTUI() {
     }
 
     setInput(value);
-    
+
     // Reset history navigation if user is actually typing (not programmatic change)
     if (!isHistoryNavigationRef.current && isNavigatingHistory) {
       setMessageHistoryIndex(-1);
       setIsNavigatingHistory(false);
       setDraftBeforeHistory("");
     }
-    
+
     if (value.startsWith("/")) {
       if (process.env.NODE_ENV !== "production") {
         console.log("Commands from context:", commands);
@@ -2933,7 +2932,7 @@ function OpenCodeChatTUI() {
     setImageAttachments((prev) =>
       prev.filter((attachment) => attachment.id !== id),
     );
-    
+
     // Reset history navigation when attachments change
     setMessageHistoryIndex(-1);
     setIsNavigatingHistory(false);
@@ -2998,7 +2997,7 @@ function OpenCodeChatTUI() {
 
         if (validAttachments.length > 0) {
           setImageAttachments((prev) => [...prev, ...validAttachments]);
-          
+
           // Reset history navigation when attachments change
           setMessageHistoryIndex(-1);
           setIsNavigatingHistory(false);
@@ -3214,7 +3213,7 @@ function OpenCodeChatTUI() {
 
   const filteredHelpCommands = useMemo(() => {
     if (!helpSearchQuery.trim()) return helpCommands;
-    
+
     const query = helpSearchQuery.toLowerCase();
     return helpCommands.filter(cmd =>
       cmd.command.toLowerCase().includes(query) ||
@@ -3277,12 +3276,12 @@ function OpenCodeChatTUI() {
       // Optionally expose breakdown for future UI enhancements
       breakdown: sessionUsage
         ? {
-            input: sessionUsage.input,
-            output: sessionUsage.output,
-            reasoning: sessionUsage.reasoning,
-            cacheRead: sessionUsage.cacheRead,
-            cacheWrite: sessionUsage.cacheWrite,
-          }
+          input: sessionUsage.input,
+          output: sessionUsage.output,
+          reasoning: sessionUsage.reasoning,
+          cacheRead: sessionUsage.cacheRead,
+          cacheWrite: sessionUsage.cacheWrite,
+        }
         : null,
     };
   }, [sessionUsage]);
@@ -3303,11 +3302,11 @@ function OpenCodeChatTUI() {
       setActiveTab(""); // Clear active tab when hiding sidebar
       return;
     }
-    
+
     // Otherwise, switch tabs and ensure sidebar is open
     setActiveTab(tab);
     setIsLeftSidebarOpen(true);
-    
+
     if (tab === "files") {
       if (files.length === 0) {
         void handleDirectoryOpen(fileDirectory || ".");
@@ -3356,7 +3355,7 @@ function OpenCodeChatTUI() {
           helpSearchInputRef.current?.focus();
         }
       };
-      
+
       document.addEventListener("keydown", handleKeyDown);
       return () => document.removeEventListener("keydown", handleKeyDown);
     }
@@ -3505,9 +3504,9 @@ function OpenCodeChatTUI() {
             onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
           />
           <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto scrollbar-hide">
-            <img 
-              src="/ocweb-logo.png" 
-              alt="OC Web" 
+            <img
+              src="/ocweb-logo.png"
+              alt="OC Web"
               className="h-8 flex-shrink-0"
             />
           </div>
@@ -3578,496 +3577,496 @@ function OpenCodeChatTUI() {
             className="hidden md:flex flex-col p-4 bg-theme-background-alt relative"
             style={{ width: `${sidebarWidth}px` }}
           >
-          <div
-            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-theme-primary transition-colors z-10"
-            onMouseDown={handleResizeStart}
-            style={{
-              backgroundColor: isResizing
-                ? "var(--theme-primary)"
-                : "transparent",
-            }}
-          />
-          <div className="flex-1 overflow-hidden">
-            {/* Tab Panels */}
-            {activeTab === "workspace" && (
-              <div className="h-full flex flex-col overflow-hidden">
-                {/* Projects Section */}
-                <div className="flex flex-col flex-shrink-0">
-                  <View
-                    className="p-1 mb-1 bg-theme-background-alt"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <h3 className="text-sm font-medium">Projects</h3>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="foreground1"
-                          box="round"
-                          size="small"
-                          onClick={() => setShowProjectPicker(true)}
-                          title="Search projects"
-                        >
-                          Search
-                        </Button>
-                        <Button
-                          variant={showNewProjectForm ? "foreground0" : "foreground1"}
-                          box="round"
-                          size="small"
-                          onClick={() => {
-                            setNewProjectDirectory("");
-                            setShowNewProjectForm(true);
-                          }}
-                          aria-pressed={showNewProjectForm}
-                          title="Create new project"
-                        >
-                          New
-                        </Button>
+            <div
+              className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-theme-primary transition-colors z-10"
+              onMouseDown={handleResizeStart}
+              style={{
+                backgroundColor: isResizing
+                  ? "var(--theme-primary)"
+                  : "transparent",
+              }}
+            />
+            <div className="flex-1 overflow-hidden">
+              {/* Tab Panels */}
+              {activeTab === "workspace" && (
+                <div className="h-full flex flex-col overflow-hidden">
+                  {/* Projects Section */}
+                  <div className="flex flex-col flex-shrink-0">
+                    <View
+                      className="p-1 mb-1 bg-theme-background-alt"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-sm font-medium">Projects</h3>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="foreground1"
+                            box="round"
+                            size="small"
+                            onClick={() => setShowProjectPicker(true)}
+                            title="Search projects"
+                          >
+                            Search
+                          </Button>
+                          <Button
+                            variant={showNewProjectForm ? "foreground0" : "foreground1"}
+                            box="round"
+                            size="small"
+                            onClick={() => {
+                              setNewProjectDirectory("");
+                              setShowNewProjectForm(true);
+                            }}
+                            aria-pressed={showNewProjectForm}
+                            title="Create new project"
+                          >
+                            New
+                          </Button>
+                        </div>
                       </div>
+                    </View>
+                    <div className="flex-1 flex flex-col gap-3">
+                      <ProjectSelector
+                        projects={sortedProjects}
+                        currentProject={currentProject}
+                        onSelect={handleProjectSwitch}
+                        buttonClassName="!py-2 !px-3"
+                      />
+                      {currentProject ? null : (
+                        <div className="text-xs text-theme-muted">
+                          {sortedProjects.length > 0
+                            ? "Choose a project from the menu above."
+                            : "No projects yet. Use New to add an existing git repository."}
+                        </div>
+                      )}
                     </div>
-                  </View>
-                  <div className="flex-1 flex flex-col gap-3">
-                    <ProjectSelector
-                      projects={sortedProjects}
-                      currentProject={currentProject}
-                      onSelect={handleProjectSwitch}
-                      buttonClassName="!py-2 !px-3"
-                    />
-                    {currentProject ? null : (
-                      <div className="text-xs text-theme-muted">
-                        {sortedProjects.length > 0
-                          ? "Choose a project from the menu above."
-                          : "No projects yet. Use New to add an existing git repository."}
-                      </div>
-                    )}
                   </div>
-                </div>
 
-                {/* Sessions Section */}
-                <div className="flex flex-col flex-1 min-h-0 mt-2">
-                  <View
-                    className="p-1 mb-1 bg-theme-background-alt"
-                  >
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-1">
-                        <h3 className="text-sm font-medium">Sessions</h3>
-                        <Button
-                          variant="background2"
-                          box="round"
-                          onClick={handleSessionsRefresh}
-                          size="small"
-                          className="h-7 w-7 p-0 flex items-center justify-center border-none"
-                          disabled={!currentProject || isRefreshingSessions}
-                          aria-label="Refresh sessions"
-                          title="Refresh sessions"
-                        >
-                          {isRefreshingSessions ? (
-                            <Spinner size="small" className="h-3 w-3" />
-                          ) : (
-                            <span aria-hidden="true" className="text-sm">↻</span>
-                          )}
-                          <span className="sr-only">Refresh sessions</span>
-                        </Button>
+                  {/* Sessions Section */}
+                  <div className="flex flex-col flex-1 min-h-0 mt-2">
+                    <View
+                      className="p-1 mb-1 bg-theme-background-alt"
+                    >
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-1">
+                          <h3 className="text-sm font-medium">Sessions</h3>
+                          <Button
+                            variant="background2"
+                            box="round"
+                            onClick={handleSessionsRefresh}
+                            size="small"
+                            className="h-7 w-7 p-0 flex items-center justify-center border-none"
+                            disabled={!currentProject || isRefreshingSessions}
+                            aria-label="Refresh sessions"
+                            title="Refresh sessions"
+                          >
+                            {isRefreshingSessions ? (
+                              <Spinner size="small" className="h-3 w-3" />
+                            ) : (
+                              <span aria-hidden="true" className="text-sm">↻</span>
+                            )}
+                            <span className="sr-only">Refresh sessions</span>
+                          </Button>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="foreground1"
+                            box="round"
+                            onClick={handleSidebarEditToggle}
+                            size="small"
+                            disabled={!currentProject}
+                          >
+                            {sidebarEditMode ? "Done" : "Edit"}
+                          </Button>
+                          <Button
+                            variant={showNewSessionForm ? "foreground0" : "foreground1"}
+                            box="round"
+                            onClick={() => {
+                              setNewSessionTitle("");
+                              setShowNewSessionForm(true);
+                            }}
+                            size="small"
+                            disabled={!currentProject}
+                            aria-pressed={showNewSessionForm}
+                            title="Create new session"
+                          >
+                            New
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="foreground1"
-                          box="round"
-                          onClick={handleSidebarEditToggle}
-                          size="small"
-                          disabled={!currentProject}
-                        >
-                          {sidebarEditMode ? "Done" : "Edit"}
-                        </Button>
-                        <Button
-                          variant={showNewSessionForm ? "foreground0" : "foreground1"}
-                          box="round"
-                          onClick={() => {
-                            setNewSessionTitle("");
-                            setShowNewSessionForm(true);
-                          }}
-                          size="small"
-                          disabled={!currentProject}
-                          aria-pressed={showNewSessionForm}
-                          title="Create new session"
-                        >
-                          New
-                        </Button>
+                    </View>
+                    {!currentProject ? (
+                      <div className="flex-1 flex items-center justify-center text-sm text-theme-muted">
+                        Select a project or use New Project to view sessions
                       </div>
-                    </div>
-                  </View>
-                  {!currentProject ? (
-                    <div className="flex-1 flex items-center justify-center text-sm text-theme-muted">
-                      Select a project or use New Project to view sessions
-                    </div>
-                  ) : (
-                    <>
-                      {/* Sidebar Search Input */}
-                      <div className="mt-2 mb-2">
-                        <SessionSearchInput
-                          ref={workspaceSessionSearchInputRef}
-                          value={sessionSearchQuery}
-                          onChange={setSessionSearchQuery}
-                          onClear={() => setSessionSearchQuery("")}
-                        />
-                      </div>
-                      {sidebarEditMode && (
-                        <>
-                           <div className="flex items-center justify-between gap-2 p-2 bg-theme-background-alt rounded mb-2">
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="foreground1"
-                                box="round"
-                                size="small"
-                                onClick={handleSidebarSelectAll}
-                              >
-                                Select All
-                              </Button>
+                    ) : (
+                      <>
+                        {/* Sidebar Search Input */}
+                        <div className="mt-2 mb-2">
+                          <SessionSearchInput
+                            ref={workspaceSessionSearchInputRef}
+                            value={sessionSearchQuery}
+                            onChange={setSessionSearchQuery}
+                            onClear={() => setSessionSearchQuery("")}
+                          />
+                        </div>
+                        {sidebarEditMode && (
+                          <>
+                            <div className="flex items-center justify-between gap-2 p-2 bg-theme-background-alt rounded mb-2">
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="foreground1"
+                                  box="round"
+                                  size="small"
+                                  onClick={handleSidebarSelectAll}
+                                >
+                                  Select All
+                                </Button>
+                                <Button
+                                  variant="foreground2"
+                                  box="round"
+                                  size="small"
+                                  onClick={handleSidebarClearSelection}
+                                  disabled={selectedSidebarSessionIds.size === 0}
+                                >
+                                  Clear
+                                </Button>
+                              </div>
                               <Button
                                 variant="foreground2"
                                 box="round"
                                 size="small"
-                                onClick={handleSidebarClearSelection}
+                                onClick={handleSidebarBulkDelete}
                                 disabled={selectedSidebarSessionIds.size === 0}
-                              >
-                                Clear
-                              </Button>
-                            </div>
-                             <Button
-                               variant="foreground2"
-                               box="round"
-                               size="small"
-                               onClick={handleSidebarBulkDelete}
-                               disabled={selectedSidebarSessionIds.size === 0}
-                               className={`sidebar-delete-button ${selectedSidebarSessionIds.size > 0 ? 'dangerous-bulk-delete' : ''}`}
+                                className={`sidebar-delete-button ${selectedSidebarSessionIds.size > 0 ? 'dangerous-bulk-delete' : ''}`}
                               >
                                 <span className={selectedSidebarSessionIds.size > 0 ? 'text-red-500' : ''}>
                                   Delete{selectedSidebarSessionIds.size > 0 ? ` (${selectedSidebarSessionIds.size})` : ""}
                                 </span>
-                             </Button>
-                          </div>
-                          <Separator className="mb-2" />
-                        </>
-                      )}
-                      <div className="flex-1 overflow-y-auto scrollbar-hidden space-y-1 min-h-0" data-sessions-list>
-                        {filteredSessions
-                          .filter(
-                            (session) =>
-                              session.projectID === currentProject?.id ||
-                              session.directory === currentProject?.worktree,
-                          )
-                          .map((session) => {
-                            const isSelected =
-                              currentSession?.id === session.id;
-                            const isChecked = selectedSidebarSessionIds.has(
-                              session.id,
-                            );
-                            return (
-                              <div
-                                key={session.id}
-                                className="pl-2 pr-0 py-2 cursor-pointer transition-colors rounded"
-                                style={{
-                                  backgroundColor: sidebarEditMode
-                                    ? isChecked
-                                      ? "rgba(from var(--theme-primary) r g b / 0.15)"
-                                      : "var(--theme-background)"
-                                    : isSelected
-                                      ? "var(--theme-primary)"
-                                      : "var(--theme-background)",
-                                  color: sidebarEditMode
-                                    ? "var(--theme-foreground)"
-                                    : isSelected
-                                      ? "var(--theme-background)"
-                                      : "var(--theme-foreground)",
-                                  border: sidebarEditMode
-                                    ? `1px solid ${isChecked ? "var(--theme-primary)" : "var(--theme-borderSubtle)"}`
-                                    : "1px solid transparent",
-                                }}
-                                onClick={() =>
-                                  sidebarEditMode
-                                    ? handleSidebarSessionToggle(session.id)
-                                    : handleSessionSwitch(session.id)
-                                }
-                                onMouseEnter={(e) => {
-                                  if (sidebarEditMode) {
-                                    if (!isChecked) {
+                              </Button>
+                            </div>
+                            <Separator className="mb-2" />
+                          </>
+                        )}
+                        <div className="flex-1 overflow-y-auto scrollbar-hidden space-y-1 min-h-0" data-sessions-list>
+                          {filteredSessions
+                            .filter(
+                              (session) =>
+                                session.projectID === currentProject?.id ||
+                                session.directory === currentProject?.worktree,
+                            )
+                            .map((session) => {
+                              const isSelected =
+                                currentSession?.id === session.id;
+                              const isChecked = selectedSidebarSessionIds.has(
+                                session.id,
+                              );
+                              return (
+                                <div
+                                  key={session.id}
+                                  className="pl-2 pr-0 py-2 cursor-pointer transition-colors rounded"
+                                  style={{
+                                    backgroundColor: sidebarEditMode
+                                      ? isChecked
+                                        ? "rgba(from var(--theme-primary) r g b / 0.15)"
+                                        : "var(--theme-background)"
+                                      : isSelected
+                                        ? "var(--theme-primary)"
+                                        : "var(--theme-background)",
+                                    color: sidebarEditMode
+                                      ? "var(--theme-foreground)"
+                                      : isSelected
+                                        ? "var(--theme-background)"
+                                        : "var(--theme-foreground)",
+                                    border: sidebarEditMode
+                                      ? `1px solid ${isChecked ? "var(--theme-primary)" : "var(--theme-borderSubtle)"}`
+                                      : "1px solid transparent",
+                                  }}
+                                  onClick={() =>
+                                    sidebarEditMode
+                                      ? handleSidebarSessionToggle(session.id)
+                                      : handleSessionSwitch(session.id)
+                                  }
+                                  onMouseEnter={(e) => {
+                                    if (sidebarEditMode) {
+                                      if (!isChecked) {
+                                        e.currentTarget.style.backgroundColor =
+                                          "var(--theme-backgroundAlt)";
+                                      }
+                                      return;
+                                    }
+
+                                    if (!isSelected) {
                                       e.currentTarget.style.backgroundColor =
                                         "var(--theme-backgroundAlt)";
                                     }
-                                    return;
-                                  }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (sidebarEditMode) {
+                                      e.currentTarget.style.backgroundColor = isChecked
+                                        ? "rgba(from var(--theme-primary) r g b / 0.15)"
+                                        : "var(--theme-background)";
+                                      return;
+                                    }
 
-                                  if (!isSelected) {
-                                    e.currentTarget.style.backgroundColor =
-                                      "var(--theme-backgroundAlt)";
-                                  }
-                                }}
-                                onMouseLeave={(e) => {
-                                  if (sidebarEditMode) {
-                                    e.currentTarget.style.backgroundColor = isChecked
-                                      ? "rgba(from var(--theme-primary) r g b / 0.15)"
-                                      : "var(--theme-background)";
-                                    return;
-                                  }
-
-                                  if (!isSelected) {
-                                    e.currentTarget.style.backgroundColor =
-                                      "var(--theme-background)";
-                                  }
-                                }}
-                              >
-                                <div className="flex justify-between items-start gap-2">
-                                  {sidebarEditMode && (
-                                    <div
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="mt-1 flex-shrink-0"
-                                    >
-                                      <Checkbox
-                                        checked={isChecked}
-                                        onChange={() =>
-                                          handleSidebarSessionToggle(session.id)
-                                        }
-                                      />
-                                    </div>
-                                  )}
-                                  <div className="flex-1 min-w-0">
-                                    <div className="font-medium text-sm truncate">
-                                      {session.title}
-                                    </div>
-                                    <div className="text-xs opacity-70">
-                                      {session.createdAt?.toLocaleDateString() ||
-                                        "Unknown"}
-                                      {session.messageCount !== undefined && (
-                                        <span className="ml-2">
-                                          • {session.messageCount} messages
-                                        </span>
-                                      )}
-                                      {session.updatedAt && (
-                                        <span className="ml-2">
-                                          • Updated:{" "}
-                                          {session.updatedAt.toLocaleDateString()}
-                                        </span>
-                                      )}
-                                    </div>
-                                    {session.directory && (
-                                      <div className="text-xs opacity-50 truncate">
-                                        Dir: {session.directory}
+                                    if (!isSelected) {
+                                      e.currentTarget.style.backgroundColor =
+                                        "var(--theme-background)";
+                                    }
+                                  }}
+                                >
+                                  <div className="flex justify-between items-start gap-2">
+                                    {sidebarEditMode && (
+                                      <div
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="mt-1 flex-shrink-0"
+                                      >
+                                        <Checkbox
+                                          checked={isChecked}
+                                          onChange={() =>
+                                            handleSidebarSessionToggle(session.id)
+                                          }
+                                        />
                                       </div>
                                     )}
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-medium text-sm truncate">
+                                        {session.title}
+                                      </div>
+                                      <div className="text-xs opacity-70">
+                                        {session.createdAt?.toLocaleDateString() ||
+                                          "Unknown"}
+                                        {session.messageCount !== undefined && (
+                                          <span className="ml-2">
+                                            • {session.messageCount} messages
+                                          </span>
+                                        )}
+                                        {session.updatedAt && (
+                                          <span className="ml-2">
+                                            • Updated:{" "}
+                                            {session.updatedAt.toLocaleDateString()}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {session.directory && (
+                                        <div className="text-xs opacity-50 truncate">
+                                          Dir: {session.directory}
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            );
-                          })}
-                        {sessions.length === 0 && (
-                          <div className="text-center text-sm py-4 text-theme-muted">
-                            No sessions for this project yet
-                          </div>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-
-          {activeTab === "files" && (
-              <div className="space-y-4 h-full flex flex-col">
-                <View box="square" className="p-2 mb-2 bg-theme-background-alt">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium">Files</h3>
-                     <Button
-                       variant="foreground1"
-                       box="round"
-                       size="small"
-                       onClick={() =>
-                         void handleDirectoryOpen(fileDirectory || ".")
-                       }
-                    >
-                      Refresh
-                    </Button>
-                  </div>
-                </View>
-                <Separator />
-                <div className="space-y-2">
-                  <Input
-                    ref={fileSearchInputRef}
-                    value={fileSearchQuery}
-                    onChange={(e) => setFileSearchQuery(e.target.value)}
-                    placeholder="Search files..."
-                    size="small"
-                    className="w-full bg-theme-background text-theme-foreground border-theme-primary"
-                  />
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between text-xs text-theme-foreground gap-2">
-                  <div className="flex flex-wrap items-center gap-1 flex-1 min-w-0">
-                    <Button
-                      box="square"
-                      size="small"
-                      onClick={() => void handleDirectoryOpen(".")}
-                      className="!py-1 !px-2 text-xs"
-                    >
-                      root
-                    </Button>
-                    {breadcrumbParts.map((part, index) => {
-                      const fullPath = breadcrumbParts
-                        .slice(0, index + 1)
-                        .join("/");
-                      return (
-                        <span
-                          key={fullPath}
-                          className="flex items-center gap-1"
-                        >
-                          <span className="text-theme-muted">/</span>
-                          <Button
-                    box="round"
-                            size="small"
-                            onClick={() => void handleDirectoryOpen(fullPath)}
-                            className="!py-1 !px-2 text-xs"
-                          >
-                            {part}
-                          </Button>
-                        </span>
-                      );
-                    })}
-                  </div>
-                  <div className="flex gap-1 flex-shrink-0">
-                    {fileSearchQuery && (
-                       <Button
-                         variant="foreground1"
-                         box="round"
-                         size="small"
-                         onClick={() => setFileSearchQuery("")}
-                      >
-                        Clear
-                      </Button>
-                    )}
-                     <Button
-                       variant="foreground1"
-                       box="round"
-                       size="small"
-                       disabled={
-                         fileDirectory === "." || breadcrumbParts.length === 0
-                       }
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        void handleNavigateUp();
-                      }}
-                      className="disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      Up
-                    </Button>
-                  </div>
-                </div>
-                <Separator />
-                <div
-                  ref={fileListRef}
-                  className="flex-1 overflow-y-auto scrollbar space-y-0.5"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (filteredFiles.length === 0) return;
-                    
-                    if (e.key === "ArrowDown") {
-                      e.preventDefault();
-                      setSelectedFileIndex((prev) =>
-                        prev < filteredFiles.length - 1 ? prev + 1 : prev
-                      );
-                    } else if (e.key === "ArrowUp") {
-                      e.preventDefault();
-                      setSelectedFileIndex((prev) => (prev > 0 ? prev - 1 : prev));
-                    } else if (e.key === "Enter") {
-                      e.preventDefault();
-                      const file = filteredFiles[selectedFileIndex];
-                      if (file) {
-                        if (file.type === "directory") {
-                          void handleDirectoryOpen(file.path);
-                        } else {
-                          void handleFileSelect(file.path);
-                        }
-                      }
-                    } else if (e.key === "/" || e.key === "s") {
-                      // Allow search shortcuts
-                      e.stopPropagation();
-                      fileSearchInputRef.current?.focus();
-                    }
-                  }}
-                  style={{
-                    outline: "none",
-                  }}
-                >
-                  {filteredFiles.length > 0 ? (
-                    filteredFiles.map((file, index) => {
-                      const isDirectory = file.type === "directory";
-                      const isSelected =
-                        !isDirectory && selectedFile === file.path;
-                      const isFocused = index === selectedFileIndex;
-                      return (
-                        <div
-                          key={file.path}
-                          data-file-item
-                          className="px-2 py-1 cursor-pointer transition-colors rounded"
-                          style={{
-                            backgroundColor: isFocused
-                              ? "var(--theme-primary)"
-                              : isSelected
-                                ? "rgba(from var(--theme-primary) r g b / 0.3)"
-                                : "var(--theme-background)",
-                            color: isFocused
-                              ? "var(--theme-background)"
-                              : "var(--theme-foreground)",
-                            border: isFocused
-                              ? "1px solid var(--theme-primary)"
-                              : "1px solid transparent",
-                          }}
-                          onClick={() => {
-                            setSelectedFileIndex(index);
-                            if (isDirectory) {
-                              void handleDirectoryOpen(file.path);
-                            } else {
-                              void handleFileSelect(file.path);
-                            }
-                          }}
-                          onMouseEnter={(e) => {
-                            setSelectedFileIndex(index);
-                            if (!isFocused) {
-                              e.currentTarget.style.backgroundColor =
-                                "var(--theme-backgroundAlt)";
-                            }
-                          }}
-                          onMouseLeave={(e) => {
-                            if (!isFocused) {
-                              e.currentTarget.style.backgroundColor = isSelected
-                                ? "rgba(from var(--theme-primary) r g b / 0.3)"
-                                : "var(--theme-background)";
-                            }
-                          }}
-                        >
-                          <div className="flex items-center gap-2 text-sm">
-                            <FileIcon
-                              node={{
-                                path: file.path,
-                                type: isDirectory ? "directory" : "file",
-                              }}
-                            />
-                            <span className="truncate">{file.name}</span>
-                          </div>
+                              );
+                            })}
+                          {sessions.length === 0 && (
+                            <div className="text-center text-sm py-4 text-theme-muted">
+                              No sessions for this project yet
+                            </div>
+                          )}
                         </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-center text-sm py-4 text-theme-muted">
-                      No files loaded
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "files" && (
+                <div className="space-y-4 h-full flex flex-col">
+                  <View box="square" className="p-2 mb-2 bg-theme-background-alt">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-medium">Files</h3>
+                      <Button
+                        variant="foreground1"
+                        box="round"
+                        size="small"
+                        onClick={() =>
+                          void handleDirectoryOpen(fileDirectory || ".")
+                        }
+                      >
+                        Refresh
+                      </Button>
                     </div>
-                  )}
+                  </View>
+                  <Separator />
+                  <div className="space-y-2">
+                    <Input
+                      ref={fileSearchInputRef}
+                      value={fileSearchQuery}
+                      onChange={(e) => setFileSearchQuery(e.target.value)}
+                      placeholder="Search files..."
+                      size="small"
+                      className="w-full bg-theme-background text-theme-foreground border-theme-primary"
+                    />
+                  </div>
+                  <Separator />
+                  <div className="flex items-center justify-between text-xs text-theme-foreground gap-2">
+                    <div className="flex flex-wrap items-center gap-1 flex-1 min-w-0">
+                      <Button
+                        box="square"
+                        size="small"
+                        onClick={() => void handleDirectoryOpen(".")}
+                        className="!py-1 !px-2 text-xs"
+                      >
+                        root
+                      </Button>
+                      {breadcrumbParts.map((part, index) => {
+                        const fullPath = breadcrumbParts
+                          .slice(0, index + 1)
+                          .join("/");
+                        return (
+                          <span
+                            key={fullPath}
+                            className="flex items-center gap-1"
+                          >
+                            <span className="text-theme-muted">/</span>
+                            <Button
+                              box="round"
+                              size="small"
+                              onClick={() => void handleDirectoryOpen(fullPath)}
+                              className="!py-1 !px-2 text-xs"
+                            >
+                              {part}
+                            </Button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                    <div className="flex gap-1 flex-shrink-0">
+                      {fileSearchQuery && (
+                        <Button
+                          variant="foreground1"
+                          box="round"
+                          size="small"
+                          onClick={() => setFileSearchQuery("")}
+                        >
+                          Clear
+                        </Button>
+                      )}
+                      <Button
+                        variant="foreground1"
+                        box="round"
+                        size="small"
+                        disabled={
+                          fileDirectory === "." || breadcrumbParts.length === 0
+                        }
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          void handleNavigateUp();
+                        }}
+                        className="disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Up
+                      </Button>
+                    </div>
+                  </div>
+                  <Separator />
+                  <div
+                    ref={fileListRef}
+                    className="flex-1 overflow-y-auto scrollbar space-y-0.5"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (filteredFiles.length === 0) return;
+
+                      if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        setSelectedFileIndex((prev) =>
+                          prev < filteredFiles.length - 1 ? prev + 1 : prev
+                        );
+                      } else if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        setSelectedFileIndex((prev) => (prev > 0 ? prev - 1 : prev));
+                      } else if (e.key === "Enter") {
+                        e.preventDefault();
+                        const file = filteredFiles[selectedFileIndex];
+                        if (file) {
+                          if (file.type === "directory") {
+                            void handleDirectoryOpen(file.path);
+                          } else {
+                            void handleFileSelect(file.path);
+                          }
+                        }
+                      } else if (e.key === "/" || e.key === "s") {
+                        // Allow search shortcuts
+                        e.stopPropagation();
+                        fileSearchInputRef.current?.focus();
+                      }
+                    }}
+                    style={{
+                      outline: "none",
+                    }}
+                  >
+                    {filteredFiles.length > 0 ? (
+                      filteredFiles.map((file, index) => {
+                        const isDirectory = file.type === "directory";
+                        const isSelected =
+                          !isDirectory && selectedFile === file.path;
+                        const isFocused = index === selectedFileIndex;
+                        return (
+                          <div
+                            key={file.path}
+                            data-file-item
+                            className="px-2 py-1 cursor-pointer transition-colors rounded"
+                            style={{
+                              backgroundColor: isFocused
+                                ? "var(--theme-primary)"
+                                : isSelected
+                                  ? "rgba(from var(--theme-primary) r g b / 0.3)"
+                                  : "var(--theme-background)",
+                              color: isFocused
+                                ? "var(--theme-background)"
+                                : "var(--theme-foreground)",
+                              border: isFocused
+                                ? "1px solid var(--theme-primary)"
+                                : "1px solid transparent",
+                            }}
+                            onClick={() => {
+                              setSelectedFileIndex(index);
+                              if (isDirectory) {
+                                void handleDirectoryOpen(file.path);
+                              } else {
+                                void handleFileSelect(file.path);
+                              }
+                            }}
+                            onMouseEnter={(e) => {
+                              setSelectedFileIndex(index);
+                              if (!isFocused) {
+                                e.currentTarget.style.backgroundColor =
+                                  "var(--theme-backgroundAlt)";
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isFocused) {
+                                e.currentTarget.style.backgroundColor = isSelected
+                                  ? "rgba(from var(--theme-primary) r g b / 0.3)"
+                                  : "var(--theme-background)";
+                              }
+                            }}
+                          >
+                            <div className="flex items-center gap-2 text-sm">
+                              <FileIcon
+                                node={{
+                                  path: file.path,
+                                  type: isDirectory ? "directory" : "file",
+                                }}
+                              />
+                              <span className="truncate">{file.name}</span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-center text-sm py-4 text-theme-muted">
+                        No files loaded
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-xs opacity-50">
+                    Path: {fileDirectory === "." ? "/" : `/${fileDirectory}`} •{" "}
+                    {filteredFiles.length} items
+                  </div>
                 </div>
-                <div className="text-xs opacity-50">
-                  Path: {fileDirectory === "." ? "/" : `/${fileDirectory}`} •{" "}
-                  {filteredFiles.length} items
-                </div>
-              </div>
-            )}
-          </div>
-        </View>
+              )}
+            </div>
+          </View>
         )}
 
         {/* Mobile Sidebar Drawer */}
@@ -4187,7 +4186,7 @@ function OpenCodeChatTUI() {
                     </Button>
                   </div>
                 </div>
-                
+
                 {/* Mobile Search Input */}
                 {currentProject && (
                   <div className="mt-2 mb-2">
@@ -4198,7 +4197,7 @@ function OpenCodeChatTUI() {
                     />
                   </div>
                 )}
-                
+
                 {!currentProject ? (
                   <div className="flex-1 flex items-center justify-center text-sm text-theme-muted text-center px-4">
                     Select a project, or use New Project to add a git directory
@@ -4234,11 +4233,11 @@ function OpenCodeChatTUI() {
                             size="small"
                             onClick={handleMobileBulkDelete}
                             disabled={selectedMobileSessionIds.size === 0}
-                             >
-                               <span className={selectedSidebarSessionIds.size > 1 ? 'text-red-500' : ''}>
-                                 Delete{selectedSidebarSessionIds.size > 0 ? ` (${selectedSidebarSessionIds.size})` : ""}
-                               </span>
-                             </Button>
+                          >
+                            <span className={selectedSidebarSessionIds.size > 1 ? 'text-red-500' : ''}>
+                              Delete{selectedSidebarSessionIds.size > 0 ? ` (${selectedSidebarSessionIds.size})` : ""}
+                            </span>
+                          </Button>
                         </div>
                         <Separator className="mb-2" />
                       </>
@@ -4250,7 +4249,7 @@ function OpenCodeChatTUI() {
                           session.projectID === currentProject?.id ||
                           session.directory === currentProject?.worktree,
                       );
-                      
+
                       if (projectSessions.length === 0 && sessionSearchQuery) {
                         return (
                           <div className="flex-1 flex flex-col items-center justify-center text-sm text-theme-muted text-center px-4 gap-2">
@@ -4266,7 +4265,7 @@ function OpenCodeChatTUI() {
                           </div>
                         );
                       }
-                      
+
                       if (projectSessions.length === 0) {
                         return (
                           <div className="flex-1 flex items-center justify-center text-sm text-theme-muted text-center px-4">
@@ -4274,7 +4273,7 @@ function OpenCodeChatTUI() {
                           </div>
                         );
                       }
-                      
+
                       return (
                         <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
                           {projectSessions.map((session) => {
@@ -4283,9 +4282,8 @@ function OpenCodeChatTUI() {
                             return (
                               <div
                                 key={session.id}
-                                className={`pl-2 pr-0 py-2 cursor-pointer transition-colors rounded ${
-                                  mobileEditMode ? "flex items-start gap-2" : ""
-                                }`}
+                                className={`pl-2 pr-0 py-2 cursor-pointer transition-colors rounded ${mobileEditMode ? "flex items-start gap-2" : ""
+                                  }`}
                                 style={{
                                   backgroundColor: mobileEditMode
                                     ? isChecked
@@ -4521,7 +4519,7 @@ function OpenCodeChatTUI() {
                           />
                         ) : (
                           <>
-                             <img
+                            <img
                               src="/ocweb-logo.png"
                               alt="OC Web logo"
                               className="mx-auto mb-6 h-16 w-auto"
@@ -4558,7 +4556,7 @@ function OpenCodeChatTUI() {
                             )}
                           </>
                         )}
-                         {currentProject && (
+                        {currentProject && (
                           <div className="flex gap-2 justify-center flex-wrap mt-4">
                             {!currentSession && (
                               <Button
@@ -4577,28 +4575,28 @@ function OpenCodeChatTUI() {
                   {messages.map((message) => {
                     const hasRenderableParts = Array.isArray(message.parts)
                       ? message.parts.some((part) => {
-                          if (
-                            !part ||
-                            typeof part !== "object" ||
-                            !("type" in part) ||
-                            typeof part.type !== "string"
-                          ) {
+                        if (
+                          !part ||
+                          typeof part !== "object" ||
+                          !("type" in part) ||
+                          typeof part.type !== "string"
+                        ) {
+                          return false;
+                        }
+                        if (!RENDERABLE_PART_TYPES.has(part.type)) {
+                          return false;
+                        }
+                        if (part.type === "text") {
+                          const rawText =
+                            typeof (part as { text?: unknown }).text === "string"
+                              ? ((part as { text?: string }).text ?? "").trim()
+                              : "";
+                          if (!rawText || GENERIC_TOOL_TEXTS.has(rawText)) {
                             return false;
                           }
-                          if (!RENDERABLE_PART_TYPES.has(part.type)) {
-                            return false;
-                          }
-                          if (part.type === "text") {
-                            const rawText =
-                              typeof (part as { text?: unknown }).text === "string"
-                                ? ((part as { text?: string }).text ?? "").trim()
-                                : "";
-                            if (!rawText || GENERIC_TOOL_TEXTS.has(rawText)) {
-                              return false;
-                            }
-                          }
-                          return true;
-                        })
+                        }
+                        return true;
+                      })
                       : false;
                     const normalizedContent =
                       typeof message.content === "string"
@@ -4618,33 +4616,33 @@ function OpenCodeChatTUI() {
 
                     const messageHasToolPart = Array.isArray(message.parts)
                       ? message.parts.some(
-                          (part) =>
-                            !!part &&
-                            typeof part === "object" &&
-                            "type" in part &&
-                            part.type === "tool",
-                        )
+                        (part) =>
+                          !!part &&
+                          typeof part === "object" &&
+                          "type" in part &&
+                          part.type === "tool",
+                      )
                       : false;
 
                     const messageHasTextPart = Array.isArray(message.parts)
                       ? message.parts.some((part) => {
-                          if (
-                            !part ||
-                            typeof part !== "object" ||
-                            !("type" in part) ||
-                            part.type !== "text"
-                          ) {
-                            return false;
-                          }
-                          const rawText =
-                            typeof (part as { text?: unknown }).text === "string"
-                              ? ((part as { text?: string }).text ?? "").trim()
-                              : typeof (part as { content?: unknown }).content ===
-                                  "string"
-                                ? ((part as { content?: string }).content ?? "").trim()
-                                : "";
-                          return rawText.length > 0;
-                        })
+                        if (
+                          !part ||
+                          typeof part !== "object" ||
+                          !("type" in part) ||
+                          part.type !== "text"
+                        ) {
+                          return false;
+                        }
+                        const rawText =
+                          typeof (part as { text?: unknown }).text === "string"
+                            ? ((part as { text?: string }).text ?? "").trim()
+                            : typeof (part as { content?: unknown }).content ===
+                              "string"
+                              ? ((part as { content?: string }).content ?? "").trim()
+                              : "";
+                        return rawText.length > 0;
+                      })
                       : false;
 
                     const shouldShowStepParts =
@@ -4657,13 +4655,12 @@ function OpenCodeChatTUI() {
                       >
                         <View
                           box="round"
-                          className={`max-w-full min-w-0 p-2 ${
-                            message.type === "user"
+                          className={`max-w-full min-w-0 p-2 ${message.type === "user"
                               ? message.error
                                 ? "bg-theme-error/10 border-theme-error text-theme-error"
                                 : "bg-theme-primary/20 border-theme-primary text-theme-foreground"
                               : "bg-theme-background-alt text-theme-foreground"
-                          }`}
+                            }`}
                         >
                           {message.parts && message.parts.length > 0 ? (
                             <div className="space-y-2">
@@ -4820,11 +4817,11 @@ function OpenCodeChatTUI() {
                     {currentSessionBusy && (
                       <>
                         <span className="text-theme-muted">•</span>
-            <img 
-              src="/ocweb-logo.png" 
-              alt="OC Web" 
-              className="h-6 flex-shrink-0"
-            />
+                        <img
+                          src="/ocweb-logo.png"
+                          alt="OC Web"
+                          className="h-6 flex-shrink-0"
+                        />
                       </>
                     )}
                     {sessionTokenStats.totalTokens > 0 && isMobile && (
@@ -5005,13 +5002,11 @@ function OpenCodeChatTUI() {
                       }
                       rows={2}
                       size="large"
-                      className={`w-full bg-theme-background text-theme-foreground resize-none ${
-                        isShellInput ? "border-theme-warning" : "border-theme-primary"
-                      } ${
-                        isDraggingOverInput
+                      className={`w-full bg-theme-background text-theme-foreground resize-none ${isShellInput ? "border-theme-warning" : "border-theme-primary"
+                        } ${isDraggingOverInput
                           ? "border-2 border-dashed border-theme-primary/80"
                           : ""
-                      }`}
+                        }`}
                     />
                     {showMentionSuggestions &&
                       mentionSuggestions.length > 0 && (
@@ -5088,7 +5083,7 @@ function OpenCodeChatTUI() {
                     <div className="relative w-full">
                       <Button
                         variant="foreground0"
-                    box="round"
+                        box="round"
                         size="large"
                         onClick={handleAbort}
                         disabled={abortInFlight}
@@ -5469,20 +5464,20 @@ function OpenCodeChatTUI() {
           >
             <div className="flex justify-between items-center mb-4 flex-shrink-0">
               <h2 className="text-lg font-bold">OpenCode Commands</h2>
-               <Button
-                 variant="background2"
-                 box="round"
-                 onClick={() => {
-                   setShowHelp(false);
-                   setHelpSearchQuery("");
-                 }}
-                 size="small"
+              <Button
+                variant="background2"
+                box="round"
+                onClick={() => {
+                  setShowHelp(false);
+                  setHelpSearchQuery("");
+                }}
+                size="small"
               >
                 Close
               </Button>
             </div>
             <Separator className="mb-4 flex-shrink-0" />
-            
+
             {/* Search Input */}
             <div className="mb-4 flex-shrink-0">
               <Input
@@ -5668,11 +5663,10 @@ function OpenCodeChatTUI() {
                         return (
                           <div
                             key={`recent-${model.providerID}/${model.modelID}`}
-                            className={`p-3 rounded cursor-pointer transition-colors ${
-                              isSelected
+                            className={`p-3 rounded cursor-pointer transition-colors ${isSelected
                                 ? "bg-theme-primary/20 border border-theme-primary text-theme-foreground"
                                 : "bg-theme-background-alt text-theme-foreground"
-                            }`}
+                              }`}
                             onClick={() => {
                               selectModel(model);
                               setShowModelPicker(false);
@@ -5715,11 +5709,10 @@ function OpenCodeChatTUI() {
                     return (
                       <div
                         key={`${model.providerID}/${model.modelID}`}
-                        className={`p-3 rounded cursor-pointer transition-colors ${
-                          isSelected
+                        className={`p-3 rounded cursor-pointer transition-colors ${isSelected
                             ? "bg-theme-primary/20 border border-theme-primary text-theme-foreground"
                             : "bg-theme-background-alt text-theme-foreground"
-                        }`}
+                          }`}
                         onClick={() => {
                           selectModel(model);
                           setShowModelPicker(false);
@@ -5755,15 +5748,15 @@ function OpenCodeChatTUI() {
               <div className="text-xs opacity-70">
                 Use ↑↓ arrows to navigate, Enter to select
               </div>
-               <Button
-                 variant="background2"
-                 box="round"
-                 onClick={() => {
-                   setShowModelPicker(false);
-                   setModelSearchQuery("");
-                   setSelectedModelIndex(0);
-                 }}
-                 size="small"
+              <Button
+                variant="background2"
+                box="round"
+                onClick={() => {
+                  setShowModelPicker(false);
+                  setModelSearchQuery("");
+                  setSelectedModelIndex(0);
+                }}
+                size="small"
               >
                 Cancel
               </Button>
@@ -5778,12 +5771,13 @@ function OpenCodeChatTUI() {
           projects={projects}
           currentProject={currentProject}
           onSelect={(project) => {
-            switchProject(project);
-            setShowProjectPicker(false);
-          }}
-          onClose={() => setShowProjectPicker(false)}
-        />
-      )}
+          switchProject(project);
+          setShowProjectPicker(false);
+        }}
+        onClose={() => setShowProjectPicker(false)}
+        onRefresh={() => loadProjects({ force: true })}
+      />
+    )}
 
       {/* Agent Picker */}
       {showAgentPicker && (
@@ -5842,20 +5836,20 @@ function OpenCodeChatTUI() {
               "? This action cannot be undone.
             </p>
             <div className="flex gap-2 justify-end">
-               <Button
-                 variant="background2"
-                 box="round"
-                 size="small"
-                 onClick={() => setDeleteDialogState({ open: false })}
-               >
+              <Button
+                variant="background2"
+                box="round"
+                size="small"
+                onClick={() => setDeleteDialogState({ open: false })}
+              >
                 Cancel
               </Button>
               <Button
-                 variant="error"
-                 box="round"
-                 size="small"
-                 onClick={confirmDelete}
-                 className="delete-button-confirm"
+                variant="error"
+                box="round"
+                size="small"
+                onClick={confirmDelete}
+                className="delete-button-confirm"
               >
                 Delete
               </Button>
@@ -5887,20 +5881,20 @@ function OpenCodeChatTUI() {
               be undone.
             </p>
             <div className="flex gap-2 justify-end">
-               <Button
-                 variant="background2"
-                 box="round"
-                 size="small"
-                 onClick={() => setBulkDeleteDialogOpen(false)}
-               >
+              <Button
+                variant="background2"
+                box="round"
+                size="small"
+                onClick={() => setBulkDeleteDialogOpen(false)}
+              >
                 Cancel
               </Button>
               <Button
-                 variant="error"
-                 box="round"
-                 size="small"
-                 onClick={confirmBulkDelete}
-                 className="delete-button-confirm"
+                variant="error"
+                box="round"
+                size="small"
+                onClick={confirmBulkDelete}
+                className="delete-button-confirm"
               >
                 Delete All
               </Button>
@@ -5912,7 +5906,7 @@ function OpenCodeChatTUI() {
       {/* PWA Components */}
       <InstallPrompt />
       <PWAReloadPrompt />
-      
+
       {/* Keyboard Shortcuts Indicator */}
       <KeyboardIndicator keyboardState={keyboardState} />
     </View>
