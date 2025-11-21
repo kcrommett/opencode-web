@@ -3,9 +3,12 @@
  */
 
 import path from "node:path";
-import { proxySseRequest, buildEventUrl } from "./sse-proxy.js";
+// Inlined config helpers from src/lib/opencode-config.ts
+/**
+ * Configuration types and utilities for OpenCode Web
+ * Implements canonical env vars: OPENCODE_SERVER_URL, OPENCODE_WEB_HOST, OPENCODE_WEB_PORT
+ */
 
-// Inlined config helpers with canonical env var support
 interface WebConfig {
   webHost: string;
   webPort: number;
@@ -38,7 +41,9 @@ const isDev = () =>
 
 const warnDeprecation = (oldName: string, newName: string) => {
   if (isDev()) {
-    console.warn(`[deprecate] ${oldName} is deprecated, prefer ${newName}`);
+    console.warn(
+      `[deprecate] ${oldName} is deprecated, prefer ${newName}`,
+    );
   }
 };
 
@@ -61,6 +66,10 @@ function parsePort(value: string | undefined): number | undefined {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
+/**
+ * Resolve configuration with backward compatibility
+ * Precedence: CLI overrides → Canonical env vars → Legacy env vars → Defaults
+ */
 function resolveWebConfig(input?: ConfigInput): WebConfig {
   const env = input?.env ?? (typeof process !== "undefined" ? process.env : {});
   const cli = input?.cliOverrides ?? {};
@@ -149,6 +158,9 @@ function resolveWebConfig(input?: ConfigInput): WebConfig {
   };
 }
 
+/**
+ * Resolve server URL from environment (for browser/SSR contexts)
+ */
 function resolveServerUrlFromEnv(): string {
   const processEnv =
     typeof process !== "undefined" ? process.env : undefined;
@@ -162,6 +174,7 @@ function resolveServerUrlFromEnv(): string {
     globalThis as typeof globalThis & { __OPENCODE_SERVER_URL__?: string }
   ).__OPENCODE_SERVER_URL__;
 
+  // Use canonical resolution
   const url =
     processEnv?.OPENCODE_SERVER_URL ||
     processEnv?.VITE_OPENCODE_SERVER_URL ||
@@ -187,6 +200,12 @@ function getOpencodeServerUrl(): string {
   return resolveServerUrlFromEnv();
 }
 
+function getClientOpencodeConfig(): { serverUrl: string } {
+  return { serverUrl: resolveServerUrlFromEnv() };
+}
+
+import { proxySseRequest, buildEventUrl } from "./packages/opencode-web/sse-proxy.js";
+
 const argv = process.argv.slice(2);
 for (let i = 0; i < argv.length; i++) {
   const arg = argv[i];
@@ -196,6 +215,7 @@ for (let i = 0; i < argv.length; i++) {
     !process.env.OPENCODE_SERVER_URL
   ) {
     process.env.OPENCODE_SERVER_URL = argv[i + 1];
+    // Maintain legacy var for backward compatibility
     process.env.VITE_OPENCODE_SERVER_URL = argv[i + 1];
     i++;
   }
