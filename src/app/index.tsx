@@ -4503,7 +4503,7 @@ function OpenCodeChatTUI() {
               )}
 
               {/* Chat Messages */}
-              <div className="flex-1 overflow-y-auto scrollbar p-2 pb-4 space-y-2 min-h-0 flex flex-col overflow-hidden">
+              <div className="flex-1 overflow-y-auto scrollbar px-6 sm:px-10 py-2 pb-4 space-y-2 min-h-0 flex flex-col overflow-hidden">
                 <div className="max-w-full space-y-2 flex-1 flex flex-col min-w-0">
                   {messages.length === 0 && !loading && (
                     <div className="flex items-center justify-center flex-1">
