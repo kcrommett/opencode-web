@@ -3,7 +3,13 @@ import { describe, it, expect, mock, beforeEach } from "bun:test";
 // Mock httpApi
 mock.module("./opencode-http-api", () => ({
     listFiles: mock(),
-    OpencodeHttpError: class extends Error { },
+    OpencodeHttpError: class extends Error {
+        public status: number;
+        constructor(message?: string, status: number = 500) {
+            super(message);
+            this.status = status;
+        }
+    },
     updateConfigFileLocal: mock(),
     readConfigFromScope: mock(),
     getAgents: mock(),

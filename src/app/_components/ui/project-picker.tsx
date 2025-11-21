@@ -30,12 +30,12 @@ export const ProjectPicker: React.FC<ProjectPickerProps> = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Filter projects based on search query and health
-  // Filter projects based on search query and health
   const filteredProjects = useMemo(() => {
-    // Always log for debugging
-    console.log("[ProjectPicker] Received projects:", projects.length);
-    projects.forEach(p => console.log(`  - ${p.worktree}: ${p.health} (ID: ${p.id})`));
-    console.log("[ProjectPicker] Current Project ID:", currentProject?.id);
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[ProjectPicker] Received projects:", projects.length);
+      projects.forEach(p => console.log(`  - ${p.worktree}: ${p.health} (ID: ${p.id})`));
+      console.log("[ProjectPicker] Current Project ID:", currentProject?.id);
+    }
 
     let result = projects;
 
@@ -233,7 +233,8 @@ export const ProjectPicker: React.FC<ProjectPickerProps> = ({
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate flex items-center gap-2">
-                        {project.worktree} ({project.health})
+                        {project.worktree}
+                        {process.env.NODE_ENV !== "production" && ` (${project.health})`}
                         {isMissing && (
                           <span title="Project directory not found">
                             <svg

@@ -276,6 +276,7 @@ const FALLBACK_MODEL: Model = {
 };
 
 const PERMISSION_EXPIRATION_MS = 10 * 60 * 1000;
+const PROJECT_VALIDATION_STORAGE_KEY = "opencode-project-validation";
 
 const buildPermissionStorageKey = (sessionId: string): string =>
   `opencode-permissions-${sessionId}`;
@@ -491,34 +492,36 @@ export function useOpenCode() {
 
   // Validation cache and persistence
   const validationCacheRef = useRef<Record<string, ValidationStatus>>({});
-  const [validationTimestamp, setValidationTimestamp] = useState<number>(0);
 
   const persistValidationToStorage = useCallback((cache: Record<string, ValidationStatus>) => {
     if (typeof window === "undefined") return;
     try {
-      localStorage.setItem("opencode-project-validation", JSON.stringify({
+      localStorage.setItem(PROJECT_VALIDATION_STORAGE_KEY, JSON.stringify({
         cache,
         timestamp: Date.now()
       }));
     } catch (e) {
-      console.error("Failed to persist validation cache:", e);
+      if (process.env.NODE_ENV !== "production") {
+        console.error("Failed to persist validation cache:", e);
+      }
     }
   }, []);
 
   const restoreValidationFromStorage = useCallback(() => {
     if (typeof window === "undefined") return;
     try {
-      const stored = localStorage.getItem("opencode-project-validation");
+      const stored = localStorage.getItem(PROJECT_VALIDATION_STORAGE_KEY);
       if (stored) {
         const { cache, timestamp } = JSON.parse(stored);
         // Expire cache after 24 hours
         if (Date.now() - timestamp < 24 * 60 * 60 * 1000) {
           validationCacheRef.current = cache;
-          setValidationTimestamp(timestamp);
         }
       }
     } catch (e) {
-      console.error("Failed to restore validation cache:", e);
+      if (process.env.NODE_ENV !== "production") {
+        console.error("Failed to restore validation cache:", e);
+      }
     }
   }, []);
 
@@ -528,8 +531,30 @@ export function useOpenCode() {
   }, [restoreValidationFromStorage]);
 
   const normalizeWorktree = useCallback((worktree: string): string => {
-    // Avoid trailing slashes for consistent lookups
-    return worktree.replace(/\/+$/, "");
+    // Robust path normalization for worktree paths.
+    // Removes redundant slashes, '.' segments, and collapses '..' where possible.
+    // Does NOT resolve to absolute paths or remove leading '..' to respect remote/virtual filesystems.
+    const normalizePathSegments = (input: string): string => {
+      const parts = input.split('/'); // Always use POSIX-style for remote/virtual
+      const stack: string[] = [];
+      for (const part of parts) {
+        if (!part || part === ".") continue;
+        if (part === "..") {
+          if (stack.length && stack[stack.length - 1] !== "..") {
+            stack.pop();
+          } else {
+            stack.push("..");
+          }
+        } else {
+          stack.push(part);
+        }
+      }
+      return stack.join("/");
+    };
+    
+    // Avoid trailing slashes and normalize path segments for consistent lookups
+    const noTrailing = worktree.replace(/\/+$/, "");
+    return normalizePathSegments(noTrailing);
   }, []);
 
   const applyValidationToProjects = useCallback(
@@ -541,7 +566,7 @@ export function useOpenCode() {
 
       const withHealth = projectList.map((p) => {
         const normalized = normalizeWorktree(p.worktree);
-        const status = map[p.worktree] ?? map[normalized];
+        const status = map[normalized];
         const health =
           status === "ok" || status === "missing"
             ? status
@@ -569,23 +594,31 @@ export function useOpenCode() {
     // But the user might have just mounted the drive.
 
     try {
-      const result = await validateProjectWorktrees({ data: { worktrees } });
+      const result = await validateProjectWorktrees({ worktrees });
       const existing = result.existing as Record<string, ValidationStatus>;
+
+      // Normalize all paths for consistent cache lookups
+      const normalizedResults: Record<string, ValidationStatus> = {};
+      Object.entries(existing).forEach(([path, status]) => {
+        const normalized = normalizeWorktree(path);
+        normalizedResults[normalized] = status;
+      });
 
       const newCache: Record<string, ValidationStatus> = {
         ...validationCacheRef.current,
-        ...existing,
+        ...normalizedResults,
       };
       validationCacheRef.current = newCache;
-      setValidationTimestamp(Date.now());
       persistValidationToStorage(newCache);
 
       return newCache;
     } catch (error) {
-      console.error("Failed to validate worktrees:", error);
+      if (process.env.NODE_ENV !== "production") {
+        console.error("Failed to validate worktrees:", error);
+      }
       return validationCacheRef.current;
     }
-  }, [persistValidationToStorage]);
+  }, [normalizeWorktree, persistValidationToStorage]);
 
   // Computed filtered sessions based on search query and filters
   const filteredSessions = useMemo(() => {
@@ -3109,7 +3142,7 @@ export function useOpenCode() {
         setLoading(false);
       }
     },
-    [currentProject, normalizeProject, projects],
+    [currentProject, normalizeProject, projects, applyValidationToProjects, runWorktreeValidation],
   );
 
   const sendMessage = useCallback(
@@ -3489,15 +3522,21 @@ export function useOpenCode() {
         "[LoadProjects] Loaded projects from API:",
         filtered.length,
       );
-      console.log("[LoadProjects] Initial projects data:", withHealth);
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[LoadProjects] Initial projects data:", withHealth);
+      }
 
       // Trigger validation in background
       const worktrees = projectsData.map(p => p.worktree).filter(Boolean);
 
       if (worktrees.length > 0) {
-        console.log("[LoadProjects] Triggering validation for:", worktrees);
+        if (process.env.NODE_ENV !== "production") {
+          console.log("[LoadProjects] Triggering validation for:", worktrees);
+        }
         runWorktreeValidation(worktrees).then((validationResults) => {
-          console.log("[LoadProjects] Validation results received:", validationResults);
+          if (process.env.NODE_ENV !== "production") {
+            console.log("[LoadProjects] Validation results received:", validationResults);
+          }
           const { filtered: validated, withHealth: validatedWithHealth } = applyValidationToProjects(
             projectsData,
             validationResults,
