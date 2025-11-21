@@ -51,7 +51,7 @@
     },
     "packages/opencode-web": {
       "name": "opencode-web",
-      "version": "0.5.8",
+      "version": "1.1.1",
       "bin": {
         "opencode-web": "bin/opencode-web.js",
       },
