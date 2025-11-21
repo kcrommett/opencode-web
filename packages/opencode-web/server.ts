@@ -205,7 +205,6 @@ function getClientOpencodeConfig(): { serverUrl: string } {
 }
 
 import { proxySseRequest, buildEventUrl } from "./sse-proxy.ts";
-
 const argv = process.argv.slice(2);
 for (let i = 0; i < argv.length; i++) {
   const arg = argv[i];
