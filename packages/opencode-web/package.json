@@ -11,6 +11,7 @@
     "dist/",
     "bin/",
     "scripts/",
+    "sse-proxy.ts",
     "server.ts",
     "package.json",
     "README.md",

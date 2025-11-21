@@ -4,7 +4,7 @@
 
 import path from "node:path";
 import { getOpencodeServerUrl, resolveWebConfig } from "./src/lib/opencode-config.js";
-import { proxySseRequest, buildEventUrl } from "./packages/opencode-web/sse-proxy.js";
+import { proxySseRequest, buildEventUrl } from "./packages/opencode-web/sse-proxy.ts";
 
 const argv = process.argv.slice(2);
 for (let i = 0; i < argv.length; i++) {

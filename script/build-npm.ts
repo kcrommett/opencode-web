@@ -65,6 +65,8 @@ const configContent = await Bun.file("src/lib/opencode-config.ts").text();
 
 const CONFIG_IMPORT_REGEX =
   /import\s+\{[^}]*\}\s+from\s+"\.\/src\/lib\/opencode-config\.js";\s*/;
+const SSE_PROXY_IMPORT_REGEX =
+  /import\s+\{[^}]*\}\s+from\s+"\.\/packages\/opencode-web\/sse-proxy\.ts";\s*/;
 
 if (!CONFIG_IMPORT_REGEX.test(serverTsContent)) {
   throw new Error(
@@ -80,10 +82,24 @@ const stripExports = (source: string) =>
 
 const inlinedConfigHelpers = stripExports(configContent);
 
+const rewriteSseProxyImport = (source: string) => {
+  if (!SSE_PROXY_IMPORT_REGEX.test(source)) {
+    throw new Error(
+      "Failed to rewrite SSE proxy import: statement not found in server.ts",
+    );
+  }
+  return source.replace(
+    SSE_PROXY_IMPORT_REGEX,
+    'import { proxySseRequest, buildEventUrl } from "./sse-proxy.ts";\n',
+  );
+};
+
 // Create standalone server.ts with inlined helpers to avoid missing source files.
-const standaloneServerTs = serverTsContent.replace(
-  CONFIG_IMPORT_REGEX,
-  `// Inlined config helpers from src/lib/opencode-config.ts\n${inlinedConfigHelpers}\n\n`,
+const standaloneServerTs = rewriteSseProxyImport(
+  serverTsContent.replace(
+    CONFIG_IMPORT_REGEX,
+    `// Inlined config helpers from src/lib/opencode-config.ts\n${inlinedConfigHelpers}\n\n`,
+  ),
 );
 
 await Bun.write("packages/opencode-web/server.ts", standaloneServerTs);
