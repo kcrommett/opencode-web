@@ -517,8 +517,7 @@ export const validateProjectWorktrees = createServerFn({ method: "POST" })
             statusCode === 404 ||
             errorMessage.includes("Not Found") ||
             errorMessage.includes("404") ||
-            errorMessage.includes("ENOENT") ||
-            errorMessage.includes("Internal Server Error");
+            errorMessage.includes("ENOENT");
 
           const status = isMissing ? ("missing" as const) : ("unknown" as const);
 
