@@ -1,7 +1,6 @@
 import {
   HeadContent,
   Outlet,
-  ScrollRestoration,
   Scripts,
   createRootRoute,
 } from "@tanstack/react-router";
@@ -118,7 +117,6 @@ function RootLayout() {
         <OpenCodeProvider>
           <Outlet />
         </OpenCodeProvider>
-        <ScrollRestoration />
         <Scripts />
       </body>
     </html>

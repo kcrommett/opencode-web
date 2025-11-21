@@ -594,7 +594,7 @@ export function useOpenCode() {
     // But the user might have just mounted the drive.
 
     try {
-      const result = await validateProjectWorktrees({ worktrees });
+      const result = await validateProjectWorktrees({ data: { worktrees } });
       const existing = result.existing as Record<string, ValidationStatus>;
 
       // Normalize all paths for consistent cache lookups

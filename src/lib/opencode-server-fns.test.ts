@@ -1,107 +1,106 @@
-import { describe, it, expect, mock, beforeEach } from "bun:test";
-
-// Mock httpApi
-mock.module("./opencode-http-api", () => ({
-    listFiles: mock(),
-    OpencodeHttpError: class extends Error {
-        public status: number;
-        constructor(message?: string, status: number = 500) {
-            super(message);
-            this.status = status;
-        }
-    },
-    updateConfigFileLocal: mock(),
-    readConfigFromScope: mock(),
-    getAgents: mock(),
-    getProviders: mock(),
-    getSessions: mock(),
-    getSession: mock(),
-    createSession: mock(),
-    deleteSession: mock(),
-    updateSession: mock(),
-    getMessages: mock(),
-    getMessage: mock(),
-    getSessionTodos: mock(),
-    sendMessage: mock(),
-    abortSession: mock(),
-    shareSession: mock(),
-    unshareSession: mock(),
-    forkSession: mock(),
-    revertMessage: mock(),
-    unrevertSession: mock(),
-    runCommand: mock(),
-    findFiles: mock(),
-    findInFiles: mock(),
-    findSymbols: mock(),
-    readFile: mock(),
-    getFileStatus: mock(),
-    getFileDiff: mock(),
-    respondToPermission: mock(),
-    getConfig: mock(),
-    getSessionChildren: mock(),
-    initSession: mock(),
-    summarizeSession: mock(),
-    appendPrompt: mock(),
-    submitPrompt: mock(),
-    clearPrompt: mock(),
-    executeCommand: mock(),
-    showToast: mock(),
-    openTuiHelp: mock(),
-    openTuiSessions: mock(),
-    openTuiThemes: mock(),
-    openTuiModels: mock(),
-    publishTuiEvent: mock(),
-    getNextTuiControlRequest: mock(),
-    respondToTuiControl: mock(),
-    listProjects: mock(),
-    getCurrentProject: mock(),
-    getCurrentPath: mock(),
-    getToolIds: mock(),
-    getTools: mock(),
-    getCommands: mock(),
-    updateConfig: mock(),
-    setAuth: mock(),
-    getLspStatus: mock(),
-    getFormatterStatus: mock(),
-    logEvent: mock(),
-    getMcpStatus: mock(),
-}));
-
-// Mock createServerFn
-mock.module("@tanstack/react-start", () => ({
-    createServerFn: () => {
-        let validator = (d: any) => d;
-        const builder = {
-            inputValidator: (v: any) => { validator = v; return builder; },
-            handler: (h: any) => async (input: any) => {
-                const data = validator(input);
-                return h({ data });
-            }
-        };
-        return builder;
-    }
-}));
-
-// Mock config-file
-mock.module("./config-file", () => ({
-    updateConfigFileLocal: mock(),
-    readConfigFromScope: mock(),
-}));
+import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
 
 describe("validateProjectWorktrees", () => {
     let validateProjectWorktrees: any;
     let httpApi: any;
 
     beforeEach(async () => {
+        mock.module("./opencode-http-api", () => ({
+            listFiles: mock(),
+            OpencodeHttpError: class extends Error {
+                public status: number;
+                constructor(message?: string, status: number = 500) {
+                    super(message);
+                    this.status = status;
+                }
+            },
+            updateConfigFileLocal: mock(),
+            readConfigFromScope: mock(),
+            getAgents: mock(),
+            getProviders: mock(),
+            getSessions: mock(),
+            getSession: mock(),
+            createSession: mock(),
+            deleteSession: mock(),
+            updateSession: mock(),
+            getMessages: mock(),
+            getMessage: mock(),
+            getSessionTodos: mock(),
+            sendMessage: mock(),
+            abortSession: mock(),
+            shareSession: mock(),
+            unshareSession: mock(),
+            forkSession: mock(),
+            revertMessage: mock(),
+            unrevertSession: mock(),
+            runCommand: mock(),
+            findFiles: mock(),
+            findInFiles: mock(),
+            findSymbols: mock(),
+            readFile: mock(),
+            getFileStatus: mock(),
+            getFileDiff: mock(),
+            respondToPermission: mock(),
+            getConfig: mock(),
+            getSessionChildren: mock(),
+            initSession: mock(),
+            summarizeSession: mock(),
+            appendPrompt: mock(),
+            submitPrompt: mock(),
+            clearPrompt: mock(),
+            executeCommand: mock(),
+            showToast: mock(),
+            openTuiHelp: mock(),
+            openTuiSessions: mock(),
+            openTuiThemes: mock(),
+            openTuiModels: mock(),
+            publishTuiEvent: mock(),
+            getNextTuiControlRequest: mock(),
+            respondToTuiControl: mock(),
+            listProjects: mock(),
+            getCurrentProject: mock(),
+            getCurrentPath: mock(),
+            getToolIds: mock(),
+            getTools: mock(),
+            getCommands: mock(),
+            updateConfig: mock(),
+            setAuth: mock(),
+            getLspStatus: mock(),
+            getFormatterStatus: mock(),
+            logEvent: mock(),
+            getMcpStatus: mock(),
+        }));
+
+        mock.module("@tanstack/react-start", () => ({
+            createServerFn: () => {
+                let validator = (d: any) => d;
+                const builder = {
+                    inputValidator: (v: any) => { validator = v; return builder; },
+                    handler: (h: any) => async (input: any) => {
+                        const data = validator(input);
+                        return h({ data });
+                    }
+                };
+                return builder;
+            }
+        }));
+
+        mock.module("./config-file", () => ({
+            updateConfigFileLocal: mock(),
+            readConfigFromScope: mock(),
+        }));
+
         // Import modules dynamically to ensure mocks are applied
         httpApi = await import("./opencode-http-api");
         const serverFns = await import("./opencode-server-fns");
         validateProjectWorktrees = serverFns.validateProjectWorktrees;
 
-        // Reset mocks
-        mock.restore();
         // Clear mock history
         (httpApi.listFiles as any).mockClear();
+    });
+
+    afterEach(() => {
+        mock.restore();
     });
 
     it("should return 'ok' for existing directories", async () => {
@@ -151,6 +150,16 @@ describe("validateProjectWorktrees", () => {
 
         expect(Object.keys(result.existing)).toHaveLength(1);
         expect(listFilesMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("should handle an undefined payload by returning an empty map", async () => {
+        const listFilesMock = httpApi.listFiles as unknown as ReturnType<typeof mock>;
+        listFilesMock.mockResolvedValue([]);
+
+        const result = await validateProjectWorktrees();
+
+        expect(result.existing).toEqual({});
+        expect(listFilesMock).not.toHaveBeenCalled();
     });
 
     it("should return 'missing' for internal server errors to hide dead worktrees", async () => {

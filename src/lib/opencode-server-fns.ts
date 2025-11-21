@@ -478,12 +478,18 @@ export const getTools = createServerFn({ method: "GET" })
   });
 
 export const validateProjectWorktrees = createServerFn({ method: "POST" })
-  .inputValidator((data: { worktrees: string[] }) => data)
+  .inputValidator((data?: { worktrees?: string[] }) => ({
+    worktrees: data?.worktrees ?? [],
+  }))
   .handler(async ({ data }) => {
     const { worktrees } = data;
 
     if (!Array.isArray(worktrees)) {
       throw new Error("worktrees must be an array");
+    }
+
+    if (worktrees.length === 0) {
+      return { existing: {} };
     }
 
     // Deduplicate paths
@@ -511,13 +517,16 @@ export const validateProjectWorktrees = createServerFn({ method: "POST" })
         } catch (error) {
           const errorMessage =
             error instanceof Error ? error.message : String(error);
+          const normalizedErrorMessage = errorMessage.toLowerCase();
           const statusCode =
             error instanceof OpencodeHttpError ? error.status : undefined;
           const isMissing =
             statusCode === 404 ||
-            errorMessage.includes("Not Found") ||
-            errorMessage.includes("404") ||
-            errorMessage.includes("ENOENT");
+            (typeof statusCode === "number" && statusCode >= 500) ||
+            normalizedErrorMessage.includes("not found") ||
+            normalizedErrorMessage.includes("404") ||
+            normalizedErrorMessage.includes("enoent") ||
+            normalizedErrorMessage.includes("internal server error");
 
           const status = isMissing ? ("missing" as const) : ("unknown" as const);
 
