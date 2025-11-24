@@ -80,6 +80,7 @@ import { KeyboardIndicator } from "@/app/_components/ui";
 import "highlight.js/styles/github-dark.css";
 import { getFeatureFlags } from "@/lib/config";
 import { MarkdownRenderer } from "@/lib/markdown";
+import { ocWebVersion } from "@/lib/version";
 
 const MAX_IMAGE_SIZE_MB = 10;
 
@@ -5340,6 +5341,9 @@ function OpenCodeChatTUI() {
               <McpStatusPanel />
               <ModifiedFilesPanel onFileClick={handleFileSelect} />
               <LspStatusPanel />
+            </div>
+            <div className="pt-3 mt-3 border-t border-theme-border text-xs text-theme-muted">
+              OC Web v{ocWebVersion}
             </div>
           </View>
         )}

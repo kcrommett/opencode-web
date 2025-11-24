@@ -5,6 +5,9 @@ import tsconfigPaths from "vite-tsconfig-paths";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 import { getOpencodeServerUrl } from "./src/lib/opencode-config";
+import pkg from "./package.json" with { type: "json" };
+
+const packageVersion = (pkg as { version?: string }).version ?? "0.0.0";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
@@ -50,6 +53,9 @@ export default defineConfig(({ mode }) => {
     base: basePath,
     css: {
       transformer: cssTransformer,
+    },
+    define: {
+      __OC_WEB_VERSION__: JSON.stringify(packageVersion),
     },
     server: {
       port: Number(env.OPENCODE_WEB_PORT || env.PORT) || 3000,
