@@ -1,6 +1,6 @@
 > **Note:** This is an independent, community-maintained project created by fans of OpenCode. We are not affiliated with SST Corp. or the official OpenCode project. For the official OpenCode CLI, visit [opencode.ai](https://opencode.ai).
 >
-> **Last Updated:** October 28, 2025
+> **Last Updated:** November 26, 2025
 
 <p align="center">
   <a href="https://opencode.ai">
@@ -116,8 +116,22 @@ Example: `OPENCODE_SERVER_URL=http://10.0.0.200:4096 OPENCODE_WEB_PORT=8080 bun 
 - Real-time monitoring of active sessions with live updates
 - Browser-native features like screenshots, downloads, and responsive design
 - Ideal for demonstrations, training, and remote collaboration
+- Mobile-first PWA for on-the-go access from phones and tablets
+- Keyboard-driven navigation with leader key shortcuts for power users
+- MCP/LSP status monitoring for advanced debugging and integration
 
 ## Feature Highlights
+
+### Mobile-first responsive design
+
+Access OC Web from any device with a fully responsive interface. The mobile experience includes navigation tabs, session management, and full agent interaction—all optimized for touch.  
+![Mobile welcome screen](docs/screenshots/IMG_7456.jpg)  
+![Mobile session with token usage](docs/screenshots/IMG_7457.jpg)
+
+### Leader key navigation
+
+Navigate quickly using the Space leader key. Press Space to reveal all available keyboard shortcuts, making power-user workflows fast and accessible.  
+![Leader key welcome](docs/screenshots/IMG_7374.jpg)
 
 ### Session continuation anywhere
 
@@ -129,25 +143,36 @@ Reconnect to an existing conversation with full command history, agent context, 
 Follow model outputs, reasoning traces, and tool runs via Server-Sent Events so you always know what the agent is doing—even from your phone.  
 ![Session timeline with history](docs/screenshots/session-history.png)
 
+### Command execution with live output
+
+Run shell commands and see real-time output with completion status. Expandable output panels with copy support keep your workflow efficient.  
+![Command execution output](docs/screenshots/IMG_7458.jpg)
+
 ### Multi-agent command deck
 
 Switch between saved agent presets, route complex tasks to specialists, and keep context switching frictionless from the browser.  
-![Agent picker modal](docs/screenshots/picker-session.png)
+![Agent picker modal](docs/screenshots/picker-session.png)  
+![Agent session with search](docs/screenshots/IMG_7375.jpg)
 
 ### Model + command palette
 
-Quick access to different AI models with an intuitive picker interface
+Quick access to different AI models with an intuitive picker interface. Token usage tracking shows consumption at a glance.  
 ![Model picker details](docs/screenshots/picker-model.png)
 
-### File-aware problem solving
+### File browser with preview
 
-Browse project trees, view files, and download artifacts directly from the web interface. Syntax highlighting keeps context rich.  
-![File browser with syntax highlighting](docs/screenshots/file-browser.png)
+Browse project trees, view files with syntax highlighting, and preview markdown directly in the browser. Copy and download files with one click.  
+![File browser with syntax highlighting](docs/screenshots/file-browser.png)  
+![Markdown file preview](docs/screenshots/IMG_7380.jpg)
 
 ### Inline asset preview
 
-Quickly view images and animations in your browser, or download other binary files.
+Quickly view images and animations in your browser, or download other binary files.  
 ![Inline asset preview](docs/screenshots/file-image.png)
+
+### MCP and LSP status monitoring
+
+Real-time status panels for Model Context Protocol servers and Language Server diagnostics. Monitor connected services and troubleshoot issues at a glance.
 
 ### Theme gallery for every setup
 
